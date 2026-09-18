@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# integration — rebase/build/deploy/push a fork's integration branch, then rebase
+# this account's open PRs to upstream onto their latest bases and push them.
+#
+# Usage:
+#   integration <rebase|build|deploy|push|prs|all> [repo-dir=$PWD]
+#
+# Per-repo config: ~/.config/integration/<slug>.sh  (slug = repo path, "/" -> "--")
+#   FORK_REMOTE=origin          # remote name of the fork (push target); default origin
+#   UPSTREAM=owner/repo         # gh slug used to list open PRs; unset = skip prs
+#   BRANCH=integration          # integration branch name; default integration
+#   BASE=latest-tag             # rebase target: "latest-tag" or an explicit ref
+#   UPSTREAM_MAIN_REF=upstream/main
+#   BUILD_CMD='...'             # runs inside a clean detached worktree at $BRANCH
+#   TEST_CMD='...'              # optional, runs after BUILD_CMD in the same worktree
+#   DEPLOY_CMD='...'            # runs with BUILD_DIR, DEPLOY_SHA, DEPLOY_BASE exported
+#
+# Conflicts: a subcommand may stop mid-rebase. Resolve the conflicts, then re-run
+# the SAME subcommand — an in-progress rebase resumes instead of restarting.
+set -euo pipefail
+
+CMD="${1:-}"
+[ -n "$CMD" ] || { sed -n '2,20p' "$0"; exit 2; }
+shift || true
+SRC_DIR="${1:-$PWD}"
+COMMON_GIT="$(git -C "$SRC_DIR" rev-parse --path-format=absolute --git-common-dir)"
+REPO_DIR="$(dirname "$COMMON_GIT")"
+SLUG="$(printf %s "$REPO_DIR" | sed 's#^/##; s#/#--#g')"
+CONF="$HOME/.config/integration/$SLUG.sh"
+CACHE="$HOME/.cache/integration/$SLUG"
+mkdir -p "$CACHE"
+[ -f "$CONF" ] || { echo "integration: missing config $CONF" >&2; exit 2; }
+# shellcheck disable=SC1090
+source "$CONF"
+FORK_REMOTE="${FORK_REMOTE:-origin}"
+BRANCH="${BRANCH:-integration}"
+BASE="${BASE:-latest-tag}"
+UPSTREAM_MAIN_REF="${UPSTREAM_MAIN_REF:-upstream/main}"
+
+worktrees_root() {
+	local main
+	main="$(dirname "$COMMON_GIT")"
+	echo "$(dirname "$main")/.$(basename "$main")_worktrees"
+}
+
+branch_worktree() {
+	git -C "$REPO_DIR" worktree list --porcelain | awk -v b="refs/heads/$1" '
+		/^worktree / { p = substr($0, 10) }
+		/^branch /   { if (substr($0, 8) == b) print p }'
+}
+
+rebase_in_progress() { # dir -> 0/1
+	local gd
+	gd="$(git -C "$1" rev-parse --git-dir 2>/dev/null || true)"
+	[ -n "$gd" ] && { [ -d "$gd/rebase-merge" ] || [ -d "$gd/rebase-apply" ]; }
+}
+
+base_ref() {
+	if [ "$BASE" = "latest-tag" ]; then
+		git -C "$REPO_DIR" tag --sort=-creatordate --merged "$UPSTREAM_MAIN_REF" | head -1
+	else
+		echo "$BASE"
+	fi
+}
+
+cmd_rebase() {
+	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --tags --prune
+	git -C "$REPO_DIR" fetch upstream --tags --prune
+	local base wt pre
+	base="$(base_ref)"
+	wt="$(branch_worktree "$BRANCH")"
+	[ -n "$wt" ] || { echo "integration: branch $BRANCH not checked out in any worktree" >&2; exit 1; }
+	if rebase_in_progress "$wt"; then
+		echo "integration: resuming rebase of $BRANCH onto $base"
+		( cd "$wt" && GIT_EDITOR=true git rebase --continue )
+	else
+		pre="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$BRANCH")"
+		printf %s "$pre" > "$CACHE/$BRANCH.pre-sha"
+		printf %s "$base" > "$CACHE/base-ref"
+		git -C "$REPO_DIR" branch -f "backup/$BRANCH-$(date +%Y%m%d-%H%M)" "$BRANCH"
+		echo "integration: rebasing $BRANCH onto $base (pre-rebase $FORK_REMOTE/$BRANCH $pre)"
+		( cd "$wt" && git rebase "$base" )
+	fi
+	echo "integration: $BRANCH now at $(git -C "$wt" rev-parse --short HEAD) (base $base)"
+}
+
+cmd_build() {
+	[ -n "${BUILD_CMD:-}" ] || { echo "integration: BUILD_CMD not set in $CONF" >&2; exit 2; }
+	local sha root wt
+	sha="$(git -C "$REPO_DIR" rev-parse "$BRANCH")"
+	root="$(worktrees_root)"
+	wt="$root/build-${sha:0:10}"
+	git -C "$REPO_DIR" worktree remove --force "$wt" 2>/dev/null || rm -rf "$wt"
+	git -C "$REPO_DIR" worktree add --detach "$wt" "$sha" >/dev/null
+	echo "integration: building $BRANCH @ ${sha:0:10} in $wt"
+	( cd "$wt" && eval "$BUILD_CMD" )
+	if [ -n "${TEST_CMD:-}" ]; then
+		echo "integration: running downstream-patch tests"
+		( cd "$wt" && eval "$TEST_CMD" )
+	fi
+	printf %s "$wt" > "$CACHE/build-dir"
+	echo "integration: build OK at $wt"
+}
+
+cmd_deploy() {
+	[ -n "${DEPLOY_CMD:-}" ] || { echo "integration: DEPLOY_CMD not set in $CONF" >&2; exit 2; }
+	local sha base bd
+	sha="$(git -C "$REPO_DIR" rev-parse "$BRANCH")"
+	bd="$(cat "$CACHE/build-dir" 2>/dev/null || true)"
+	[ -n "$bd" ] && [ -d "$bd" ] || { echo "integration: no build dir; run: integration build" >&2; exit 1; }
+	base="$(cat "$CACHE/base-ref" 2>/dev/null || echo unknown)"
+	export BUILD_DIR="$bd" DEPLOY_SHA="$sha" DEPLOY_BASE="$base"
+	eval "$DEPLOY_CMD"
+	printf %s "$sha" > "$CACHE/last-deploy"
+	echo "integration: deployed ${sha:0:10} (base $base)"
+}
+
+cmd_push() {
+	local pre
+	pre="$(cat "$CACHE/$BRANCH.pre-sha" 2>/dev/null || true)"
+	if [ -n "$pre" ]; then
+		git -C "$REPO_DIR" push --force-with-lease="refs/heads/$BRANCH:$pre" "$FORK_REMOTE" "$BRANCH"
+		rm -f "$CACHE/$BRANCH.pre-sha"
+	else
+		git -C "$REPO_DIR" push "$FORK_REMOTE" "$BRANCH"
+	fi
+	echo "integration: pushed $BRANCH to $FORK_REMOTE"
+}
+
+cmd_prs() {
+	[ -n "${UPSTREAM:-}" ] || { echo "integration: UPSTREAM not set; skipping prs"; return 0; }
+	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --prune
+	git -C "$REPO_DIR" fetch upstream --prune
+	local root num branch base wt pre
+	root="$(worktrees_root)"
+	while IFS=$'\t' read -r num branch base; do
+		[ -n "$num" ] || continue
+		wt="$root/pr-$num"
+		if [ -d "$wt" ] && rebase_in_progress "$wt"; then
+			echo "integration: resuming PR #$num rebase in $wt"
+			( cd "$wt" && GIT_EDITOR=true git rebase --continue )
+		else
+			git -C "$REPO_DIR" worktree remove --force "$wt" 2>/dev/null || rm -rf "$wt"
+			git -C "$REPO_DIR" worktree add --detach "$wt" "$FORK_REMOTE/$branch" >/dev/null
+			echo "integration: PR #$num rebasing $branch onto upstream/$base"
+			( cd "$wt" && git rebase "upstream/$base" )
+		fi
+		pre="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$branch")"
+		git -C "$wt" push --force-with-lease="refs/heads/$branch:$pre" "$FORK_REMOTE" "HEAD:refs/heads/$branch"
+		git -C "$REPO_DIR" worktree remove --force "$wt"
+		echo "integration: PR #$num rebased onto upstream/$base and pushed"
+	done < <(gh pr list --repo "$UPSTREAM" --author @me --state open \
+		--json number,headRefName,baseRefName \
+		--jq '.[] | [.number, .headRefName, .baseRefName] | @tsv')
+}
+
+case "$CMD" in
+rebase) cmd_rebase ;;
+build)  cmd_build ;;
+deploy) cmd_deploy ;;
+push)   cmd_push ;;
+prs)    cmd_prs ;;
+all)    cmd_rebase; cmd_build; cmd_deploy; cmd_push; cmd_prs ;;
+*) echo "integration: unknown command $CMD" >&2; exit 2 ;;
+esac
