@@ -124,7 +124,14 @@ cmd_push() {
 	else
 		git -C "$REPO_DIR" push "$FORK_REMOTE" "$BRANCH"
 	fi
-	echo "integration: pushed $BRANCH to $FORK_REMOTE"
+	git -C "$REPO_DIR" fetch "$FORK_REMOTE" "$BRANCH"
+	pushed="$(git -C "$REPO_DIR" rev-parse "FETCH_HEAD")"
+	local_branch="$(git -C "$REPO_DIR" rev-parse "$BRANCH")"
+	if [ "$pushed" != "$local_branch" ]; then
+		echo "integration: FATAL push did not land ($FORK_REMOTE/$BRANCH = ${pushed:0:9}, local $local_branch)" >&2
+		exit 1
+	fi
+	echo "integration: pushed $BRANCH to $FORK_REMOTE (verified ${pushed:0:9})"
 }
 
 cmd_prs() {
@@ -135,6 +142,7 @@ cmd_prs() {
 	root="$(worktrees_root)"
 	while IFS=$'\t' read -r num branch base; do
 		[ -n "$num" ] || continue
+		rebased_onto="$(git -C "$REPO_DIR" rev-parse "upstream/$base")"
 		wt="$root/pr-$num"
 		if [ -d "$wt" ] && rebase_in_progress "$wt"; then
 			echo "integration: resuming PR #$num rebase in $wt"
@@ -146,9 +154,27 @@ cmd_prs() {
 			( cd "$wt" && git rebase "upstream/$base" )
 		fi
 		pre="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$branch")"
+		# The base must still be the FETCHED upstream ref after the rebase: a long
+		# conflict session can let upstream/$base move, which would mean the branch
+		# was just rebased onto a base nobody ships. Fail loudly instead of pushing.
+		git -C "$REPO_DIR" fetch upstream "$base"
+		if [ "$(git -C "$REPO_DIR" rev-parse "upstream/$base")" != "$rebased_onto" ]; then
+			echo "integration: PR #$num base upstream/$base moved during rebase; re-run integration prs" >&2
+			exit 1
+		fi
+		# Lease expect must come from a fetch of the exact head ref, not a stale tracking ref.
+		git -C "$REPO_DIR" fetch "$FORK_REMOTE" "$branch"
+		pre="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$branch")"
 		git -C "$wt" push --force-with-lease="refs/heads/$branch:$pre" "$FORK_REMOTE" "HEAD:refs/heads/$branch"
+		# Verify the push actually landed before claiming success.
+		git -C "$REPO_DIR" fetch "$FORK_REMOTE" "$branch"
+		pushed="$(git -C "$REPO_DIR" rev-parse "FETCH_HEAD")"
+		if [ "$pushed" != "$(git -C "$wt" rev-parse HEAD)" ]; then
+			echo "integration: FATAL PR #$num push did not land (origin/$branch = ${pushed:0:9})" >&2
+			exit 1
+		fi
 		git -C "$REPO_DIR" worktree remove --force "$wt"
-		echo "integration: PR #$num rebased onto upstream/$base and pushed"
+		echo "integration: PR #$num rebased onto upstream/$base and pushed (verified ${pushed:0:9})"
 	done < <(gh pr list --repo "$UPSTREAM" --author @me --state open \
 		--json number,headRefName,baseRefName \
 		--jq '.[] | [.number, .headRefName, .baseRefName] | @tsv')
