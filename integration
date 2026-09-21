@@ -15,6 +15,10 @@
 #   TEST_CMD='...'              # optional, runs after BUILD_CMD in the same worktree
 #   DEPLOY_CMD='...'            # runs with BUILD_DIR, DEPLOY_SHA, DEPLOY_BASE exported
 #
+# If a DEPLOY_CMD restarts a service that hosts running agent sessions (e.g. the
+# ompweb API unit parents omp RPC children via nginx /api/), restart it LAST:
+# the restart kills those sessions mid-command (exit 143) and the agent resumes
+# after the service returns. Verify deployments after resuming.
 # Conflicts: a subcommand may stop mid-rebase. Resolve the conflicts, then re-run
 # the SAME subcommand — an in-progress rebase resumes instead of restarting.
 set -euo pipefail
@@ -75,7 +79,8 @@ cmd_rebase() {
 		( cd "$wt" && GIT_EDITOR=true git rebase --continue )
 	else
 		pre="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$BRANCH")"
-		printf %s "$pre" > "$CACHE/$BRANCH.pre-sha"
+		CACHE_KEY="${BRANCH//\//--}"
+		printf %s "$pre" > "$CACHE/$CACHE_KEY.pre-sha"
 		printf %s "$base" > "$CACHE/base-ref"
 		git -C "$REPO_DIR" branch -f "backup/$BRANCH-$(date +%Y%m%d-%H%M)" "$BRANCH"
 		echo "integration: rebasing $BRANCH onto $base (pre-rebase $FORK_REMOTE/$BRANCH $pre)"
@@ -117,7 +122,7 @@ cmd_deploy() {
 
 cmd_push() {
 	local pre
-	pre="$(cat "$CACHE/$BRANCH.pre-sha" 2>/dev/null || true)"
+	pre="$(cat "$CACHE/${BRANCH//\//--}.pre-sha" 2>/dev/null || true)"
 	if [ -n "$pre" ]; then
 		git -C "$REPO_DIR" push --force-with-lease="refs/heads/$BRANCH:$pre" "$FORK_REMOTE" "$BRANCH"
 		rm -f "$CACHE/$BRANCH.pre-sha"
