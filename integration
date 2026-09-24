@@ -1,19 +1,25 @@
 #!/usr/bin/env bash
-# integration — rebase/build/deploy/push a fork's integration branch, then rebase
+# integration — rebuild/build/deploy/push a fork's integration branch, then rebase
 # this account's open PRs to upstream onto their latest bases and push them.
 #
+# The integration branch is not a long-lived patch series: `rebuild` recreates it
+# every round as BASE plus one squashed commit per still-open PR, so a PR that was
+# merged or closed upstream drops out by construction and no residue survives.
+#
 # Usage:
-#   integration <rebase|build|deploy|push|prs|all> [repo-dir=$PWD]
+#   integration <rebuild|build|deploy|push|prs|all> [repo-dir=$PWD]
 #
 # Per-repo config: ~/.config/integration/<slug>.sh  (slug = repo path, "/" -> "--")
 #   FORK_REMOTE=origin          # remote name of the fork (push target); default origin
 #   UPSTREAM=owner/repo         # gh slug used to list open PRs; unset = skip prs
 #   BRANCH=integration          # integration branch name; default integration
-#   BASE=latest-tag             # rebase target: "latest-tag" or an explicit ref
+#   BASE=upstream/main          # what the PRs are rebuilt onto: a ref or "latest-tag"
 #   UPSTREAM_MAIN_REF=upstream/main
+#   FORMAT_CMD='...'            # optional, runs on each squashed merge before it commits
 #   BUILD_CMD='...'             # runs inside a clean detached worktree at $BRANCH
 #   TEST_CMD='...'              # optional, runs after BUILD_CMD in the same worktree
 #   DEPLOY_CMD='...'            # runs with BUILD_DIR, DEPLOY_SHA, DEPLOY_BASE exported
+#   POST_CMD='...'             # optional, runs after DEPLOY_CMD succeeds; same exports
 #
 # If a DEPLOY_CMD restarts a service that hosts running agent sessions (e.g. the
 # ompweb API unit parents omp RPC children via nginx /api/), restart it LAST:
@@ -67,26 +73,119 @@ base_ref() {
 	fi
 }
 
-cmd_rebase() {
+# Replay one PR branch onto BASE in a scratch worktree, so a PR based on upstream
+# main never drags post-BASE upstream commits into a tag-based integration branch.
+# Echoes the ref holding the replayed series.
+replay_pr() { # scratch-worktree base head-ref tmp-branch -> ref
+	local scratch="$1" base="$2" head="$3" tmp="$4" mb
+	mb="$(git -C "$REPO_DIR" merge-base "$base" "$head")"
+	git -C "$scratch" checkout -q -B "$tmp" "$head"
+	if [ "$mb" != "$(git -C "$REPO_DIR" rev-parse "$base")" ]; then
+		git -C "$scratch" rebase --onto "$base" "$mb" "$tmp" >/dev/null
+	fi
+	echo "$tmp"
+}
+
+cmd_rebuild() {
+	[ -n "${UPSTREAM:-}" ] || { echo "integration: UPSTREAM not set; rebuild needs the PR list" >&2; exit 2; }
 	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --tags --prune
 	git -C "$REPO_DIR" fetch upstream --tags --prune
-	local base wt pre
+	local base wt pre root scratch num head title tmp key resumed done_prs squashed squashed_head squashed_sha
 	base="$(base_ref)"
+	key="${BRANCH//\//--}"
+	# During a rebuild the worktree sits on a detached HEAD, so the branch lookup
+	# cannot find it on a resume run; the path is remembered for that case.
 	wt="$(branch_worktree "$BRANCH")"
-	[ -n "$wt" ] || { echo "integration: branch $BRANCH not checked out in any worktree" >&2; exit 1; }
+	[ -n "$wt" ] || wt="$(cat "$CACHE/$key.worktree" 2>/dev/null || true)"
+	[ -n "$wt" ] && [ -d "$wt" ] || { echo "integration: branch $BRANCH not checked out in any worktree" >&2; exit 1; }
+	printf %s "$wt" > "$CACHE/$key.worktree"
 	if rebase_in_progress "$wt"; then
-		echo "integration: resuming rebase of $BRANCH onto $base"
-		( cd "$wt" && GIT_EDITOR=true git rebase --continue )
+		echo "integration: $wt has a rebase in progress; finish or abort it first" >&2
+		exit 1
+	fi
+	[ -z "$(git -C "$wt" status --porcelain)" ] || { echo "integration: $wt is dirty; commit or discard first" >&2; exit 1; }
+	# A conflicting PR is resolved and committed by hand; re-running must continue
+	# from the next PR instead of discarding that work, so an interrupted rebuild
+	# is resumed whenever HEAD is BASE plus nothing but `PR #<n>:` commits. rerere
+	# replays textual conflicts, but a semantic fixup (an API a later PR renamed)
+	# lives only in that commit.
+	#
+	# Each squash records the branch sha it came from: a PR pushed since then makes
+	# the existing series stale, so the rebuild starts over instead of silently
+	# reproducing the old code.
+	resumed=""
+	done_prs=""
+	if git -C "$REPO_DIR" merge-base --is-ancestor "$base" "$(git -C "$wt" rev-parse HEAD)" 2>/dev/null &&
+		[ -n "$(git -C "$wt" log --format=%s "$base"..HEAD)" ] &&
+		! git -C "$wt" log --format=%s "$base"..HEAD | grep -qvE '^PR #[0-9]+: '; then
+		resumed=1
+		squashed="$(git -C "$wt" log --format=%b "$base"..HEAD |
+			sed -nE 's#^Squashed from [^/]+/(.+) \(([0-9a-f]+)\) onto .*#\1 \2#p')"
+		# Every PR commit must carry its source sha; a series without them predates
+		# this check and cannot be proven current.
+		if [ "$(printf '%s\n' "$squashed" | grep -c .)" != "$(git -C "$wt" log --format=%s "$base"..HEAD | grep -c '^PR #')" ]; then
+			echo "integration: squashed series does not record its PR shas; rebuilding from scratch"
+			resumed=""
+		fi
+		while read -r squashed_head squashed_sha; do
+			[ -n "$squashed_head" ] || continue
+			if [ "$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$squashed_head" 2>/dev/null)" != "$squashed_sha" ]; then
+				echo "integration: $FORK_REMOTE/$squashed_head moved since it was squashed; rebuilding from scratch"
+				resumed=""
+				break
+			fi
+		done <<< "$squashed"
+		if [ -n "$resumed" ]; then
+			done_prs="$(git -C "$wt" log --format=%s "$base"..HEAD | sed -nE 's/^PR #([0-9]+):.*/\1/p')"
+		fi
+	fi
+	root="$(worktrees_root)"
+	scratch="$root/rebuild-scratch"
+	git -C "$REPO_DIR" worktree remove --force "$scratch" 2>/dev/null || rm -rf "$scratch"
+	git -C "$REPO_DIR" worktree add --detach "$scratch" "$base" >/dev/null
+	if [ -n "$resumed" ]; then
+		echo "integration: resuming rebuild of $BRANCH from $base ($(echo "$done_prs" | wc -w) PRs already squashed)"
 	else
 		pre="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$BRANCH")"
-		CACHE_KEY="${BRANCH//\//--}"
-		printf %s "$pre" > "$CACHE/$CACHE_KEY.pre-sha"
+		printf %s "$pre" > "$CACHE/$key.pre-sha"
 		printf %s "$base" > "$CACHE/base-ref"
 		git -C "$REPO_DIR" branch -f "backup/$BRANCH-$(date +%Y%m%d-%H%M)" "$BRANCH"
-		echo "integration: rebasing $BRANCH onto $base (pre-rebase $FORK_REMOTE/$BRANCH $pre)"
-		( cd "$wt" && git rebase "$base" )
+		echo "integration: rebuilding $BRANCH from $base (pre-rebuild $FORK_REMOTE/$BRANCH ${pre:0:9})"
+		git -C "$wt" checkout -q --detach "$base"
 	fi
-	echo "integration: $BRANCH now at $(git -C "$wt" rev-parse --short HEAD) (base $base)"
+	while IFS=$'\t' read -r num head title; do
+		[ -n "$num" ] || continue
+		if [ -n "$done_prs" ] && printf '%s\n' $done_prs | grep -qx "$num"; then
+			echo "integration: PR #$num already squashed; skipping"
+			continue
+		fi
+		tmp="$(replay_pr "$scratch" "$base" "$FORK_REMOTE/$head" "rebuild/pr-$num")"
+		echo "integration: squashing PR #$num ($head)"
+		# --squash records no second parent: the result stays a linear series that
+		# rebuilds identically next round, and rerere replays cross-PR resolutions.
+		# `merge --squash` reports failure even when rerere staged every conflict,
+		# so the unresolved-path list, not the exit status, decides whether this
+		# round still needs a human.
+		if ! git -C "$wt" merge --squash "$tmp" >/dev/null && [ -n "$(git -C "$wt" diff --diff-filter=U --name-only)" ]; then
+			echo "integration: PR #$num conflicts with the PRs squashed before it." >&2
+			echo "integration: resolve in $wt, then commit it as 'PR #$num: <title>'" >&2
+			echo "integration: and re-run 'integration rebuild' to continue from the next PR." >&2
+			exit 1
+		fi
+		# A squash that splices two PRs' hunks together can land formatting the
+		# repo's own checks reject; the formatter runs before the commit so the
+		# result is exactly what a rebuild reproduces.
+		if [ -n "${FORMAT_CMD:-}" ]; then
+			( cd "$wt" && eval "$FORMAT_CMD" >/dev/null ) || true
+			git -C "$wt" add -A
+		fi
+		git -C "$wt" commit -q -m "PR #$num: $title" \
+			-m "Squashed from $FORK_REMOTE/$head ($(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$head")) onto $base." || true
+	done < <(gh pr list --repo "$UPSTREAM" --author @me --state open \
+		--json number,headRefName,title --jq 'sort_by(.number)[] | [.number, .headRefName, .title] | @tsv')
+	git -C "$REPO_DIR" worktree remove --force "$scratch"
+	git -C "$wt" checkout -q -B "$BRANCH"
+	echo "integration: $BRANCH rebuilt at $(git -C "$wt" rev-parse --short HEAD) (base $base, $(git -C "$REPO_DIR" rev-list --count "$base..$BRANCH") PRs)"
 }
 
 cmd_build() {
@@ -116,19 +215,35 @@ cmd_deploy() {
 	base="$(cat "$CACHE/base-ref" 2>/dev/null || echo unknown)"
 	export BUILD_DIR="$bd" DEPLOY_SHA="$sha" DEPLOY_BASE="$base"
 	eval "$DEPLOY_CMD"
+	if [ -n "${POST_CMD:-}" ]; then
+		echo "integration: running post-deploy commands"
+		eval "$POST_CMD"
+	fi
 	printf %s "$sha" > "$CACHE/last-deploy"
 	echo "integration: deployed ${sha:0:10} (base $base)"
 }
 
 cmd_push() {
-	local pre
-	pre="$(cat "$CACHE/${BRANCH//\//--}.pre-sha" 2>/dev/null || true)"
-	if [ -n "$pre" ]; then
-		git -C "$REPO_DIR" push --force-with-lease="refs/heads/$BRANCH:$pre" "$FORK_REMOTE" "$BRANCH"
-		rm -f "$CACHE/$BRANCH.pre-sha"
-	else
-		git -C "$REPO_DIR" push "$FORK_REMOTE" "$BRANCH"
+	local key pre remote known
+	key="${BRANCH//\//--}"
+	pre="$(cat "$CACHE/$key.pre-sha" 2>/dev/null || true)"
+	# The lease must be the branch's CURRENT remote tip, not the sha recorded
+	# when the rebase started: pushing the same branch twice in one session
+	# (fix, rebuild, push again) otherwise fails as "stale info". Fetch it, then
+	# refuse when that tip is neither the pre-rebase sha nor a sha this script
+	# pushed — that means someone else moved the branch and force-pushing would
+	# discard their work.
+	git -C "$REPO_DIR" fetch "$FORK_REMOTE" "$BRANCH"
+	remote="$(git -C "$REPO_DIR" rev-parse FETCH_HEAD)"
+	if [ -n "$pre" ] && [ "$remote" != "$pre" ]; then
+		known=""
+		if [ -f "$CACHE/$key.pushed" ] && grep -qx "$remote" "$CACHE/$key.pushed"; then known=1; fi
+		[ -n "$known" ] || {
+			echo "integration: FATAL $FORK_REMOTE/$BRANCH moved to ${remote:0:9} (expected ${pre:0:9}); refusing to force-push" >&2
+			exit 1
+		}
 	fi
+	git -C "$REPO_DIR" push --force-with-lease="refs/heads/$BRANCH:$remote" "$FORK_REMOTE" "$BRANCH"
 	git -C "$REPO_DIR" fetch "$FORK_REMOTE" "$BRANCH"
 	pushed="$(git -C "$REPO_DIR" rev-parse "FETCH_HEAD")"
 	local_branch="$(git -C "$REPO_DIR" rev-parse "$BRANCH")"
@@ -136,6 +251,8 @@ cmd_push() {
 		echo "integration: FATAL push did not land ($FORK_REMOTE/$BRANCH = ${pushed:0:9}, local $local_branch)" >&2
 		exit 1
 	fi
+	printf '%s\n' "$pushed" >> "$CACHE/$key.pushed"
+	rm -f "$CACHE/$key.pre-sha"
 	echo "integration: pushed $BRANCH to $FORK_REMOTE (verified ${pushed:0:9})"
 }
 
@@ -186,11 +303,13 @@ cmd_prs() {
 }
 
 case "$CMD" in
-rebase) cmd_rebase ;;
+rebuild) cmd_rebuild ;;
 build)  cmd_build ;;
 deploy) cmd_deploy ;;
 push)   cmd_push ;;
 prs)    cmd_prs ;;
-all)    cmd_rebase; cmd_build; cmd_deploy; cmd_push; cmd_prs ;;
+# PRs are refreshed onto their upstream base first: rebuild squashes exactly what
+# each PR branch holds, so a stale PR would otherwise integrate stale code.
+all)    cmd_prs; cmd_rebuild; cmd_build; cmd_deploy; cmd_push ;;
 *) echo "integration: unknown command $CMD" >&2; exit 2 ;;
 esac
