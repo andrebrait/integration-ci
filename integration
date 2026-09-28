@@ -16,6 +16,11 @@
 #   BASE=upstream/main          # what the PRs are rebuilt onto: a ref or "latest-tag"
 #   UPSTREAM_MAIN_REF=upstream/main
 #   FORMAT_CMD='...'            # optional, runs on each squashed merge before it commits
+#   EXTRA_PRS='12229=carry/pr-12229'  # optional, space-separated UPSTREAM-PR=fork-branch
+#                               # pairs for third-party PRs we carry. The fork branch
+#                               # holds our rebased/fixed copy; it is squashed and
+#                               # rebased like our own PRs while the upstream PR is
+#                               # open, and dropped once it is merged or closed.
 #   BUILD_CMD='...'             # runs inside a clean detached worktree at $BRANCH
 #   TEST_CMD='...'              # optional, runs after BUILD_CMD in the same worktree
 #   DEPLOY_CMD='...'            # runs with BUILD_DIR, DEPLOY_SHA, DEPLOY_BASE exported
@@ -46,6 +51,9 @@ FORK_REMOTE="${FORK_REMOTE:-origin}"
 BRANCH="${BRANCH:-integration}"
 BASE="${BASE:-latest-tag}"
 UPSTREAM_MAIN_REF="${UPSTREAM_MAIN_REF:-upstream/main}"
+for pair in ${EXTRA_PRS:-}; do
+	[[ "$pair" =~ ^[0-9]+=[^=]+$ ]] || { echo "integration: bad EXTRA_PRS entry '$pair' (want N=fork-branch)" >&2; exit 2; }
+done
 
 worktrees_root() {
 	local main
@@ -73,6 +81,29 @@ base_ref() {
 	fi
 }
 
+# Open PRs to integrate, ascending by number: this account's own plus EXTRA_PRS
+# whose upstream PR is still open. Emits "number<TAB>fork-branch<TAB>field".
+# Callers capture it with rows="$(...)": errexit is off inside command
+# substitution, so each gh failure exits explicitly and pipefail carries it out,
+# aborting instead of silently dropping a PR from the rebuild.
+pr_rows() { # title|base
+	local field pair num head row
+	[ "$1" = title ] && field=title || field=baseRefName
+	{
+		gh pr list --repo "$UPSTREAM" --author @me --state open --limit 200 \
+			--json number,headRefName,"$field" --jq ".[] | [.number, .headRefName, .$field] | @tsv" || exit 1
+		for pair in ${EXTRA_PRS:-}; do
+			num="${pair%%=*}" head="${pair#*=}"
+			row="$(gh pr view "$num" --repo "$UPSTREAM" --json state,"$field" --jq "[.state, .$field] | @tsv")" || exit 1
+			if [ "${row%%$'\t'*}" != OPEN ]; then
+				echo "integration: extra PR #$num is ${row%%$'\t'*} upstream; skipping (remove it from EXTRA_PRS)" >&2
+				continue
+			fi
+			printf '%s\t%s\t%s\n' "$num" "$head" "${row#*$'\t'}"
+		done
+	} | sort -t $'\t' -k1,1n
+}
+
 # Replay one PR branch onto BASE in a scratch worktree, so a PR based on upstream
 # main never drags post-BASE upstream commits into a tag-based integration branch.
 # Echoes the ref holding the replayed series.
@@ -90,7 +121,8 @@ cmd_rebuild() {
 	[ -n "${UPSTREAM:-}" ] || { echo "integration: UPSTREAM not set; rebuild needs the PR list" >&2; exit 2; }
 	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --tags --prune
 	git -C "$REPO_DIR" fetch upstream --tags --prune
-	local base wt pre root scratch num head title tmp key resumed done_prs squashed squashed_head squashed_sha
+	local base wt pre root scratch num head title tmp key resumed done_prs squashed squashed_head squashed_sha rows
+	rows="$(pr_rows title)"
 	base="$(base_ref)"
 	key="${BRANCH//\//--}"
 	# During a rebuild the worktree sits on a detached HEAD, so the branch lookup
@@ -181,8 +213,7 @@ cmd_rebuild() {
 		fi
 		git -C "$wt" commit -q -m "PR #$num: $title" \
 			-m "Squashed from $FORK_REMOTE/$head ($(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$head")) onto $base." || true
-	done < <(gh pr list --repo "$UPSTREAM" --author @me --state open \
-		--json number,headRefName,title --jq 'sort_by(.number)[] | [.number, .headRefName, .title] | @tsv')
+	done <<< "$rows"
 	git -C "$REPO_DIR" worktree remove --force "$scratch"
 	git -C "$wt" checkout -q -B "$BRANCH"
 	echo "integration: $BRANCH rebuilt at $(git -C "$wt" rev-parse --short HEAD) (base $base, $(git -C "$REPO_DIR" rev-list --count "$base..$BRANCH") PRs)"
@@ -204,6 +235,9 @@ cmd_build() {
 	fi
 	printf %s "$wt" > "$CACHE/build-dir"
 	echo "integration: build OK at $wt"
+	# A green build is the push gate: push here so every run that produces a tested
+	# head lands it on the fork, even when a later deploy fails.
+	cmd_push
 }
 
 cmd_deploy() {
@@ -260,7 +294,8 @@ cmd_prs() {
 	[ -n "${UPSTREAM:-}" ] || { echo "integration: UPSTREAM not set; skipping prs"; return 0; }
 	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --prune
 	git -C "$REPO_DIR" fetch upstream --prune
-	local root num branch base wt pre
+	local root num branch base wt pre rows
+	rows="$(pr_rows base)"
 	root="$(worktrees_root)"
 	while IFS=$'\t' read -r num branch base; do
 		[ -n "$num" ] || continue
@@ -297,9 +332,7 @@ cmd_prs() {
 		fi
 		git -C "$REPO_DIR" worktree remove --force "$wt"
 		echo "integration: PR #$num rebased onto upstream/$base and pushed (verified ${pushed:0:9})"
-	done < <(gh pr list --repo "$UPSTREAM" --author @me --state open \
-		--json number,headRefName,baseRefName \
-		--jq '.[] | [.number, .headRefName, .baseRefName] | @tsv')
+	done <<< "$rows"
 }
 
 case "$CMD" in
@@ -310,6 +343,6 @@ push)   cmd_push ;;
 prs)    cmd_prs ;;
 # PRs are refreshed onto their upstream base first: rebuild squashes exactly what
 # each PR branch holds, so a stale PR would otherwise integrate stale code.
-all)    cmd_prs; cmd_rebuild; cmd_build; cmd_deploy; cmd_push ;;
+all)    cmd_prs; cmd_rebuild; cmd_build; cmd_deploy ;;
 *) echo "integration: unknown command $CMD" >&2; exit 2 ;;
 esac

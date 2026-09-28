@@ -1,0 +1,25 @@
+# integration-flow config for /root/git/oh-my-pi
+FORK_REMOTE=origin
+UPSTREAM=can1357/oh-my-pi
+# Third-party PRs carried from our fork (rebased + fixed copy). See EXTRA_PRS in the integration script.
+EXTRA_PRS='12229=carry/pr-12229'
+BRANCH=integration
+BASE=upstream/main
+BUILD_CMD='bun install --frozen-lockfile && bun run build:native && bun check && bun --cwd=packages/coding-agent run build && packages/coding-agent/dist/omp --smoke-test'
+FORMAT_CMD='bun run fmt:tools'
+TEST_CMD='PI_CODING_AGENT_DIR="$(mktemp -d /tmp/omp-integration-agent-XXXXXX)" bun test packages/coding-agent/test/agent-session-queued-steer-delivery.test.ts packages/coding-agent/test/agent-session-queued-policy.test.ts packages/coding-agent/test/agent-session-new-session-queued-steer.test.ts packages/coding-agent/test/rpc-queued-message.test.ts packages/coding-agent/test/skills.test.ts packages/coding-agent/test/skill-protocol-customdirs.test.ts packages/coding-agent/test/agent-session-video-attachment.test.ts packages/coding-agent/test/rpc-cancel-subagent.test.ts packages/coding-agent/test/rpc-steer-subagent.test.ts packages/coding-agent/test/task/structured-subagent.test.ts packages/coding-agent/test/task/wire-schema.test.ts packages/coding-agent/test/issue-985-subagent-auth-fallback.test.ts packages/coding-agent/test/eval/agent-bridge-policy.test.ts'
+DEPLOY_CMD='set -e
+rel="/opt/omp-patched/releases/${DEPLOY_SHA:0:10}"
+mkdir -p "$rel"
+cp "$BUILD_DIR/packages/coding-agent/dist/omp" "$rel/omp"
+sha256sum "$rel/omp" | cut -d" " -f1 > "$rel/omp.sha256"
+{
+	echo "branch: integration"
+	echo "sha: $DEPLOY_SHA"
+	echo "upstream base: $DEPLOY_BASE"
+	echo "built: $(date -u +%FT%TZ)"
+	echo "sha256(omp): $(cat "$rel/omp.sha256")"
+	echo "verify: bun check, downstream-patch tests, omp --smoke-test"
+} > "$rel/RELEASE.md"
+ln -sfn "$rel" /opt/omp-patched/current
+echo "current -> $rel"'
