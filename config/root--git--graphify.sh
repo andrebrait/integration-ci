@@ -5,7 +5,10 @@ UPSTREAM=Graphify-Labs/graphify
 BRANCH=integration
 BASE=upstream/v8
 UPSTREAM_MAIN_REF=upstream/v8
+# Third-party PRs carried from our fork (rebased + fixed copy). See EXTRA_PRS in the integration script.
+# 3110: abhay-codes07's _origin=semantic stamp (Graphify-Labs/graphify#2843), rebased onto v8.
+EXTRA_PRS='3110=carry/pr-3110'
 BUILD_CMD='uv lock --check'
-TEST_CMD='ln -sfn /root/.omp/plugins/node_modules node_modules && uv run --frozen --extra leiden pytest tests/test_backend_extras.py tests/test_omp_install.py && bun test tests/omp.test.ts'
+TEST_CMD='ln -sfn /root/.omp/plugins/node_modules node_modules && uv run --frozen --extra leiden pytest tests/test_backend_extras.py tests/test_omp_install.py tests/test_hook_guard.py tests/test_hook_strict.py tests/test_semantic_origin_stamp.py && bun test tests/omp.test.ts'
 DEPLOY_CMD='uv tool install --force --reinstall "graphifyy[leiden] @ git+https://github.com/pfBlockerNG/graphify@${DEPLOY_SHA}"'
 POST_CMD='for p in agents claude pi codex copilot omp; do graphify install --platform $p; done && graphify omp install && ~/.config/integration/pfblockerng-graphify-pin.sh "$DEPLOY_SHA" "$(sed -n '\''s/^version = "\(.*\)"/\1/p'\'' "$BUILD_DIR/pyproject.toml")"'
