@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # integration — rebuild/build/deploy/push a fork's integration branch, then rebase
-# this account's open PRs to upstream onto their latest bases and push them.
+# this account's open PRs to upstream onto their latest bases and push them: to
+# FORK_REMOTE, and also to the PR's own head repository when that is another
+# remote here (e.g. a personal fork), so the upstream PR itself moves too.
 #
 # The integration branch is not a long-lived patch series: `rebuild` recreates it
 # every round as BASE plus one squashed commit per still-open PR, so a PR that was
@@ -32,6 +34,10 @@
 # after the service returns. Verify deployments after resuming.
 # Conflicts: a subcommand may stop mid-rebase. Resolve the conflicts, then re-run
 # the SAME subcommand — an in-progress rebase resumes instead of restarting.
+# Never commit feature work on the integration branch: `rebuild` refuses while it
+# carries non-`PR #<n>:` commits (override: INTEGRATION_DROP_NON_PR=1, only once
+# they live on a PR branch). Only one run per project at a time (flock on
+# $CACHE/lock); a concurrent run exits 75.
 set -euo pipefail
 
 CMD="${1:-}"
@@ -44,6 +50,16 @@ SLUG="$(printf %s "$REPO_DIR" | sed 's#^/##; s#/#--#g')"
 CONF="$HOME/.config/integration/$SLUG.sh"
 CACHE="$HOME/.cache/integration/$SLUG"
 mkdir -p "$CACHE"
+# One integration run per project at a time: two concurrent runs share the
+# integration worktree, build dirs, rerere cache and fork refs, and clobber each
+# other. The lock is per repo (keyed like CACHE) and released when this process
+# exits; deploy/post commands close it so a service they spawn cannot keep it.
+exec 9>"$CACHE/lock"
+if ! flock -n 9; then
+	echo "integration: another integration run holds $CACHE/lock (pid $(cat "$CACHE/lock.pid" 2>/dev/null || echo '?')); refusing to start" >&2
+	exit 75
+fi
+printf '%s %s\n' "$$" "${*:-}" > "$CACHE/lock.pid"
 [ -f "$CONF" ] || { echo "integration: missing config $CONF" >&2; exit 2; }
 # shellcheck disable=SC1090
 source "$CONF"
@@ -71,6 +87,12 @@ rebase_in_progress() { # dir -> 0/1
 	local gd
 	gd="$(git -C "$1" rev-parse --git-dir 2>/dev/null || true)"
 	[ -n "$gd" ] && { [ -d "$gd/rebase-merge" ] || [ -d "$gd/rebase-apply" ]; }
+}
+
+# Ask the remote directly: FETCH_HEAD is shared by every fetch in $REPO_DIR,
+# so a concurrent fetch can make it name another branch's commit.
+remote_sha() { # remote branch -> sha
+	git -C "$REPO_DIR" ls-remote --exit-code "$1" "refs/heads/$2" | cut -f1
 }
 
 base_ref() {
@@ -178,6 +200,23 @@ cmd_rebuild() {
 	if [ -n "$resumed" ]; then
 		echo "integration: resuming rebuild of $BRANCH from $base ($(echo "$done_prs" | wc -w) PRs already squashed)"
 	else
+		# A rebuild keeps only `PR #<n>:` squashes. Anything else on the branch was
+		# committed straight onto integration and would be silently discarded, so
+		# stop and name it: it belongs on its own PR branch. Set
+		# INTEGRATION_DROP_NON_PR=1 once every listed commit is carried by a PR or
+		# deliberately abandoned.
+		local stray
+		stray="$(for ref in "$BRANCH" "$FORK_REMOTE/$BRANCH"; do
+			git -C "$REPO_DIR" rev-parse -q --verify "$ref" >/dev/null || continue
+			git -C "$REPO_DIR" log --no-merges --format='%h %s' "$base..$ref"
+		done | grep -vE '^[0-9a-f]+ PR #[0-9]+: ' | sort -u -k2 || true)"
+		if [ -n "$stray" ] && [ "${INTEGRATION_DROP_NON_PR:-}" != 1 ]; then
+			echo "integration: $BRANCH carries commits that are not PR squashes; a rebuild would drop them:" >&2
+			sed 's/^/  /' <<< "$stray" >&2
+			echo "integration: move them to a PR branch, then re-run with INTEGRATION_DROP_NON_PR=1." >&2
+			exit 1
+		fi
+		[ -z "$stray" ] || echo "integration: dropping non-PR commits (INTEGRATION_DROP_NON_PR=1): $(echo "$stray" | wc -l)"
 		pre="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$BRANCH")"
 		printf %s "$pre" > "$CACHE/$key.pre-sha"
 		printf %s "$base" > "$CACHE/base-ref"
@@ -208,7 +247,11 @@ cmd_rebuild() {
 		# repo's own checks reject; the formatter runs before the commit so the
 		# result is exactly what a rebuild reproduces.
 		if [ -n "${FORMAT_CMD:-}" ]; then
-			( cd "$wt" && eval "$FORMAT_CMD" >/dev/null ) || true
+			if ! ( cd "$wt" && eval "$FORMAT_CMD" >/dev/null ); then
+				echo "integration: FORMAT_CMD failed for PR #$num; the squash is staged uncommitted in $wt." >&2
+				echo "integration: fix the formatter, run it there, commit as 'PR #$num: $title', and re-run 'integration rebuild'." >&2
+				exit 1
+			fi
 			git -C "$wt" add -A
 		fi
 		git -C "$wt" commit -q -m "PR #$num: $title" \
@@ -248,10 +291,10 @@ cmd_deploy() {
 	[ -n "$bd" ] && [ -d "$bd" ] || { echo "integration: no build dir; run: integration build" >&2; exit 1; }
 	base="$(cat "$CACHE/base-ref" 2>/dev/null || echo unknown)"
 	export BUILD_DIR="$bd" DEPLOY_SHA="$sha" DEPLOY_BASE="$base"
-	eval "$DEPLOY_CMD"
+	eval "$DEPLOY_CMD" 9>&-
 	if [ -n "${POST_CMD:-}" ]; then
 		echo "integration: running post-deploy commands"
-		eval "$POST_CMD"
+		eval "$POST_CMD" 9>&-
 	fi
 	printf %s "$sha" > "$CACHE/last-deploy"
 	echo "integration: deployed ${sha:0:10} (base $base)"
@@ -267,8 +310,7 @@ cmd_push() {
 	# refuse when that tip is neither the pre-rebase sha nor a sha this script
 	# pushed — that means someone else moved the branch and force-pushing would
 	# discard their work.
-	git -C "$REPO_DIR" fetch "$FORK_REMOTE" "$BRANCH"
-	remote="$(git -C "$REPO_DIR" rev-parse FETCH_HEAD)"
+	remote="$(remote_sha "$FORK_REMOTE" "$BRANCH")"
 	if [ -n "$pre" ] && [ "$remote" != "$pre" ]; then
 		known=""
 		if [ -f "$CACHE/$key.pushed" ] && grep -qx "$remote" "$CACHE/$key.pushed"; then known=1; fi
@@ -278,8 +320,7 @@ cmd_push() {
 		}
 	fi
 	git -C "$REPO_DIR" push --force-with-lease="refs/heads/$BRANCH:$remote" "$FORK_REMOTE" "$BRANCH"
-	git -C "$REPO_DIR" fetch "$FORK_REMOTE" "$BRANCH"
-	pushed="$(git -C "$REPO_DIR" rev-parse "FETCH_HEAD")"
+	pushed="$(remote_sha "$FORK_REMOTE" "$BRANCH")"
 	local_branch="$(git -C "$REPO_DIR" rev-parse "$BRANCH")"
 	if [ "$pushed" != "$local_branch" ]; then
 		echo "integration: FATAL push did not land ($FORK_REMOTE/$BRANCH = ${pushed:0:9}, local $local_branch)" >&2
@@ -290,16 +331,84 @@ cmd_push() {
 	echo "integration: pushed $BRANCH to $FORK_REMOTE (verified ${pushed:0:9})"
 }
 
+# The remote holding PR #num's head branch when that is not FORK_REMOTE (e.g. a
+# personal fork): our own PRs may be opened from there while FORK_REMOTE keeps
+# the copy the rebuild squashes. Empty for FORK_REMOTE-headed PRs and for
+# EXTRA_PRS, whose upstream head belongs to someone else and is never pushed.
+pr_head_remote() { # num -> remote name or empty
+	local num="$1" pair repo r url
+	for pair in ${EXTRA_PRS:-}; do
+		[ "${pair%%=*}" = "$num" ] && return 0
+	done
+	repo="$(gh pr view "$num" --repo "$UPSTREAM" --json headRepository,headRepositoryOwner \
+		--jq '.headRepositoryOwner.login + "/" + .headRepository.name')" || exit 1
+	for r in $(git -C "$REPO_DIR" remote); do
+		url="$(git -C "$REPO_DIR" remote get-url "$r")"
+		case "${url%.git}" in
+		*"github.com/$repo" | *"github.com:$repo")
+			[ "$r" = "$FORK_REMOTE" ] || echo "$r"
+			return 0
+			;;
+		esac
+	done
+	echo "integration: PR #$num head repo $repo has no git remote in $REPO_DIR; add one" >&2
+	exit 1
+}
+
+# Fast-forward FORK_REMOTE's copy of an upstream base branch, so companion PRs
+# opened inside the fork (review-only twins of upstream PRs) diff against the
+# same base as their upstream PR. A fork base holding its own commits is left
+# alone with a warning: that is the owner's call, never a force-push here.
+sync_fork_base() { # base
+	local base="$1" fork_sha up_sha slug
+	fork_sha="$(remote_sha "$FORK_REMOTE" "$base" 2>/dev/null)" || return 0
+	up_sha="$(git -C "$REPO_DIR" rev-parse "upstream/$base")"
+	[ "$fork_sha" != "$up_sha" ] || return 0
+	if ! git -C "$REPO_DIR" merge-base --is-ancestor "$fork_sha" "$up_sha"; then
+		echo "integration: WARNING $FORK_REMOTE/$base (${fork_sha:0:9}) has commits upstream/$base lacks; not fast-forwarding it" >&2
+		return 0
+	fi
+	git -C "$REPO_DIR" push "$FORK_REMOTE" "$up_sha:refs/heads/$base"
+	[ "$(remote_sha "$FORK_REMOTE" "$base")" = "$up_sha" ] || {
+		echo "integration: FATAL fast-forward of $FORK_REMOTE/$base did not land" >&2
+		exit 1
+	}
+	echo "integration: fast-forwarded $FORK_REMOTE/$base to upstream/$base (${up_sha:0:9})"
+	# GitHub keeps an open PR's recorded base commit after its base branch moves,
+	# so the fork's companion PRs kept listing the old upstream commits;
+	# re-setting the base makes it recompute.
+	slug="$(git -C "$REPO_DIR" remote get-url "$FORK_REMOTE" | sed -E 's#^.*github\.com[:/]##; s#\.git$##')"
+	gh pr list --repo "$slug" --base "$base" --state open --json number --jq '.[].number' |
+		while read -r num; do
+			gh api -X PATCH "repos/$slug/pulls/$num" -f base="$base" --silent ||
+				echo "integration: WARNING could not refresh base of $slug#$num" >&2
+		done
+}
+
 cmd_prs() {
 	[ -n "${UPSTREAM:-}" ] || { echo "integration: UPSTREAM not set; skipping prs"; return 0; }
 	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --prune
 	git -C "$REPO_DIR" fetch upstream --prune
-	local root num branch base wt pre rows
+	local root num branch base wt pre rows head_remote head_pre
 	rows="$(pr_rows base)"
 	root="$(worktrees_root)"
+	while read -r base; do
+		[ -n "$base" ] && sync_fork_base "$base"
+	done <<< "$(printf '%s\n' "$rows" | cut -f3 | sort -u)"
 	while IFS=$'\t' read -r num branch base; do
 		[ -n "$num" ] || continue
 		rebased_onto="$(git -C "$REPO_DIR" rev-parse "upstream/$base")"
+		head_remote="$(pr_head_remote "$num")" || exit 1
+		# FORK_REMOTE is the source that gets rebased, so the PR head must hold
+		# nothing it lacks: a commit pushed only to the head would be overwritten.
+		if [ -n "$head_remote" ]; then
+			git -C "$REPO_DIR" fetch "$head_remote" "$branch"
+			head_pre="$(git -C "$REPO_DIR" rev-parse "$head_remote/$branch")"
+			if ! git -C "$REPO_DIR" merge-base --is-ancestor "$head_pre" "$FORK_REMOTE/$branch"; then
+				echo "integration: PR #$num head $head_remote/$branch (${head_pre:0:9}) has commits $FORK_REMOTE/$branch lacks; reconcile them first" >&2
+				exit 1
+			fi
+		fi
 		wt="$root/pr-$num"
 		if [ -d "$wt" ] && rebase_in_progress "$wt"; then
 			echo "integration: resuming PR #$num rebase in $wt"
@@ -324,14 +433,20 @@ cmd_prs() {
 		pre="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$branch")"
 		git -C "$wt" push --force-with-lease="refs/heads/$branch:$pre" "$FORK_REMOTE" "HEAD:refs/heads/$branch"
 		# Verify the push actually landed before claiming success.
-		git -C "$REPO_DIR" fetch "$FORK_REMOTE" "$branch"
-		pushed="$(git -C "$REPO_DIR" rev-parse "FETCH_HEAD")"
+		pushed="$(remote_sha "$FORK_REMOTE" "$branch")"
 		if [ "$pushed" != "$(git -C "$wt" rev-parse HEAD)" ]; then
 			echo "integration: FATAL PR #$num push did not land (origin/$branch = ${pushed:0:9})" >&2
 			exit 1
 		fi
+		if [ -n "$head_remote" ]; then
+			git -C "$wt" push --force-with-lease="refs/heads/$branch:$head_pre" "$head_remote" "HEAD:refs/heads/$branch"
+			if [ "$(remote_sha "$head_remote" "$branch")" != "$(git -C "$wt" rev-parse HEAD)" ]; then
+				echo "integration: FATAL PR #$num push to $head_remote/$branch did not land" >&2
+				exit 1
+			fi
+		fi
 		git -C "$REPO_DIR" worktree remove --force "$wt"
-		echo "integration: PR #$num rebased onto upstream/$base and pushed (verified ${pushed:0:9})"
+		echo "integration: PR #$num rebased onto upstream/$base and pushed to $FORK_REMOTE${head_remote:+ and $head_remote} (verified ${pushed:0:9})"
 	done <<< "$rows"
 }
 
