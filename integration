@@ -134,7 +134,13 @@ replay_pr() { # scratch-worktree base head-ref tmp-branch -> ref
 	mb="$(git -C "$REPO_DIR" merge-base "$base" "$head")"
 	git -C "$scratch" checkout -q -B "$tmp" "$head"
 	if [ "$mb" != "$(git -C "$REPO_DIR" rev-parse "$base")" ]; then
-		git -C "$scratch" rebase --onto "$base" "$mb" "$tmp" >/dev/null
+		# Command substitution swallows errexit: abort and fail explicitly, or the
+		# caller squashes a half-applied series.
+		git -C "$scratch" rebase --onto "$base" "$mb" "$tmp" >/dev/null || {
+			git -C "$scratch" rebase --abort 2>/dev/null
+			echo "integration: replaying $head onto $base failed; run 'integration prs' to rebase it first" >&2
+			return 1
+		}
 	fi
 	echo "$tmp"
 }
@@ -230,7 +236,7 @@ cmd_rebuild() {
 			echo "integration: PR #$num already squashed; skipping"
 			continue
 		fi
-		tmp="$(replay_pr "$scratch" "$base" "$FORK_REMOTE/$head" "rebuild/pr-$num")"
+		tmp="$(replay_pr "$scratch" "$base" "$FORK_REMOTE/$head" "rebuild/pr-$num")" || exit 1
 		echo "integration: squashing PR #$num ($head)"
 		# --squash records no second parent: the result stays a linear series that
 		# rebuilds identically next round, and rerere replays cross-PR resolutions.
@@ -402,7 +408,9 @@ cmd_prs() {
 		# FORK_REMOTE is the source that gets rebased, so the PR head must hold
 		# nothing it lacks: a commit pushed only to the head would be overwritten.
 		if [ -n "$head_remote" ]; then
-			git -C "$REPO_DIR" fetch "$head_remote" "$branch"
+			# Explicit refspec: a remote without a fetch refspec only updates
+			# FETCH_HEAD, leaving a stale $head_remote/$branch behind.
+			git -C "$REPO_DIR" fetch "$head_remote" "+refs/heads/$branch:refs/remotes/$head_remote/$branch"
 			head_pre="$(git -C "$REPO_DIR" rev-parse "$head_remote/$branch")"
 			if ! git -C "$REPO_DIR" merge-base --is-ancestor "$head_pre" "$FORK_REMOTE/$branch"; then
 				echo "integration: PR #$num head $head_remote/$branch (${head_pre:0:9}) has commits $FORK_REMOTE/$branch lacks; reconcile them first" >&2
