@@ -10,16 +10,16 @@ short="${DEPLOY_SHA:0:12}"
 rel="/opt/ompweb-patched/releases/$short"
 [ -d "$rel" ] || { echo "release not found: $rel" >&2; exit 1; }
 ln -sfn "$rel" /opt/ompweb-patched/current
-sed -i "s|/opt/ompweb-patched/releases/[0-9a-f]\{12\}|/opt/ompweb-patched/releases/$short|g" /etc/systemd/system/ompweb-api.service /etc/systemd/system/ompweb-pwa.service
+sed -i "s|/opt/ompweb-patched/releases/[0-9a-f]\{12\}|/opt/ompweb-patched/releases/$short|g" /etc/systemd/system/ompweb-api.service
 systemctl daemon-reload
-# pwa restart is safe for running agent sessions; the api restart kills them
-# (nginx /api/ -> 30185 parents omp RPC children), so it goes LAST and the
-# session verifies on resume.
-systemctl restart ompweb-pwa
+# Single omp-web on purpose: nginx routes UI and /api/ to 30185. A second
+# omp-web on the same ~/.omp/agent (the retired ompweb-pwa) spawns competing
+# omp children and omp forks the session file. The restart kills running
+# agent sessions; they verify on resume.
 printf %s "$DEPLOY_SHA" > "$HOME/.cache/integration/root--git--ompweb/last-deploy"
 systemctl restart ompweb-api
 echo "ompweb deployed $short"
-for port in 30185 30179; do
+for port in 30185; do
 	code=000
 	for i in $(seq 1 30); do
 		code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$port" 2>/dev/null) && [ "$code" != "000" ] && break
