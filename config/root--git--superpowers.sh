@@ -3,6 +3,8 @@
 FORK_REMOTE=origin
 UPSTREAM=obra/superpowers
 BRANCH=integration
+CI_REPO=andrebrait/integration-ci
+CI_WORKFLOW=superpowers.yml
 BASE=upstream/dev
 UPSTREAM_MAIN_REF=upstream/dev
 BUILD_CMD='node --test tests/omp/test-omp-extension.mjs tests/pi/test-pi-extension.mjs'

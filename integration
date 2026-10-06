@@ -283,8 +283,8 @@ cmd_build_ci() {
 	# not from this checkout: an unpushed TEST_CMD edit would silently not run.
 	cfg="$(git -C "$(dirname "$(readlink -f "$CONF")")" rev-parse --show-toplevel)"
 	git -C "$cfg" fetch -q origin main
-	if ! git -C "$cfg" diff --quiet origin/main -- "$(readlink -f "$CONF")" ".github/workflows/$CI_WORKFLOW"; then
-		echo "integration: $CONF or .github/workflows/$CI_WORKFLOW differs from $CI_REPO origin/main; commit and push $cfg first (CI reads origin/main)" >&2
+	if ! git -C "$cfg" diff --quiet origin/main -- "$(readlink -f "$CONF")" .github; then
+		echo "integration: $CONF or $cfg/.github differs from $CI_REPO origin/main; commit and push $cfg first (CI reads origin/main)" >&2
 		exit 1
 	fi
 	git -C "$REPO_DIR" push -q --force "$FORK_REMOTE" "$sha:refs/heads/$BRANCH-next"

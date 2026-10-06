@@ -1,0 +1,71 @@
+name: codegraph integration build
+
+# Dispatched by `integration build` (CI_REPO/CI_WORKFLOW in config/root--git--codegraph.sh) with the
+# integration head to build. Build and test commands come from that config.
+on:
+   workflow_dispatch:
+      inputs:
+         repo:
+            description: Fork holding the commit (owner/repo)
+            required: true
+            type: string
+         sha:
+            description: Integration commit to build (full sha)
+            required: true
+            type: string
+
+run-name: build ${{ inputs.sha }}
+
+# The build job runs the fork's code, including carried PRs, so it gets a
+# read-only token that is not persisted into the checkouts; only the publish
+# job, which runs no fork code, can write releases.
+permissions: {}
+
+jobs:
+   build:
+      runs-on: ubuntu-24.04
+      timeout-minutes: 30
+      permissions:
+         contents: read
+      steps:
+         - uses: actions/checkout@v4
+           with:
+              repository: ${{ inputs.repo }}
+              ref: ${{ inputs.sha }}
+              persist-credentials: false
+         - uses: actions/checkout@v4
+           with:
+              path: ci
+              persist-credentials: false
+         - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+           with:
+              node-version: "22"
+         - name: Build, test and pack
+           shell: bash
+           env:
+              OUT: ${{ runner.temp }}/out
+           run: |
+              set -euo pipefail
+              mkdir -p "$OUT"
+              source ci/config/root--git--codegraph.sh
+              eval "$BUILD_CMD"
+              if [ -n "${TEST_CMD:-}" ]; then eval "$TEST_CMD"; fi
+              npm run build
+              npm pack --silent --pack-destination "$OUT"
+         - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+           with:
+              name: codegraph
+              path: ${{ runner.temp }}/out
+              retention-days: 7
+              if-no-files-found: error
+   publish:
+      needs: build
+      permissions:
+         contents: write
+      uses: ./.github/workflows/publish.yml
+      with:
+         repo: ${{ inputs.repo }}
+         sha: ${{ inputs.sha }}
+         project: codegraph
+         artifact: codegraph
+         description: npm pack of @colbymchenry/codegraph.

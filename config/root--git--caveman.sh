@@ -3,14 +3,16 @@
 FORK_REMOTE=fork
 UPSTREAM=JuliusBrussee/caveman
 BRANCH=integration
+CI_REPO=andrebrait/integration-ci
+CI_WORKFLOW=caveman.yml
 BASE=upstream/main
 UPSTREAM_MAIN_REF=upstream/main
 BUILD_CMD='(cd packages/pi-extension && npm ci --no-audit --no-fund && npm test && npm run test:omp) && go test ./mcp/...'
 # Publish the pi-extension build as an immutable fork release and install it into OMP as an
 # ordinary package pinned by URL; nothing at runtime depends on this checkout.
 DEPLOY_CMD='set -e
-cd "$BUILD_DIR/packages/pi-extension"
-tgz="$(npm pack --silent | tail -1)"
+cd "$BUILD_DIR"
+tgz="$(basename "$BUILD_DIR"/caveman-ai-pi-*.tgz)"
 tag="pi-extension-integration-${DEPLOY_SHA:0:10}"
 gh release view "$tag" --repo andrebrait/caveman >/dev/null 2>&1 ||
   gh release create "$tag" "$tgz" --repo andrebrait/caveman --target "$DEPLOY_SHA" --latest=false \

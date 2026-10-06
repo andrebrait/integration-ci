@@ -2,13 +2,15 @@
 FORK_REMOTE=origin
 UPSTREAM=kahme247/ompweb
 BRANCH=deploy/integration
+CI_REPO=andrebrait/integration-ci
+CI_WORKFLOW=ompweb.yml
 BASE=upstream/main
 UPSTREAM_MAIN_REF=upstream/main
-BUILD_CMD='/opt/omp-deployment/bin/ompweb-build "$BRANCH"'
+BUILD_CMD='npm ci --no-audit --no-fund && npm run build && npm run lint && npm test'
 DEPLOY_CMD='set -e
 short="${DEPLOY_SHA:0:12}"
 rel="/opt/ompweb-patched/releases/$short"
-[ -d "$rel" ] || { echo "release not found: $rel" >&2; exit 1; }
+[ -d "$rel" ] || /opt/omp-deployment/bin/ompweb-build "$DEPLOY_SHA" "$BUILD_DIR"
 ln -sfn "$rel" /opt/ompweb-patched/current
 sed -i "s|/opt/ompweb-patched/releases/[0-9a-f]\{12\}|/opt/ompweb-patched/releases/$short|g" /etc/systemd/system/ompweb-api.service
 systemctl daemon-reload

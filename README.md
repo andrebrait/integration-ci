@@ -30,13 +30,19 @@ Each zip holds the build and a
 `RELEASE.md` naming the integration commit, the upstream base, and the carried
 pull requests.
 
-The oh-my-pi `omp` binary is built on Ubuntu 24.04 and needs Linux x64 with
-glibc 2.39 or newer and a CPU with AVX2 (only the modern native addon is
-built).
+| Release | Zip contents |
+| --- | --- |
+| [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi) | `omp` binary for Linux x64; needs glibc 2.39 or newer and a CPU with AVX2 (only the modern native addon is built) |
+| [`caveman`](https://github.com/andrebrait/integration-ci/releases/tag/caveman) | `npm pack` of `@caveman-ai/pi` |
+| [`codegraph`](https://github.com/andrebrait/integration-ci/releases/tag/codegraph) | `npm pack` of `@colbymchenry/codegraph` |
+| [`superpowers`](https://github.com/andrebrait/integration-ci/releases/tag/superpowers) | `npm pack` of `superpowers` |
+| [`ponytail`](https://github.com/andrebrait/integration-ci/releases/tag/ponytail) | `npm pack` of `@dietrichgebert/ponytail` |
+| [`graphify`](https://github.com/andrebrait/integration-ci/releases/tag/graphify) | wheel and sdist of `graphifyy` |
+| [`ompweb`](https://github.com/andrebrait/integration-ci/releases/tag/ompweb) | `npm pack` of `@kahme247/ompweb` plus its `package-lock.json` |
 
 Builds run carried pull requests, including some by other authors. Only green
 builds seed the build cache, but a passing pull request's code ships in the
-binary like any other change.
+build like any other change.
 
 `<project>-latest.zip` is always a copy of the newest build, so its URL never
 changes:
