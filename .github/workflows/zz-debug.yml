@@ -1,0 +1,16 @@
+name: zz debug release
+on: workflow_dispatch
+permissions:
+   contents: write
+jobs:
+   t:
+      runs-on: ubuntu-24.04
+      steps:
+         - shell: bash
+           env:
+              GH_TOKEN: ${{ github.token }}
+              GH_REPO: ${{ github.repository }}
+           run: |
+              echo hi > a.txt
+              GH_DEBUG=api gh release create zz-debug --target "$GITHUB_SHA" --latest=false --title t --notes t a.txt 2>&1 | grep -E '^(> |< HTTP|\{)|message' | head -40 || true
+              gh release delete zz-debug --cleanup-tag --yes || true
