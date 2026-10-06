@@ -70,6 +70,8 @@ jobs:
               if-no-files-found: error
          # Public, login-free downloads: one release per green build plus a
          # rolling omp-latest, pruned to the newest 10 per-build releases.
+         # Every project here uses its own <project>-* tags; none claims the
+         # repo-wide "Latest" flag, which only one release can hold.
          - name: Publish release
            shell: bash
            env:
@@ -101,7 +103,7 @@ jobs:
               gh release create "$tag" --target "$GITHUB_SHA" --title "omp ${SHA:0:10}" --notes-file "$out/RELEASE.md" --latest=false \
                 "$out/omp" "$out/omp.sha256" "$out/RELEASE.md"
               gh release delete omp-latest --cleanup-tag --yes 2>/dev/null || true
-              gh release create omp-latest --target "$GITHUB_SHA" --title "omp latest (${SHA:0:10})" --notes-file "$out/RELEASE.md" --latest \
+              gh release create omp-latest --target "$GITHUB_SHA" --title "omp latest (${SHA:0:10})" --notes-file "$out/RELEASE.md" --latest=false \
                 "$out/omp" "$out/omp.sha256" "$out/RELEASE.md"
               gh release list --limit 100 --json tagName,createdAt \
                 --jq '[.[] | select(.tagName | test("^omp-[0-9a-f]{10}$"))] | sort_by(.createdAt) | reverse | .[10:][].tagName' |
