@@ -2,15 +2,21 @@ name: zz debug release
 on: workflow_dispatch
 permissions:
    contents: write
+   actions: write
 jobs:
    t:
       runs-on: ubuntu-24.04
       steps:
+         - uses: actions/checkout@v4
+           with:
+              repository: andrebrait/oh-my-pi
+              ref: c57841992629638cca10c7b886d136ef06194ffb
          - shell: bash
            env:
               GH_TOKEN: ${{ github.token }}
               GH_REPO: ${{ github.repository }}
+              PROJECT: oh-my-pi
            run: |
-              echo hi > a.txt
-              GH_DEBUG=api gh release create zz-debug --target "$GITHUB_SHA" --latest=false --title t --notes t a.txt 2>&1 | grep -E '^(> |< HTTP|\{)|message' | head -40 || true
-              gh release delete zz-debug --cleanup-tag --yes || true
+              GH_DEBUG=api gh release create "$PROJECT" --target "$GITHUB_SHA" --latest=false --title "$PROJECT integration builds" \
+                --notes "Integration builds of $PROJECT, newest 10 kept." 2>&1 | grep -E '^(> (POST|HEAD|GET)|< HTTP)|message|"[a-z_]+":' | head -40 || true
+              gh release delete "$PROJECT" --cleanup-tag --yes || true
