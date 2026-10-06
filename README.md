@@ -19,6 +19,19 @@ out automatically.
   `CI_REPO` and `CI_WORKFLOW`, `integration build` dispatches the workflow,
   waits for it, and downloads its artifact instead of building locally.
 
+## Downloads
+
+Every green omp build is published as a release: `omp-<sha10>` for that
+integration commit (the newest 10 are kept) and `omp-latest` for the newest one.
+Each holds a Linux x64 (glibc) `omp` binary, `omp.sha256`, and `RELEASE.md`
+listing the upstream base and the carried pull requests.
+
+```sh
+curl -fLO https://github.com/andrebrait/integration-ci/releases/download/omp-latest/omp
+curl -fLO https://github.com/andrebrait/integration-ci/releases/download/omp-latest/omp.sha256
+sha256sum -c omp.sha256 && chmod +x omp
+```
+
 ## Installation
 
 The script and configuration are used through two symlinks:

@@ -18,7 +18,7 @@ on:
 run-name: build ${{ inputs.sha }}
 
 permissions:
-   contents: read
+   contents: write # releases
    actions: write
 
 jobs:
@@ -68,3 +68,41 @@ jobs:
               path: packages/coding-agent/dist/omp
               retention-days: 7
               if-no-files-found: error
+         # Public, login-free downloads: one release per green build plus a
+         # rolling omp-latest, pruned to the newest 10 per-build releases.
+         - name: Publish release
+           shell: bash
+           env:
+              GH_TOKEN: ${{ github.token }}
+              GH_REPO: ${{ github.repository }}
+              FORK: ${{ inputs.repo }}
+              SHA: ${{ inputs.sha }}
+           run: |
+              set -euo pipefail
+              out="$RUNNER_TEMP/release"
+              mkdir -p "$out"
+              cp packages/coding-agent/dist/omp "$out/omp"
+              (cd "$out" && sha256sum omp > omp.sha256)
+              # The integration branch is the upstream base plus `PR #N:` squashes,
+              # newest first; the first other commit is the base.
+              gh api "repos/$FORK/commits?sha=$SHA&per_page=100" --jq '.[] | [.sha, (.commit.message | split("\n")[0])] | @tsv' > "$out/log.tsv"
+              {
+                echo "omp integration build of [$FORK@${SHA:0:10}](https://github.com/$FORK/commit/$SHA)."
+                echo
+                echo "Linux x64 (glibc) binary. Verify with \`sha256sum -c omp.sha256\`."
+                echo
+                echo "Upstream base: $(awk -F'\t' '$2 !~ /^PR #[0-9]+: / { print substr($1, 1, 10) " " $2; exit }' "$out/log.tsv")"
+                echo
+                echo "Carried pull requests:"
+                awk -F'\t' '$2 !~ /^PR #[0-9]+: / { exit } { print "- " $2 }' "$out/log.tsv" | tac
+              } > "$out/RELEASE.md"
+              tag="omp-${SHA:0:10}"
+              gh release delete "$tag" --cleanup-tag --yes 2>/dev/null || true
+              gh release create "$tag" --target "$GITHUB_SHA" --title "omp ${SHA:0:10}" --notes-file "$out/RELEASE.md" --latest=false \
+                "$out/omp" "$out/omp.sha256" "$out/RELEASE.md"
+              gh release delete omp-latest --cleanup-tag --yes 2>/dev/null || true
+              gh release create omp-latest --target "$GITHUB_SHA" --title "omp latest (${SHA:0:10})" --notes-file "$out/RELEASE.md" --latest \
+                "$out/omp" "$out/omp.sha256" "$out/RELEASE.md"
+              gh release list --limit 100 --json tagName,createdAt \
+                --jq '[.[] | select(.tagName | test("^omp-[0-9a-f]{10}$"))] | sort_by(.createdAt) | reverse | .[10:][].tagName' |
+                while read -r old; do gh release delete "$old" --cleanup-tag --yes; done
