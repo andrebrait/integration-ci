@@ -17,14 +17,18 @@ on:
 
 run-name: build ${{ inputs.sha }}
 
-permissions:
-   contents: write # releases
-   actions: write
+# The build job runs the fork's code, including carried third-party PRs, so it
+# gets no write access to this repository's contents; only `publish`, which
+# never runs fork code, can write releases.
+permissions: {}
 
 jobs:
    build:
       runs-on: ubuntu-24.04
       timeout-minutes: 90
+      permissions:
+         contents: read
+         actions: write # bazel/bun cache saves
       steps:
          - uses: actions/checkout@v4
            with:
@@ -68,10 +72,20 @@ jobs:
               path: packages/coding-agent/dist/omp
               retention-days: 7
               if-no-files-found: error
-         # Public, login-free downloads. Each project owns one release named
-         # after it; every green build adds <project>-<UTC stamp>-<sha10>.zip
-         # and only the newest 10 assets are kept. No release claims the
-         # repo-wide "Latest" flag.
+   # Public, login-free downloads. Each project owns one release named
+   # after it; every green build adds <project>-<UTC stamp>-<sha10>.zip
+   # and only the newest 10 assets are kept. No release claims the
+   # repo-wide "Latest" flag.
+   publish:
+      needs: build
+      runs-on: ubuntu-24.04
+      permissions:
+         contents: write
+      steps:
+         - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+           with:
+              name: omp
+              path: ${{ runner.temp }}/release
          - name: Publish build
            shell: bash
            env:
@@ -83,8 +97,7 @@ jobs:
            run: |
               set -euo pipefail
               out="$RUNNER_TEMP/release"
-              mkdir -p "$out"
-              cp packages/coding-agent/dist/omp "$out/omp"
+              chmod +x "$out/omp"
               # The integration branch is the upstream base plus `PR #N:` squashes,
               # newest first; the first other commit is the base.
               gh api "repos/$FORK/commits?sha=$SHA&per_page=100" --jq '.[] | [.sha, (.commit.message | split("\n")[0])] | @tsv' > "$out/log.tsv"
