@@ -21,16 +21,14 @@ out automatically.
 
 ## Downloads
 
-Every green omp build is published as a release: `omp-<sha10>` for that
-integration commit (the newest 10 are kept) and `omp-latest` for the newest one.
-Each holds a Linux x64 (glibc) `omp` binary, `omp.sha256`, and `RELEASE.md`
-listing the upstream base and the carried pull requests.
-
-```sh
-curl -fLO https://github.com/andrebrait/integration-ci/releases/download/omp-latest/omp
-curl -fLO https://github.com/andrebrait/integration-ci/releases/download/omp-latest/omp.sha256
-sha256sum -c omp.sha256 && chmod +x omp
-```
+Each project has one release named after it (for example
+[`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi)).
+Every green build adds an asset named
+`<project>-<UTC timestamp>-<commit>.zip`, for example
+`oh-my-pi-20261006T151331Z-c578419926.zip`, and only the newest 10 are kept.
+Each zip holds the build (for oh-my-pi, a Linux x64 glibc `omp` binary) and a
+`RELEASE.md` naming the integration commit, the upstream base, and the carried
+pull requests.
 
 ## Installation
 
