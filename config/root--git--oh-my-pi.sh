@@ -4,6 +4,9 @@ UPSTREAM=can1357/oh-my-pi
 # Third-party PRs carried from our fork (rebased + fixed copy). See EXTRA_PRS in the integration script.
 EXTRA_PRS='12229=carry/pr-12229'
 BRANCH=integration
+# build runs BUILD_CMD/TEST_CMD on GitHub Actions (.github/workflows/omp.yml sources this file).
+CI_REPO=andrebrait/integration-ci
+CI_WORKFLOW=omp.yml
 BASE=upstream/main
 BUILD_CMD='bun install --frozen-lockfile && bun run build:native && bun check && bun --cwd=packages/coding-agent run build && packages/coding-agent/dist/omp --smoke-test'
 FORMAT_CMD='bun install --frozen-lockfile >/dev/null && bun run gen:compat && bun run fmt:tools'
@@ -20,7 +23,7 @@ TEST_CMD+=' && PI_CODING_AGENT_DIR="$(mktemp -d /tmp/omp-integration-agent-XXXXX
 DEPLOY_CMD='set -e
 rel="/opt/omp-patched/releases/${DEPLOY_SHA:0:10}"
 mkdir -p "$rel"
-cp "$BUILD_DIR/packages/coding-agent/dist/omp" "$rel/omp"
+cp "$BUILD_DIR/omp" "$rel/omp"
 sha256sum "$rel/omp" | cut -d" " -f1 > "$rel/omp.sha256"
 {
 	echo "branch: integration"

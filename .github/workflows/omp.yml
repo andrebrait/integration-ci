@@ -42,6 +42,8 @@ jobs:
            shell: bash
            env:
               OMP_BAZEL_RC: ${{ steps.bazel.outputs.rc }}
+              # The host build defaults to cargo, which ignores the bazel disk cache.
+              OMP_NATIVE_BUILD_BACKEND: bazel
            run: |
               set -euo pipefail
               # Same file-descriptor floor upstream's bazel steps set.

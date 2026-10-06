@@ -25,6 +25,10 @@
 #                               # open, and dropped once it is merged or closed.
 #   BUILD_CMD='...'             # runs inside a clean detached worktree at $BRANCH
 #   TEST_CMD='...'              # optional, runs after BUILD_CMD in the same worktree
+#   CI_REPO=owner/repo          # optional: build dispatches CI_WORKFLOW there for the
+#   CI_WORKFLOW=omp.yml         # branch head instead of running BUILD_CMD/TEST_CMD here;
+#                               # the run's artifacts become BUILD_DIR. The head is first
+#                               # pushed to FORK_REMOTE as $BRANCH-next so CI can fetch it.
 #   DEPLOY_CMD='...'            # runs with BUILD_DIR, DEPLOY_SHA, DEPLOY_BASE exported
 #   POST_CMD='...'             # optional, runs after DEPLOY_CMD succeeds; same exports
 #
@@ -268,7 +272,46 @@ cmd_rebuild() {
 	echo "integration: $BRANCH rebuilt at $(git -C "$wt" rev-parse --short HEAD) (base $base, $(git -C "$REPO_DIR" rev-list --count "$base..$BRANCH") PRs)"
 }
 
+# Build the branch head on GitHub Actions: CI can only fetch a commit some ref
+# points to, so the head goes to $BRANCH-next first (a scratch ref nothing else
+# reads), and $BRANCH itself moves only after the run is green.
+cmd_build_ci() {
+	local sha slug out id url dir
+	sha="$(git -C "$REPO_DIR" rev-parse "$BRANCH")"
+	slug="$(git -C "$REPO_DIR" remote get-url "$FORK_REMOTE" | sed -E 's#^.*github\.com[:/]##; s#\.git$##')"
+	git -C "$REPO_DIR" push -q --force "$FORK_REMOTE" "$sha:refs/heads/$BRANCH-next"
+	out="$(gh workflow run "$CI_WORKFLOW" -R "$CI_REPO" -f repo="$slug" -f sha="$sha" 2>&1)" || {
+		echo "integration: dispatching $CI_WORKFLOW in $CI_REPO failed: $out" >&2
+		exit 1
+	}
+	# gh prints the URL of the run this dispatch created, so a rerun of the
+	# same sha can never be confused with an older run.
+	id="$(sed -nE 's#.*/actions/runs/([0-9]+).*#\1#p' <<< "$out" | head -1)"
+	[ -n "$id" ] || { echo "integration: no run URL in gh output (gh >= 2.81 required): $out" >&2; exit 1; }
+	url="https://github.com/$CI_REPO/actions/runs/$id"
+	echo "integration: building $BRANCH @ ${sha:0:10} in CI: $url"
+	if ! gh run watch "$id" -R "$CI_REPO" --exit-status --interval 30 >/dev/null; then
+		echo "integration: CI build failed: $url" >&2
+		exit 1
+	fi
+	dir="$CACHE/ci-build-$sha"
+	rm -rf "$dir"
+	gh run download "$id" -R "$CI_REPO" -D "$dir"
+	# gh nests each artifact in its own directory; flatten so BUILD_DIR holds the files.
+	find "$dir" -mindepth 2 -type f -exec mv -t "$dir" {} +
+	find "$dir" -mindepth 1 -type d -empty -delete
+	chmod +x "$dir"/*
+	printf %s "$dir" > "$CACHE/build-dir"
+	echo "integration: CI build OK ($dir)"
+	if [ "$(git -C "$REPO_DIR" rev-parse "$BRANCH")" != "$sha" ]; then
+		echo "integration: $BRANCH moved during the CI build (tested ${sha:0:10}); not pushing, re-run build" >&2
+		exit 1
+	fi
+	cmd_push
+}
+
 cmd_build() {
+	if [ -n "${CI_REPO:-}" ]; then cmd_build_ci; return; fi
 	[ -n "${BUILD_CMD:-}" ] || { echo "integration: BUILD_CMD not set in $CONF" >&2; exit 2; }
 	local sha root wt
 	sha="$(git -C "$REPO_DIR" rev-parse "$BRANCH")"
