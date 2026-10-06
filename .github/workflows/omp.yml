@@ -99,11 +99,12 @@ jobs:
               } > "$out/RELEASE.md"
               # Basic ISO 8601 (no colons) so names stay URL-safe and sort by time.
               name="$PROJECT-$(date -u +%Y%m%dT%H%M%SZ)-${SHA:0:10}.zip"
-              (cd "$out" && zip -q "$name" omp RELEASE.md)
+              (cd "$out" && zip -q "$name" omp RELEASE.md && cp "$name" "$PROJECT-latest.zip")
               gh release view "$PROJECT" >/dev/null 2>&1 ||
                 gh release create "$PROJECT" --target "$GITHUB_SHA" --latest=false --title "$PROJECT integration builds" \
-                  --notes "Integration builds of $PROJECT, newest 10 kept. Each zip holds the build and a RELEASE.md naming the commit, upstream base and carried pull requests."
+                  --notes "Integration builds of $PROJECT, newest 10 kept; $PROJECT-latest.zip is a copy of the newest. Each zip holds the build and a RELEASE.md naming the commit, upstream base and carried pull requests."
               gh release upload "$PROJECT" "$out/$name"
+              gh release upload "$PROJECT" "$out/$PROJECT-latest.zip" --clobber
               gh release view "$PROJECT" --json assets \
-                --jq '[.assets[].name | select(startswith(env.PROJECT + "-") and endswith(".zip"))] | sort | reverse | .[10:][]' |
+                --jq '[.assets[].name | select(startswith(env.PROJECT + "-") and endswith(".zip") and . != env.PROJECT + "-latest.zip")] | sort | reverse | .[10:][]' |
                 while read -r old; do gh release delete-asset "$PROJECT" "$old" --yes; done

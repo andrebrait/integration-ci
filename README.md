@@ -30,6 +30,13 @@ Each zip holds the build (for oh-my-pi, a Linux x64 glibc `omp` binary) and a
 `RELEASE.md` naming the integration commit, the upstream base, and the carried
 pull requests.
 
+`<project>-latest.zip` is always a copy of the newest build, so its URL never
+changes:
+
+```sh
+curl -fLO https://github.com/andrebrait/integration-ci/releases/download/oh-my-pi/oh-my-pi-latest.zip
+```
+
 ## Installation
 
 The script and configuration are used through two symlinks:
