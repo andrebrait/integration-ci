@@ -295,11 +295,13 @@ cmd_build_ci() {
 		exit 1
 	fi
 	dir="$CACHE/ci-build-$sha"
-	rm -rf "$dir"
-	gh run download "$id" -R "$CI_REPO" -D "$dir"
-	# gh nests each artifact in its own directory; flatten so BUILD_DIR holds the files.
-	find "$dir" -mindepth 2 -type f -exec mv -t "$dir" {} +
-	find "$dir" -mindepth 1 -type d -empty -delete
+	rm -rf "$dir" "$dir.dl"
+	gh run download "$id" -R "$CI_REPO" -D "$dir.dl"
+	# gh nests each artifact in a directory named after it, which may match the
+	# file inside (omp/omp); collect the files into a fresh BUILD_DIR.
+	mkdir -p "$dir"
+	find "$dir.dl" -type f -exec mv -t "$dir" {} +
+	rm -rf "$dir.dl"
 	chmod +x "$dir"/*
 	printf %s "$dir" > "$CACHE/build-dir"
 	echo "integration: CI build OK ($dir)"
