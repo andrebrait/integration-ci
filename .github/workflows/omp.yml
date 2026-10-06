@@ -26,17 +26,21 @@ jobs:
    build:
       runs-on: ubuntu-24.04
       timeout-minutes: 90
+      # Read-only token, and not persisted into the checkouts, so the fork's
+      # build and test code cannot use it. Cache saves use the runner's own
+      # cache token, not GITHUB_TOKEN.
       permissions:
          contents: read
-         actions: write # bazel/bun cache saves
       steps:
          - uses: actions/checkout@v4
            with:
               repository: ${{ inputs.repo }}
               ref: ${{ inputs.sha }}
+              persist-credentials: false
          - uses: actions/checkout@v4
            with:
               path: ci
+              persist-credentials: false
          - uses: ./.github/actions/bun-install
          - id: bazel
            uses: ./.github/actions/bazel-cache
@@ -55,9 +59,10 @@ jobs:
               source ci/config/root--git--oh-my-pi.sh
               eval "$BUILD_CMD"
               eval "$TEST_CMD"
-         # Saved even when tests fail: the native build is the expensive part.
+         # Only green runs seed the cache, so a failing (possibly hostile) PR
+         # build never persists what it wrote into ~/.cache/omp-bazel-*.
          - name: Save bazel disk cache
-           if: always() && steps.bazel.outputs.save-needed == 'true'
+           if: success() && steps.bazel.outputs.save-needed == 'true'
            continue-on-error: true
            uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
            with:
@@ -103,7 +108,7 @@ jobs:
               gh api "repos/$FORK/commits?sha=$SHA&per_page=100" --jq '.[] | [.sha, (.commit.message | split("\n")[0])] | @tsv' > "$out/log.tsv"
               {
                 echo "omp integration build of $FORK@$SHA (https://github.com/$FORK/commit/$SHA)."
-                echo "Linux x64 (glibc) binary."
+                echo "Linux x64 binary. Requires glibc 2.39 or newer and a CPU with AVX2 (only the modern native addon is built)."
                 echo
                 echo "Upstream base: $(awk -F'\t' '$2 !~ /^PR #[0-9]+: / { print substr($1, 1, 10) " " $2; exit }' "$out/log.tsv")"
                 echo

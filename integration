@@ -276,9 +276,17 @@ cmd_rebuild() {
 # points to, so the head goes to $BRANCH-next first (a scratch ref nothing else
 # reads), and $BRANCH itself moves only after the run is green.
 cmd_build_ci() {
-	local sha slug out id url dir
+	local sha slug out id url dir cfg
 	sha="$(git -C "$REPO_DIR" rev-parse "$BRANCH")"
 	slug="$(git -C "$REPO_DIR" remote get-url "$FORK_REMOTE" | sed -E 's#^.*github\.com[:/]##; s#\.git$##')"
+	# CI sources this config and runs the workflow from CI_REPO's origin/main,
+	# not from this checkout: an unpushed TEST_CMD edit would silently not run.
+	cfg="$(git -C "$(dirname "$(readlink -f "$CONF")")" rev-parse --show-toplevel)"
+	git -C "$cfg" fetch -q origin main
+	if ! git -C "$cfg" diff --quiet origin/main -- "$(readlink -f "$CONF")" ".github/workflows/$CI_WORKFLOW"; then
+		echo "integration: $CONF or .github/workflows/$CI_WORKFLOW differs from $CI_REPO origin/main; commit and push $cfg first (CI reads origin/main)" >&2
+		exit 1
+	fi
 	git -C "$REPO_DIR" push -q --force "$FORK_REMOTE" "$sha:refs/heads/$BRANCH-next"
 	out="$(gh workflow run "$CI_WORKFLOW" -R "$CI_REPO" -f repo="$slug" -f sha="$sha" 2>&1)" || {
 		echo "integration: dispatching $CI_WORKFLOW in $CI_REPO failed: $out" >&2
@@ -303,12 +311,15 @@ cmd_build_ci() {
 	find "$dir.dl" -type f -exec mv -t "$dir" {} +
 	rm -rf "$dir.dl"
 	chmod +x "$dir"/*
-	printf %s "$dir" > "$CACHE/build-dir"
 	echo "integration: CI build OK ($dir)"
 	if [ "$(git -C "$REPO_DIR" rev-parse "$BRANCH")" != "$sha" ]; then
 		echo "integration: $BRANCH moved during the CI build (tested ${sha:0:10}); not pushing, re-run build" >&2
 		exit 1
 	fi
+	# Only now is $dir the build of $BRANCH: deploy reads build-dir with
+	# DEPLOY_SHA = $BRANCH, and older downloads (~230 MB each) are dead weight.
+	printf %s "$dir" > "$CACHE/build-dir"
+	find "$CACHE" -maxdepth 1 -name 'ci-build-*' ! -path "$dir" -exec rm -rf {} +
 	cmd_push
 }
 

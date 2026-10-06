@@ -25,10 +25,18 @@ Each project has one release named after it (for example
 [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi)).
 Every green build adds an asset named
 `<project>-<UTC timestamp>-<commit>.zip`, for example
-`oh-my-pi-20261006T151331Z-c578419926.zip`, and only the newest 10 are kept.
-Each zip holds the build (for oh-my-pi, a Linux x64 glibc `omp` binary) and a
+`oh-my-pi-20261006T161502Z-c578419926.zip`, and only the newest 10 are kept.
+Each zip holds the build and a
 `RELEASE.md` naming the integration commit, the upstream base, and the carried
 pull requests.
+
+The oh-my-pi `omp` binary is built on Ubuntu 24.04 and needs Linux x64 with
+glibc 2.39 or newer and a CPU with AVX2 (only the modern native addon is
+built).
+
+Builds run carried pull requests, including some by other authors. Only green
+builds seed the build cache, but a passing pull request's code ships in the
+binary like any other change.
 
 `<project>-latest.zip` is always a copy of the newest build, so its URL never
 changes:
