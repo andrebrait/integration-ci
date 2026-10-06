@@ -22,7 +22,3 @@ url="https://github.com/andrebrait/caveman/releases/download/$tag/$tgz"
 [ "$(curl -fsSL "$url" | sha256sum | cut -d" " -f1)" = "$(sha256sum "$tgz" | cut -d" " -f1)" ]
 omp install "@caveman-ai/pi@$url"
 echo "installed @caveman-ai/pi from $url"'
-# Cross-PR semantic fixup, re-applied on every squash (rerere replays text only):
-# caveman#1130 makes shrinkToolResult require a recovery client; caveman#1036's
-# runtime.ts call site must pass it once both are present. No-op otherwise.
-FORMAT_CMD='d=packages/pi-extension/src; [ -f $d/runtime.ts ] && grep -q "recovery: Pick<RecoveryClient, \"verify\">" $d/tool-output.ts && sed -i "s/await shrinkToolResult(state.bridge, state.id, event)/await shrinkToolResult(state.bridge, state.id, event, state.recovery)/" $d/runtime.ts'
