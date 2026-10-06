@@ -1,0 +1,68 @@
+name: omp integration build
+
+# Dispatched by `integration build` (CI_REPO/CI_WORKFLOW in config/root--git--oh-my-pi.sh)
+# with the integration head to build. The fork carries no workflow of its own: PR
+# branches and the integration branch are rebuilt from upstream every round.
+on:
+   workflow_dispatch:
+      inputs:
+         repo:
+            description: Fork holding the commit (owner/repo)
+            required: true
+            type: string
+         sha:
+            description: Integration commit to build (full sha)
+            required: true
+            type: string
+
+run-name: build ${{ inputs.sha }}
+
+permissions:
+   contents: read
+   actions: write
+
+jobs:
+   build:
+      runs-on: ubuntu-24.04
+      timeout-minutes: 90
+      steps:
+         - uses: actions/checkout@v4
+           with:
+              repository: ${{ inputs.repo }}
+              ref: ${{ inputs.sha }}
+         - uses: actions/checkout@v4
+           with:
+              path: ci
+         - uses: ./.github/actions/bun-install
+         - id: bazel
+           uses: ./.github/actions/bazel-cache
+           with:
+              scope: linux
+         - name: Build and test
+           shell: bash
+           env:
+              OMP_BAZEL_RC: ${{ steps.bazel.outputs.rc }}
+           run: |
+              set -euo pipefail
+              # Same file-descriptor floor upstream's bazel steps set.
+              if [ "$(ulimit -Sn)" != unlimited ] && [ "$(ulimit -Sn)" -lt 65536 ]; then ulimit -Sn 65536 || true; fi
+              source ci/config/root--git--oh-my-pi.sh
+              eval "$BUILD_CMD"
+              eval "$TEST_CMD"
+         # Saved even when tests fail: the native build is the expensive part.
+         - name: Save bazel disk cache
+           if: always() && steps.bazel.outputs.save-needed == 'true'
+           continue-on-error: true
+           uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+           with:
+              # Must mirror the restore path list in the fork's bazel-cache action.
+              path: |
+                 ~/.cache/omp-bazel-disk
+                 ~/.cache/omp-bazel-repo
+              key: ${{ steps.bazel.outputs.cache-key }}
+         - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+           with:
+              name: omp
+              path: packages/coding-agent/dist/omp
+              retention-days: 7
+              if-no-files-found: error
