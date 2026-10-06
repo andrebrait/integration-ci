@@ -23,7 +23,10 @@ TEST_CMD+=' && PI_CODING_AGENT_DIR="$(mktemp -d /tmp/omp-integration-agent-XXXXX
 DEPLOY_CMD='set -e
 rel="/opt/omp-patched/releases/${DEPLOY_SHA:0:10}"
 mkdir -p "$rel"
-cp "$BUILD_DIR/omp" "$rel/omp"
+# Copy beside, then rename over: redeploying the running sha would hit "Text file busy",
+# and a rename leaves running processes on the old inode.
+cp "$BUILD_DIR/omp" "$rel/omp.new"
+mv -f "$rel/omp.new" "$rel/omp"
 sha256sum "$rel/omp" | cut -d" " -f1 > "$rel/omp.sha256"
 {
 	echo "branch: integration"
