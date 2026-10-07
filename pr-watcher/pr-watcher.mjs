@@ -52,7 +52,12 @@ const excerpt = text => {
  * the watch is new: record a baseline and report nothing.
  */
 export function diffPr(prev, snap, ignore) {
-  const next = { seen: snap.items.map(i => i.id), head: snap.head, ci: snap.ci, state: snap.state };
+  // `ciReported` is the last delivered "<head>:<result>". A rerun on the same head
+  // (e.g. after a base change) passes through PENDING, which must not make the
+  // same result count as news again.
+  const ciNow = TERMINAL_CI.has(snap.ci) ? `${snap.head}:${snap.ci}` : undefined;
+  const ciReported = prev?.ciReported ?? (TERMINAL_CI.has(prev?.ci) ? `${prev.head}:${prev.ci}` : undefined);
+  const next = { seen: snap.items.map(i => i.id), head: snap.head, ci: snap.ci, ciReported: ciNow ?? ciReported, state: snap.state };
   if (!prev) return { events: [], next };
   const seen = new Set(prev.seen);
   const events = [];
@@ -63,9 +68,7 @@ export function diffPr(prev, snap, ignore) {
     events.push(`- ${what}: ${body} ${i.url}`);
   }
   if (snap.state !== prev.state) events.push(`- PR is now ${snap.state}`);
-  if (TERMINAL_CI.has(snap.ci) && (snap.ci !== prev.ci || snap.head !== prev.head)) {
-    events.push(`- CI ${snap.ci} on ${snap.head.slice(0, 10)}`);
-  }
+  if (ciNow && ciNow !== ciReported) events.push(`- CI ${snap.ci} on ${snap.head.slice(0, 10)}`);
   return { events, next };
 }
 

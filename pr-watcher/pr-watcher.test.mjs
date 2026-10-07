@@ -37,6 +37,15 @@ test("CI is reported once per terminal result per head", () => {
   assert.deepEqual(diffPr(green, snap({ ci: "SUCCESS", head: "bbbbbbbbbbbb" }), new Set()).events, ["- CI SUCCESS on bbbbbbbbbb"]);
 });
 
+test("a rerun of the same head does not repeat its CI result", () => {
+  const { next: green } = diffPr(diffPr(undefined, snap(), new Set()).next, snap({ ci: "SUCCESS" }), new Set());
+  const { events: duringRerun, next: pending } = diffPr(green, snap({ ci: "PENDING" }), new Set());
+  assert.deepEqual(duringRerun, []);
+  assert.deepEqual(diffPr(pending, snap({ ci: "SUCCESS" }), new Set()).events, []);
+  // A different result from the rerun is news.
+  assert.deepEqual(diffPr(pending, snap({ ci: "FAILURE" }), new Set()).events, ["- CI FAILURE on aaaaaaaaaa"]);
+});
+
 test("message never starts with a slash and names the PR", () => {
   const msg = formatMessage("can1357/oh-my-pi#14656", "x", ["- e"]);
   assert.ok(!msg.startsWith("/"));
