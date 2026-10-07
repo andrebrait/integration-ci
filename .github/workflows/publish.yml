@@ -49,7 +49,8 @@ jobs:
       permissions:
          contents: write
       steps:
-         # Each matching artifact lands in files/<artifact name>/.
+         # Matching artifacts land in files/<artifact name>/, except that a pattern
+         # matching only one artifact extracts it straight into files/.
          - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
            with:
               pattern: ${{ inputs.artifact }}*
@@ -85,6 +86,7 @@ jobs:
               for target in "${targets[@]}"; do
                 suffix="${target:+-$target}"
                 files="$RUNNER_TEMP/files/$ARTIFACT$suffix"
+                [ -d "$files" ] || files="$RUNNER_TEMP/files"
                 # One zip per commit and target: a re-dispatch publishes nothing new.
                 if grep -qE "^$PROJECT-[0-9]{8}T[0-9]{6}Z-${SHA:0:10}$suffix\.zip$" <<< "$assets"; then
                   echo "$PROJECT ${SHA:0:10}${target:+ $target} is already published; skipping"
