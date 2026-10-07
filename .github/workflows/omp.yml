@@ -5,9 +5,9 @@ name: omp integration build
 # branches and the integration branch are rebuilt from upstream every round.
 #
 # `build` runs the config's BUILD_CMD/TEST_CMD (the test gate). The release
-# binaries follow upstream's release jobs: Linux and Windows native addons are
-# bazel-built on Linux, each macOS addon on its own Mac, and bun compiles the
-# binaries. Every binary is smoke-tested on its own platform before publishing.
+# binaries follow upstream's release jobs: every native addon (macOS included)
+# is bazel-built on Linux, bun cross-compiles every binary on Linux, and each
+# binary is smoke-tested on its own platform before publishing.
 on:
    workflow_dispatch:
       inputs:
@@ -24,8 +24,8 @@ run-name: build ${{ inputs.sha }}
 
 # The build jobs run the fork's code, including carried third-party PRs, so they
 # get a read-only token that is not persisted into the checkouts; only
-# `publish`, which runs no fork code, can write releases. Cache saves use the
-# runner's own cache token, not GITHUB_TOKEN.
+# `publish`, which runs no fork code, can write releases. Bazel runs uncached:
+# the fork's bazel-cache action only wires upstream's cluster remote cache.
 permissions: {}
 
 jobs:
@@ -47,13 +47,11 @@ jobs:
          - uses: ./.github/actions/bun-install
          - id: bazel
            uses: ./.github/actions/bazel-cache
-           with:
-              scope: linux
          - name: Build and test
            shell: bash
            env:
               OMP_BAZEL_RC: ${{ steps.bazel.outputs.rc }}
-              # The host build defaults to cargo, which ignores the bazel disk cache.
+              # The host build defaults to cargo.
               OMP_NATIVE_BUILD_BACKEND: bazel
            run: |
               set -euo pipefail
@@ -62,23 +60,12 @@ jobs:
               source ci/config/root--git--oh-my-pi.sh
               eval "$BUILD_CMD"
               eval "$TEST_CMD"
-         # Only green runs seed the cache, so a failing (possibly hostile) PR
-         # build never persists what it wrote into ~/.cache/omp-bazel-*.
-         - name: Save bazel disk cache
-           if: success() && steps.bazel.outputs.save-needed == 'true'
-           continue-on-error: true
-           uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-           with:
-              # Must mirror the restore path list in the fork's bazel-cache action.
-              path: |
-                 ~/.cache/omp-bazel-disk
-                 ~/.cache/omp-bazel-repo
-              key: ${{ steps.bazel.outputs.cache-key }}
 
-   # Every Linux-hosted addon target (upstream's native_addons + native_addons_cross).
+   # Every addon target, macOS included: upstream cross-compiles them all on Linux
+   # (hermetic darwin and msvc toolchains in the fork's bazel config).
    natives:
       runs-on: ubuntu-24.04
-      timeout-minutes: 90
+      timeout-minutes: 120
       permissions:
          contents: read
       steps:
@@ -88,13 +75,20 @@ jobs:
               ref: ${{ inputs.sha }}
               persist-credentials: false
          - uses: ./.github/actions/bun-install
-         - uses: ./.github/actions/bazel-natives
-           with:
-              targets: linux-x64-baseline linux-x64-modern linux-arm64 win32-x64-baseline win32-arm64
-              cache-scope: cross
+         - id: bazel
+           uses: ./.github/actions/bazel-cache
+         - name: Build native addons
+           shell: bash
+           env:
+              OMP_BAZEL_RC: ${{ steps.bazel.outputs.rc }}
+           run: |
+              set -euo pipefail
+              if [ "$(ulimit -Sn)" != unlimited ] && [ "$(ulimit -Sn)" -lt 65536 ]; then ulimit -Sn 65536 || true; fi
+              bun scripts/bazel-natives.ts linux-x64-baseline linux-x64-modern linux-arm64 \
+                win32-x64-baseline win32-arm64 darwin-x64-baseline darwin-arm64 --dest packages/natives/native
          - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
            with:
-              name: natives-cross
+              name: natives-all
               path: packages/natives/native/*.node
               retention-days: 1
               if-no-files-found: error
@@ -105,11 +99,13 @@ jobs:
          fail-fast: false
          matrix:
             include:
-               - { target: linux-x64, os: ubuntu-24.04, file: omp-linux-x64, out: omp }
-               - { target: linux-arm64, os: ubuntu-24.04-arm, file: omp-linux-arm64, out: omp }
-               - { target: win32-x64, os: ubuntu-24.04, file: omp-windows-x64.exe, out: omp.exe }
-               - { target: win32-arm64, os: ubuntu-24.04, file: omp-windows-arm64.exe, out: omp.exe }
-      runs-on: ${{ matrix.os }}
+               - { target: linux-x64, file: omp-linux-x64, out: omp }
+               - { target: linux-arm64, file: omp-linux-arm64, out: omp }
+               - { target: darwin-x64, file: omp-darwin-x64, out: omp }
+               - { target: darwin-arm64, file: omp-darwin-arm64, out: omp }
+               - { target: win32-x64, file: omp-windows-x64.exe, out: omp.exe }
+               - { target: win32-arm64, file: omp-windows-arm64.exe, out: omp.exe }
+      runs-on: ubuntu-24.04
       timeout-minutes: 30
       permissions:
          contents: read
@@ -122,7 +118,7 @@ jobs:
          - uses: ./.github/actions/bun-install
          - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
            with:
-              name: natives-cross
+              name: natives-all
               path: packages/natives/native
          - name: Build release binary
            shell: bash
@@ -131,15 +127,12 @@ jobs:
            run: |
               set -euo pipefail
               bun run ci:release:build-binaries
+              # No Apple credentials here, so the script signs ad hoc (still runnable).
+              if [[ "$RELEASE_TARGETS" == darwin-* ]]; then
+                bash scripts/ci-macos-sign.sh "packages/coding-agent/binaries/${{ matrix.file }}"
+              fi
               mkdir -p "$RUNNER_TEMP/out"
               mv "packages/coding-agent/binaries/${{ matrix.file }}" "$RUNNER_TEMP/out/${{ matrix.out }}"
-         - name: Smoke release binary
-           if: startsWith(matrix.target, 'linux-')
-           shell: bash
-           run: |
-              runtime_dir="$(mktemp -d)"
-              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" "$RUNNER_TEMP/out/omp" --version
-              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" "$RUNNER_TEMP/out/omp" --smoke-test
          - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
            with:
               name: omp-${{ matrix.target }}
@@ -147,14 +140,18 @@ jobs:
               retention-days: 7
               if-no-files-found: error
 
-   # Windows binaries are cross-compiled above; run each on real Windows hardware.
-   windows-smoke:
+   # Each cross-compiled binary runs on its own platform before it is published.
+   smoke:
       needs: binaries
       strategy:
          fail-fast: false
          matrix:
             include:
-               - { target: win32-x64, os: windows-latest }
+               - { target: linux-x64, os: ubuntu-24.04 }
+               - { target: linux-arm64, os: ubuntu-24.04-arm }
+               - { target: darwin-x64, os: macos-15-intel }
+               - { target: darwin-arm64, os: macos-15 }
+               - { target: win32-x64, os: windows-2025 }
                - { target: win32-arm64, os: windows-11-arm }
       runs-on: ${{ matrix.os }}
       timeout-minutes: 15
@@ -165,6 +162,17 @@ jobs:
               name: omp-${{ matrix.target }}
               path: bin
          - name: Smoke release binary
+           if: runner.os != 'Windows'
+           shell: bash
+           run: |
+              set -euo pipefail
+              chmod +x bin/omp
+              if [ "$RUNNER_OS" = macOS ]; then codesign --verify --strict --verbose=2 bin/omp; fi
+              runtime_dir="$(mktemp -d)"
+              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" bin/omp --version
+              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" bin/omp --smoke-test
+         - name: Smoke release binary (Windows)
+           if: runner.os == 'Windows'
            shell: pwsh
            run: |
               $runtimeDir = Join-Path $env:RUNNER_TEMP "omp-smoke"
@@ -178,63 +186,8 @@ jobs:
               & "bin/omp.exe" --smoke-test
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-   # Darwin addons need the host Xcode toolchain; the Apple Foundation Models
-   # bridge needs Swift 6.4 and the macOS 27 SDK, which only the xcode-27 image has.
-   darwin:
-      strategy:
-         fail-fast: false
-         matrix:
-            include:
-               - { target: darwin-x64, os: macos-15, natives: darwin-x64-baseline }
-               - { target: darwin-arm64, os: xcode-27, natives: darwin-arm64 }
-      runs-on: ${{ matrix.os }}
-      timeout-minutes: 90
-      permissions:
-         contents: read
-      steps:
-         - uses: actions/checkout@v4
-           with:
-              repository: ${{ inputs.repo }}
-              ref: ${{ inputs.sha }}
-              persist-credentials: false
-         - uses: ./.github/actions/bun-install
-         - uses: ./.github/actions/bazel-natives
-           with:
-              targets: ${{ matrix.natives }}
-              cache-scope: ${{ matrix.target }}
-         - name: Verify Apple Foundation Models bridge
-           if: matrix.target == 'darwin-arm64'
-           run: |
-              addon=packages/natives/native/pi_natives.darwin-arm64.node
-              grep -aqF OmpAppleFm "$addon" ||
-                 { echo "::error::Darwin arm64 addon was built without the Apple Foundation Models bridge"; exit 1; }
-              if otool -L "$addon" | grep -E 'libswift|FoundationModels'; then
-                 echo "::error::Darwin arm64 addon links the Swift runtime or FoundationModels directly"; exit 1
-              fi
-         - name: Build release binary
-           shell: bash
-           env:
-              RELEASE_TARGETS: ${{ matrix.target }}
-           run: |
-              set -euo pipefail
-              bun run ci:release:build-binaries
-              mkdir -p "$RUNNER_TEMP/out"
-              mv "packages/coding-agent/binaries/omp-${{ matrix.target }}" "$RUNNER_TEMP/out/omp"
-         - name: Smoke release binary
-           shell: bash
-           run: |
-              runtime_dir="$(mktemp -d)"
-              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" "$RUNNER_TEMP/out/omp" --version
-              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" "$RUNNER_TEMP/out/omp" --smoke-test
-         - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-           with:
-              name: omp-${{ matrix.target }}
-              path: ${{ runner.temp }}/out/omp
-              retention-days: 7
-              if-no-files-found: error
-
    publish:
-      needs: [build, binaries, windows-smoke, darwin]
+      needs: [build, smoke]
       permissions:
          contents: write
       uses: ./.github/workflows/publish.yml
