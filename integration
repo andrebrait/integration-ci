@@ -91,6 +91,7 @@ stack_parent() { # num -> parent PR number or empty
 	for pair in ${STACKED_PRS:-}; do
 		[ "${pair%%:*}" = "$1" ] && { echo "${pair#*:}"; return 0; }
 	done
+	return 0
 }
 
 # Field 2 (the fork branch) of PR $1's row in $2, or empty when it is not listed.
