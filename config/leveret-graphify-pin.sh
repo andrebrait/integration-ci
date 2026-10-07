@@ -44,7 +44,10 @@ git push --quiet -u origin "HEAD:refs/heads/$branch"
 url="$(gh pr create --repo leveret-dev/leveret --base main --head "$branch" \
 	--title "agent: bump Graphify pin to integration head ${sha:0:8} ($version)" \
 	--body "Automated pin bump from integration deploy: ${old:0:8} -> ${sha:0:8} ($version). Shell suite green locally.")"
-gh pr merge "$url" --rebase --delete-branch
+# From outside the checkout: inside it, --delete-branch also switches the worktree
+# to main, which fails because the primary checkout already has main. Out here gh
+# deletes only the remote branch; cleanup drops the local one.
+(cd / && gh pr merge "$url" --repo leveret-dev/leveret --rebase --delete-branch)
 echo "pin: merged $url (${old:0:8} -> ${sha:0:8})"
 
 if [ "$(git -C "$repo" branch --show-current)" = main ] && git -C "$repo" pull --ff-only --quiet origin main 2>/dev/null; then
