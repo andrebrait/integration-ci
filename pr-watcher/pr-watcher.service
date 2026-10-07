@@ -1,0 +1,17 @@
+[Unit]
+Description=pr-watcher: notify omp sessions about pull request activity through omp-web
+After=network-online.target ompweb-api.service
+Wants=network-online.target
+
+[Service]
+# Supplies OMP_WEB_PASSWORD; omp-web reads its own password from the same file.
+EnvironmentFile=/opt/omp-deployment/production.env
+Environment=HOME=/root
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/root/.nvm/versions/node/v26.8.1/bin/node /root/git/integration-ci/pr-watcher/pr-watcher.mjs
+User=root
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

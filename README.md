@@ -18,6 +18,8 @@ out automatically.
   test a dispatched integration commit. When a project's configuration sets
   `CI_REPO` and `CI_WORKFLOW`, `integration build` dispatches the workflow,
   waits for it, and downloads its artifact instead of building locally.
+- `pr-watcher/`: a service that polls pull requests and sends each one's
+  activity to the omp session mapped to it. See [pr-watcher](#pr-watcher).
 
 ## Downloads
 
@@ -60,3 +62,41 @@ The script and configuration are used through two symlinks:
 ln -sfn /root/git/integration-ci/config ~/.config/integration
 ln -sfn /root/git/integration-ci/integration ~/.local/bin/integration
 ```
+
+## pr-watcher
+
+`pr-watcher/pr-watcher.mjs` polls GitHub pull requests through `gh` and
+notifies the omp session mapped to each one by sending it a prompt through
+omp-web's agent API (`POST /api/agent/<session id>`). It needs Node.js 22 or
+newer, an authenticated `gh`, and a running omp-web.
+
+- **What it reports:** new comments and reviews (except the `gh` user's own
+  and `ignoreAuthors`), a terminal CI result (`SUCCESS`, `FAILURE`, `ERROR`)
+  once per head commit, and PR state changes (merged, closed, reopened).
+- **How it delivers:** an idle session starts a turn; a session in the middle
+  of a turn gets the update as a follow-up; a session with no omp process is
+  resumed by omp-web first. A session running a shell command or compacting is
+  retried on the next cycle. Updates are appended to the conversation and never
+  change the system prompt.
+- **Configuration:** `~/.config/pr-watcher/config.json`
+  (`PR_WATCHER_CONFIG` overrides it). The file is re-read every cycle and as
+  soon as it changes, so edits apply without a restart. See
+  `pr-watcher/config.example.json`. A session id is the omp session UUID,
+  as shown in omp-web's URL. A new watch starts from a baseline and reports
+  only activity after it was added.
+- **State:** `~/.local/state/pr-watcher/state.json` (`PR_WATCHER_STATE`)
+  records what each session has been told. An update is recorded only after
+  omp-web accepts it, so a failed delivery is retried.
+- **Authentication:** when `OMP_WEB_PASSWORD` is set, the watcher signs in to
+  omp-web with it. The unit reads it from the environment file omp-web uses;
+  never put it in the config.
+
+```sh
+mkdir -p ~/.config/pr-watcher
+cp pr-watcher/config.example.json ~/.config/pr-watcher/config.json  # then edit
+systemctl enable --now /root/git/integration-ci/pr-watcher/pr-watcher.service
+journalctl -u pr-watcher -f
+```
+
+`node pr-watcher/pr-watcher.mjs --once` runs a single cycle;
+`node --test pr-watcher/` runs the tests.
