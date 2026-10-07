@@ -58,6 +58,13 @@ jobs:
               EXECUTABLES: ${{ inputs.executables }}
            run: |
               set -euo pipefail
+              # One zip per commit: a rebuild of an already published sha (a manual
+              # re-dispatch) publishes nothing new. A missing release counts as none.
+              published="$(gh release view "$PROJECT" --json assets --jq "[.assets[].name | select(startswith(env.PROJECT + \"-\") and endswith(\"-${SHA:0:10}.zip\"))] | length" 2>/dev/null || echo 0)"
+              if [ "$published" != 0 ]; then
+                echo "$PROJECT ${SHA:0:10} is already published; skipping"
+                exit 0
+              fi
               files="$RUNNER_TEMP/files" out="$RUNNER_TEMP/out"
               mkdir -p "$out"
               # Artifacts lose their mode bits.

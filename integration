@@ -287,29 +287,42 @@ cmd_build_ci() {
 		echo "integration: $CONF or $cfg/.github differs from $CI_REPO origin/main; commit and push $cfg first (CI reads origin/main)" >&2
 		exit 1
 	fi
-	git -C "$REPO_DIR" push -q --force "$FORK_REMOTE" "$sha:refs/heads/$BRANCH-next"
-	out="$(gh workflow run "$CI_WORKFLOW" -R "$CI_REPO" -f repo="$slug" -f sha="$sha" 2>&1)" || {
-		echo "integration: dispatching $CI_WORKFLOW in $CI_REPO failed: $out" >&2
-		exit 1
-	}
-	# gh prints the URL of the run this dispatch created, so a rerun of the
-	# same sha can never be confused with an older run.
-	id="$(sed -nE 's#.*/actions/runs/([0-9]+).*#\1#p' <<< "$out" | head -1)"
-	[ -n "$id" ] || { echo "integration: no run URL in gh output (gh >= 2.81 required): $out" >&2; exit 1; }
-	url="https://github.com/$CI_REPO/actions/runs/$id"
-	echo "integration: building $BRANCH @ ${sha:0:10} in CI: $url"
-	if ! gh run watch "$id" -R "$CI_REPO" --exit-status --interval 30 >/dev/null; then
-		echo "integration: CI build failed: $url" >&2
-		exit 1
-	fi
 	dir="$CACHE/ci-build-$sha"
 	rm -rf "$dir" "$dir.dl"
-	gh run download "$id" -R "$CI_REPO" -D "$dir.dl"
-	# gh nests each artifact in a directory named after it, which may match the
-	# file inside (omp/omp); collect the files into a fresh BUILD_DIR.
-	mkdir -p "$dir"
-	find "$dir.dl" -type f -exec mv -t "$dir" {} +
-	rm -rf "$dir.dl"
+	# A commit already built and published is reused as-is: the zip holds exactly
+	# what that run built and tested. A missing release or API error means build.
+	local release asset
+	release="$(sed -nE 's/^ +project: *//p' "$cfg/.github/workflows/$CI_WORKFLOW" | head -1)"
+	asset="$(gh release view "$release" -R "$CI_REPO" --json assets \
+		--jq "[.assets[].name | select(startswith(\"$release-\") and endswith(\"-${sha:0:10}.zip\"))] | sort | last // empty" 2>/dev/null || true)"
+	if [ -n "$release" ] && [ -n "$asset" ]; then
+		echo "integration: $BRANCH @ ${sha:0:10} is already built and published as $asset; reusing it"
+		gh release download "$release" -R "$CI_REPO" -p "$asset" -D "$dir.dl"
+		unzip -q "$dir.dl/$asset" -d "$dir"
+		rm -rf "$dir.dl"
+	else
+		git -C "$REPO_DIR" push -q --force "$FORK_REMOTE" "$sha:refs/heads/$BRANCH-next"
+		out="$(gh workflow run "$CI_WORKFLOW" -R "$CI_REPO" -f repo="$slug" -f sha="$sha" 2>&1)" || {
+			echo "integration: dispatching $CI_WORKFLOW in $CI_REPO failed: $out" >&2
+			exit 1
+		}
+		# gh prints the URL of the run this dispatch created, so a rerun of the
+		# same sha can never be confused with an older run.
+		id="$(sed -nE 's#.*/actions/runs/([0-9]+).*#\1#p' <<< "$out" | head -1)"
+		[ -n "$id" ] || { echo "integration: no run URL in gh output (gh >= 2.81 required): $out" >&2; exit 1; }
+		url="https://github.com/$CI_REPO/actions/runs/$id"
+		echo "integration: building $BRANCH @ ${sha:0:10} in CI: $url"
+		if ! gh run watch "$id" -R "$CI_REPO" --exit-status --interval 30 >/dev/null; then
+			echo "integration: CI build failed: $url" >&2
+			exit 1
+		fi
+		gh run download "$id" -R "$CI_REPO" -D "$dir.dl"
+		# gh nests each artifact in a directory named after it, which may match the
+		# file inside (omp/omp); collect the files into a fresh BUILD_DIR.
+		mkdir -p "$dir"
+		find "$dir.dl" -type f -exec mv -t "$dir" {} +
+		rm -rf "$dir.dl"
+	fi
 	chmod +x "$dir"/*
 	echo "integration: CI build OK ($dir)"
 	if [ "$(git -C "$REPO_DIR" rev-parse "$BRANCH")" != "$sha" ]; then
