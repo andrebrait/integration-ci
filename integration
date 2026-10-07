@@ -532,14 +532,8 @@ cmd_prs() {
 	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --prune
 	git -C "$REPO_DIR" fetch upstream --prune
 	local root num branch base wt pre rows head_remote head_pre parent parent_branch onto
-	local -A old_tip=()
 	rows="$(pr_rows base)"
 	root="$(worktrees_root)"
-	# Every branch's tip before this round moves any of them: a stacked child is
-	# cut from its parent where the parent stood when the child was last rebased.
-	while IFS=$'\t' read -r num branch base; do
-		[ -n "$num" ] && old_tip[$num]="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$branch")"
-	done <<< "$rows"
 	while read -r base; do
 		[ -n "$base" ] && sync_fork_base "$base"
 	done <<< "$(printf '%s\n' "$rows" | cut -f3 | sort -u)"
@@ -573,9 +567,12 @@ cmd_prs() {
 			git -C "$REPO_DIR" worktree remove --force "$wt" 2>/dev/null || rm -rf "$wt"
 			git -C "$REPO_DIR" worktree add --detach "$wt" "$FORK_REMOTE/$branch" >/dev/null
 			if [ -n "$parent_branch" ]; then
-				# The parent was rebased and pushed earlier in this loop; replay only
-				# the child's own commits onto its new tip.
-				onto="$(git -C "$REPO_DIR" merge-base "${old_tip[$parent]}" "$FORK_REMOTE/$branch")"
+				# The parent was rebased and pushed earlier (this run or an interrupted
+				# one); replay only the child's own commits onto its new tip. The
+				# remote-tracking reflog remembers the parent tip the child was cut
+				# from; without that entry, fall back to the plain merge base.
+				onto="$(git -C "$REPO_DIR" merge-base --fork-point "$FORK_REMOTE/$parent_branch" "$FORK_REMOTE/$branch" ||
+					git -C "$REPO_DIR" merge-base "$FORK_REMOTE/$parent_branch" "$FORK_REMOTE/$branch")"
 				echo "integration: PR #$num rebasing $branch onto #$parent ($FORK_REMOTE/$parent_branch)"
 				( cd "$wt" && git rebase --onto "$FORK_REMOTE/$parent_branch" "$onto" )
 			else
