@@ -24,8 +24,10 @@ run-name: build ${{ inputs.sha }}
 
 # The build jobs run the fork's code, including carried third-party PRs, so they
 # get a read-only token that is not persisted into the checkouts; only
-# `publish`, which runs no fork code, can write releases. Bazel runs uncached:
-# the fork's bazel-cache action only wires upstream's cluster remote cache.
+# `publish`, which runs no fork code, can write releases. Cache saves use the
+# runner's own cache token, not GITHUB_TOKEN. The fork's bazel-cache action only
+# wires upstream's cluster remote cache, so these jobs add an actions/cache disk
+# cache (see the natives job).
 permissions: {}
 
 jobs:
@@ -35,18 +37,32 @@ jobs:
       permissions:
          contents: read
       steps:
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
            with:
               repository: ${{ inputs.repo }}
               ref: ${{ inputs.sha }}
               persist-credentials: false
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
            with:
               path: ci
               persist-credentials: false
          - uses: ./.github/actions/bun-install
+         # Bazel disk cache: see the natives job.
+         - id: disk
+           uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+           with:
+              path: ~/.cache/omp-bazel-disk
+              key: bazel-disk-v1-build-${{ hashFiles('Cargo.lock', 'MODULE.bazel.lock') }}
+              restore-keys: bazel-disk-v1-build-
          - id: bazel
            uses: ./.github/actions/bazel-cache
+         - name: Use the bazel disk cache
+           shell: bash
+           env:
+              RC: ${{ steps.bazel.outputs.rc }}
+           run: |
+              echo "common --disk_cache=$HOME/.cache/omp-bazel-disk" >> "$RC"
+              touch "$RUNNER_TEMP/bazel-start"
          - name: Build and test
            shell: bash
            env:
@@ -60,10 +76,28 @@ jobs:
               source ci/config/root--git--oh-my-pi.sh
               eval "$BUILD_CMD"
               eval "$TEST_CMD"
+         - name: Prune unused bazel disk cache entries
+           if: success() && steps.disk.outputs.cache-hit != 'true'
+           shell: bash
+           run: |
+              find ~/.cache/omp-bazel-disk -type f ! -newer "$RUNNER_TEMP/bazel-start" -delete
+              du -sh ~/.cache/omp-bazel-disk
+         - if: success() && steps.disk.outputs.cache-hit != 'true'
+           uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+           with:
+              path: ~/.cache/omp-bazel-disk
+              key: ${{ steps.disk.outputs.cache-primary-key }}
 
    # Every addon target, macOS included: upstream cross-compiles them all on Linux
    # (hermetic darwin and msvc toolchains in the fork's bazel config). One job per
-   # target: uncached, all seven on one runner overrun two hours.
+   # target: all seven on one runner overrun two hours uncached.
+   #
+   # Each bazel job keeps a disk cache keyed by the lockfiles: a run on a cached
+   # lockfile recompiles only pi_natives and saves nothing. A lockfile change starts
+   # from the previous cache and, when green, saves a new one pruned to the entries
+   # this run used (bazel refreshes an entry's mtime on every hit), so old
+   # dependencies never accumulate. Only green runs save, so a failing PR build
+   # never seeds the cache.
    natives:
       strategy:
          fail-fast: false
@@ -81,14 +115,27 @@ jobs:
       permissions:
          contents: read
       steps:
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
            with:
               repository: ${{ inputs.repo }}
               ref: ${{ inputs.sha }}
               persist-credentials: false
          - uses: ./.github/actions/bun-install
+         - id: disk
+           uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+           with:
+              path: ~/.cache/omp-bazel-disk
+              key: bazel-disk-v1-${{ matrix.target }}-${{ hashFiles('Cargo.lock', 'MODULE.bazel.lock') }}
+              restore-keys: bazel-disk-v1-${{ matrix.target }}-
          - id: bazel
            uses: ./.github/actions/bazel-cache
+         - name: Use the bazel disk cache
+           shell: bash
+           env:
+              RC: ${{ steps.bazel.outputs.rc }}
+           run: |
+              echo "common --disk_cache=$HOME/.cache/omp-bazel-disk" >> "$RC"
+              touch "$RUNNER_TEMP/bazel-start"
          - name: Build native addons
            shell: bash
            env:
@@ -97,7 +144,18 @@ jobs:
               set -euo pipefail
               if [ "$(ulimit -Sn)" != unlimited ] && [ "$(ulimit -Sn)" -lt 65536 ]; then ulimit -Sn 65536 || true; fi
               bun scripts/bazel-natives.ts "${{ matrix.target }}" --dest packages/natives/native
-         - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+         - name: Prune unused bazel disk cache entries
+           if: success() && steps.disk.outputs.cache-hit != 'true'
+           shell: bash
+           run: |
+              find ~/.cache/omp-bazel-disk -type f ! -newer "$RUNNER_TEMP/bazel-start" -delete
+              du -sh ~/.cache/omp-bazel-disk
+         - if: success() && steps.disk.outputs.cache-hit != 'true'
+           uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+           with:
+              path: ~/.cache/omp-bazel-disk
+              key: ${{ steps.disk.outputs.cache-primary-key }}
+         - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
            with:
               name: natives-${{ matrix.target }}
               path: packages/natives/native/*.node
@@ -121,13 +179,13 @@ jobs:
       permissions:
          contents: read
       steps:
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
            with:
               repository: ${{ inputs.repo }}
               ref: ${{ inputs.sha }}
               persist-credentials: false
          - uses: ./.github/actions/bun-install
-         - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+         - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
            with:
               pattern: natives-*
               merge-multiple: true
@@ -145,7 +203,7 @@ jobs:
               fi
               mkdir -p "$RUNNER_TEMP/out"
               mv "packages/coding-agent/binaries/${{ matrix.file }}" "$RUNNER_TEMP/out/${{ matrix.out }}"
-         - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+         - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
            with:
               name: omp-${{ matrix.target }}
               path: ${{ runner.temp }}/out/${{ matrix.out }}
@@ -169,7 +227,7 @@ jobs:
       timeout-minutes: 15
       permissions: {}
       steps:
-         - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+         - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
            with:
               name: omp-${{ matrix.target }}
               path: bin
