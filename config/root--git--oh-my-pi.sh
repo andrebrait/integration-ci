@@ -7,6 +7,8 @@ BRANCH=integration
 # build runs BUILD_CMD/TEST_CMD on GitHub Actions (.github/workflows/omp.yml sources this file).
 CI_REPO=andrebrait/integration-ci
 CI_WORKFLOW=omp.yml
+# omp.yml builds every platform; this host deploys the linux-x64 binary.
+CI_TARGET=linux-x64
 BASE=upstream/main
 BUILD_CMD='bun install --frozen-lockfile && bun run build:native && bun check && bun --cwd=packages/coding-agent run build && packages/coding-agent/dist/omp --smoke-test'
 FORMAT_CMD='bun install --frozen-lockfile >/dev/null && bun run gen:compat && bun run fmt:tools'

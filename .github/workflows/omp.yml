@@ -3,6 +3,11 @@ name: omp integration build
 # Dispatched by `integration build` (CI_REPO/CI_WORKFLOW in config/root--git--oh-my-pi.sh)
 # with the integration head to build. The fork carries no workflow of its own: PR
 # branches and the integration branch are rebuilt from upstream every round.
+#
+# `build` runs the config's BUILD_CMD/TEST_CMD (the test gate). The release
+# binaries follow upstream's release jobs: Linux and Windows native addons are
+# bazel-built on Linux, each macOS addon on its own Mac, and bun compiles the
+# binaries. Every binary is smoke-tested on its own platform before publishing.
 on:
    workflow_dispatch:
       inputs:
@@ -17,18 +22,16 @@ on:
 
 run-name: build ${{ inputs.sha }}
 
-# The build job runs the fork's code, including carried third-party PRs, so it
-# gets no write access to this repository's contents; only `publish`, which
-# never runs fork code, can write releases.
+# The build jobs run the fork's code, including carried third-party PRs, so they
+# get a read-only token that is not persisted into the checkouts; only
+# `publish`, which runs no fork code, can write releases. Cache saves use the
+# runner's own cache token, not GITHUB_TOKEN.
 permissions: {}
 
 jobs:
    build:
       runs-on: ubuntu-24.04
       timeout-minutes: 90
-      # Read-only token, and not persisted into the checkouts, so the fork's
-      # build and test code cannot use it. Cache saves use the runner's own
-      # cache token, not GITHUB_TOKEN.
       permissions:
          contents: read
       steps:
@@ -71,14 +74,167 @@ jobs:
                  ~/.cache/omp-bazel-disk
                  ~/.cache/omp-bazel-repo
               key: ${{ steps.bazel.outputs.cache-key }}
+
+   # Every Linux-hosted addon target (upstream's native_addons + native_addons_cross).
+   natives:
+      runs-on: ubuntu-24.04
+      timeout-minutes: 90
+      permissions:
+         contents: read
+      steps:
+         - uses: actions/checkout@v4
+           with:
+              repository: ${{ inputs.repo }}
+              ref: ${{ inputs.sha }}
+              persist-credentials: false
+         - uses: ./.github/actions/bun-install
+         - uses: ./.github/actions/bazel-natives
+           with:
+              targets: linux-x64-baseline linux-x64-modern linux-arm64 win32-x64-baseline win32-arm64
+              cache-scope: cross
          - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
            with:
-              name: omp
-              path: packages/coding-agent/dist/omp
+              name: natives-cross
+              path: packages/natives/native/*.node
+              retention-days: 1
+              if-no-files-found: error
+
+   binaries:
+      needs: natives
+      strategy:
+         fail-fast: false
+         matrix:
+            include:
+               - { target: linux-x64, os: ubuntu-24.04, file: omp-linux-x64, out: omp }
+               - { target: linux-arm64, os: ubuntu-24.04-arm, file: omp-linux-arm64, out: omp }
+               - { target: win32-x64, os: ubuntu-24.04, file: omp-windows-x64.exe, out: omp.exe }
+               - { target: win32-arm64, os: ubuntu-24.04, file: omp-windows-arm64.exe, out: omp.exe }
+      runs-on: ${{ matrix.os }}
+      timeout-minutes: 30
+      permissions:
+         contents: read
+      steps:
+         - uses: actions/checkout@v4
+           with:
+              repository: ${{ inputs.repo }}
+              ref: ${{ inputs.sha }}
+              persist-credentials: false
+         - uses: ./.github/actions/bun-install
+         - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+           with:
+              name: natives-cross
+              path: packages/natives/native
+         - name: Build release binary
+           shell: bash
+           env:
+              RELEASE_TARGETS: ${{ matrix.target }}
+           run: |
+              set -euo pipefail
+              bun run ci:release:build-binaries
+              mkdir -p "$RUNNER_TEMP/out"
+              mv "packages/coding-agent/binaries/${{ matrix.file }}" "$RUNNER_TEMP/out/${{ matrix.out }}"
+         - name: Smoke release binary
+           if: startsWith(matrix.target, 'linux-')
+           shell: bash
+           run: |
+              runtime_dir="$(mktemp -d)"
+              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" "$RUNNER_TEMP/out/omp" --version
+              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" "$RUNNER_TEMP/out/omp" --smoke-test
+         - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+           with:
+              name: omp-${{ matrix.target }}
+              path: ${{ runner.temp }}/out/${{ matrix.out }}
               retention-days: 7
               if-no-files-found: error
+
+   # Windows binaries are cross-compiled above; run each on real Windows hardware.
+   windows-smoke:
+      needs: binaries
+      strategy:
+         fail-fast: false
+         matrix:
+            include:
+               - { target: win32-x64, os: windows-latest }
+               - { target: win32-arm64, os: windows-11-arm }
+      runs-on: ${{ matrix.os }}
+      timeout-minutes: 15
+      permissions: {}
+      steps:
+         - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+           with:
+              name: omp-${{ matrix.target }}
+              path: bin
+         - name: Smoke release binary
+           shell: pwsh
+           run: |
+              $runtimeDir = Join-Path $env:RUNNER_TEMP "omp-smoke"
+              $env:HOME = Join-Path $runtimeDir "home"
+              $env:USERPROFILE = $env:HOME
+              $env:LOCALAPPDATA = Join-Path $runtimeDir "local"
+              $env:XDG_DATA_HOME = Join-Path $runtimeDir "xdg"
+              New-Item -ItemType Directory -Force -Path $env:HOME, $env:LOCALAPPDATA, $env:XDG_DATA_HOME | Out-Null
+              & "bin/omp.exe" --version
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              & "bin/omp.exe" --smoke-test
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+   # Darwin addons need the host Xcode toolchain; the Apple Foundation Models
+   # bridge needs Swift 6.4 and the macOS 27 SDK, which only the xcode-27 image has.
+   darwin:
+      strategy:
+         fail-fast: false
+         matrix:
+            include:
+               - { target: darwin-x64, os: macos-15, natives: darwin-x64-baseline }
+               - { target: darwin-arm64, os: xcode-27, natives: darwin-arm64 }
+      runs-on: ${{ matrix.os }}
+      timeout-minutes: 90
+      permissions:
+         contents: read
+      steps:
+         - uses: actions/checkout@v4
+           with:
+              repository: ${{ inputs.repo }}
+              ref: ${{ inputs.sha }}
+              persist-credentials: false
+         - uses: ./.github/actions/bun-install
+         - uses: ./.github/actions/bazel-natives
+           with:
+              targets: ${{ matrix.natives }}
+              cache-scope: ${{ matrix.target }}
+         - name: Verify Apple Foundation Models bridge
+           if: matrix.target == 'darwin-arm64'
+           run: |
+              addon=packages/natives/native/pi_natives.darwin-arm64.node
+              grep -aqF OmpAppleFm "$addon" ||
+                 { echo "::error::Darwin arm64 addon was built without the Apple Foundation Models bridge"; exit 1; }
+              if otool -L "$addon" | grep -E 'libswift|FoundationModels'; then
+                 echo "::error::Darwin arm64 addon links the Swift runtime or FoundationModels directly"; exit 1
+              fi
+         - name: Build release binary
+           shell: bash
+           env:
+              RELEASE_TARGETS: ${{ matrix.target }}
+           run: |
+              set -euo pipefail
+              bun run ci:release:build-binaries
+              mkdir -p "$RUNNER_TEMP/out"
+              mv "packages/coding-agent/binaries/omp-${{ matrix.target }}" "$RUNNER_TEMP/out/omp"
+         - name: Smoke release binary
+           shell: bash
+           run: |
+              runtime_dir="$(mktemp -d)"
+              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" "$RUNNER_TEMP/out/omp" --version
+              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" "$RUNNER_TEMP/out/omp" --smoke-test
+         - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+           with:
+              name: omp-${{ matrix.target }}
+              path: ${{ runner.temp }}/out/omp
+              retention-days: 7
+              if-no-files-found: error
+
    publish:
-      needs: build
+      needs: [build, binaries, windows-smoke, darwin]
       permissions:
          contents: write
       uses: ./.github/workflows/publish.yml
@@ -87,5 +243,6 @@ jobs:
          sha: ${{ inputs.sha }}
          project: oh-my-pi
          artifact: omp
+         targets: linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64 win32-arm64
          executables: omp
-         description: Linux x64 omp binary. Requires glibc 2.39 or newer and a CPU with AVX2 (only the modern native addon is built).
+         description: "omp binary for {target}. macOS builds are ad-hoc signed, not notarized: after a browser download, run `xattr -d com.apple.quarantine omp` once."

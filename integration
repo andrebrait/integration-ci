@@ -29,6 +29,9 @@
 #   CI_WORKFLOW=omp.yml         # branch head instead of running BUILD_CMD/TEST_CMD here;
 #                               # the run's artifacts become BUILD_DIR. The head is first
 #                               # pushed to FORK_REMOTE as $BRANCH-next so CI can fetch it.
+#                               # A commit already published in CI_REPO is reused, not rebuilt.
+#   CI_TARGET=linux-x64         # optional, for a multi-platform workflow: the target whose
+#                               # binary becomes BUILD_DIR (the host's own platform).
 #   DEPLOY_CMD='...'            # runs with BUILD_DIR, DEPLOY_SHA, DEPLOY_BASE exported
 #   POST_CMD='...'             # optional, runs after DEPLOY_CMD succeeds; same exports
 #
@@ -291,10 +294,13 @@ cmd_build_ci() {
 	rm -rf "$dir" "$dir.dl"
 	# A commit already built and published is reused as-is: the zip holds exactly
 	# what that run built and tested. A missing release or API error means build.
-	local release asset
+	# With CI_TARGET (a multi-platform build), only that target's zip/artifact is
+	# fetched: <project>-<stamp>-<sha10>-<target>.zip, artifact <artifact>-<target>.
+	local release artifact asset suffix="${CI_TARGET:+-$CI_TARGET}"
 	release="$(sed -nE 's/^ +project: *//p' "$cfg/.github/workflows/$CI_WORKFLOW" | head -1)"
+	artifact="$(sed -nE 's/^ +artifact: *//p' "$cfg/.github/workflows/$CI_WORKFLOW" | head -1)"
 	asset="$(gh release view "$release" -R "$CI_REPO" --json assets \
-		--jq "[.assets[].name | select(startswith(\"$release-\") and endswith(\"-${sha:0:10}.zip\"))] | sort | last // empty" 2>/dev/null || true)"
+		--jq "[.assets[].name | select(startswith(\"$release-\") and endswith(\"-${sha:0:10}$suffix.zip\"))] | sort | last // empty" 2>/dev/null || true)"
 	if [ -n "$release" ] && [ -n "$asset" ]; then
 		echo "integration: $BRANCH @ ${sha:0:10} is already built and published as $asset; reusing it"
 		gh release download "$release" -R "$CI_REPO" -p "$asset" -D "$dir.dl"
@@ -316,7 +322,7 @@ cmd_build_ci() {
 			echo "integration: CI build failed: $url" >&2
 			exit 1
 		fi
-		gh run download "$id" -R "$CI_REPO" -D "$dir.dl"
+		gh run download "$id" -R "$CI_REPO" ${CI_TARGET:+-n "$artifact-$CI_TARGET"} -D "$dir.dl"
 		# gh nests each artifact in a directory named after it, which may match the
 		# file inside (omp/omp); collect the files into a fresh BUILD_DIR.
 		mkdir -p "$dir"

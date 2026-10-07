@@ -25,14 +25,15 @@ Each project has one release named after it (for example
 [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi)).
 Every green build adds an asset named
 `<project>-<UTC timestamp>-<commit>.zip`, for example
-`oh-my-pi-20261006T161502Z-c578419926.zip`, and only the newest 10 are kept.
-Each zip holds the build and a
-`RELEASE.md` naming the integration commit, the upstream base, and the carried
-pull requests.
+`caveman-20261006T211531Z-a95b7d5e4e.zip`, and only the newest 10 are kept.
+oh-my-pi builds every platform, so it publishes one zip per platform instead:
+`oh-my-pi-<UTC timestamp>-<commit>-<platform>.zip`. A commit is built and
+published only once. Each zip holds the build and a `RELEASE.md` naming the
+integration commit, the upstream base, and the carried pull requests.
 
 | Release | Zip contents |
 | --- | --- |
-| [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi) | `omp` binary for Linux x64; needs glibc 2.39 or newer and a CPU with AVX2 (only the modern native addon is built) |
+| [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi) | `omp` (or `omp.exe`) for `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64` or `win32-arm64`; each smoke-tested on its own platform. macOS builds are ad-hoc signed, not notarized: after a browser download, run `xattr -d com.apple.quarantine omp` once |
 | [`caveman`](https://github.com/andrebrait/integration-ci/releases/tag/caveman) | `npm pack` of `@caveman-ai/pi` |
 | [`codegraph`](https://github.com/andrebrait/integration-ci/releases/tag/codegraph) | `npm pack` of `@colbymchenry/codegraph` |
 | [`superpowers`](https://github.com/andrebrait/integration-ci/releases/tag/superpowers) | `npm pack` of `superpowers` |
@@ -44,11 +45,11 @@ Builds run carried pull requests, including some by other authors. Only green
 builds seed the build cache, but a passing pull request's code ships in the
 build like any other change.
 
-`<project>-latest.zip` is always a copy of the newest build, so its URL never
-changes:
+`<project>-latest.zip` (for oh-my-pi, `oh-my-pi-latest-<platform>.zip`) is always
+a copy of the newest build, so its URL never changes:
 
 ```sh
-curl -fLO https://github.com/andrebrait/integration-ci/releases/download/oh-my-pi/oh-my-pi-latest.zip
+curl -fLO https://github.com/andrebrait/integration-ci/releases/download/oh-my-pi/oh-my-pi-latest-darwin-arm64.zip
 ```
 
 ## Installation

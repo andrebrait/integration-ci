@@ -1,11 +1,13 @@
 name: publish integration build
 
-# Called by each project workflow after its build job succeeds. Runs no fork
-# code: it only downloads the build artifact and attaches it to the project's
+# Called by each project workflow after its build jobs succeed. Runs no fork
+# code: it only downloads the build artifacts and attaches them to the project's
 # release. Public, login-free downloads: each project owns one release named
-# after it; every green build adds <project>-<UTC stamp>-<sha10>.zip, only the
-# newest 10 are kept, and <project>-latest.zip is a copy of the newest. No
-# release claims the repo-wide "Latest" flag.
+# after it. Without `targets`, every green build adds
+# <project>-<UTC stamp>-<sha10>.zip and <project>-latest.zip is a copy of the
+# newest. With `targets`, each target gets <project>-<UTC stamp>-<sha10>-<target>.zip
+# and <project>-latest-<target>.zip. The newest 10 commits are kept per target.
+# No release claims the repo-wide "Latest" flag.
 on:
    workflow_call:
       inputs:
@@ -22,11 +24,16 @@ on:
             required: true
             type: string
          artifact:
-            description: Name of the build job's artifact
+            description: Build artifact name; with `targets`, the per-target artifacts are <artifact>-<target>
             required: true
             type: string
+         targets:
+            description: Space-separated targets, one zip each; empty publishes the single artifact
+            required: false
+            type: string
+            default: ""
          description:
-            description: What the zip holds and what it needs to run (one line, for RELEASE.md)
+            description: What the zip holds and what it needs to run (for RELEASE.md); `{target}` is replaced
             required: true
             type: string
          executables:
@@ -38,13 +45,14 @@ on:
 jobs:
    publish:
       runs-on: ubuntu-24.04
-      timeout-minutes: 15
+      timeout-minutes: 30
       permissions:
          contents: write
       steps:
+         # Each matching artifact lands in files/<artifact name>/.
          - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
            with:
-              name: ${{ inputs.artifact }}
+              pattern: ${{ inputs.artifact }}*
               path: ${{ runner.temp }}/files
          - name: Publish build
            shell: bash
@@ -54,41 +62,52 @@ jobs:
               FORK: ${{ inputs.repo }}
               SHA: ${{ inputs.sha }}
               PROJECT: ${{ inputs.project }}
+              ARTIFACT: ${{ inputs.artifact }}
+              TARGETS: ${{ inputs.targets }}
               DESCRIPTION: ${{ inputs.description }}
               EXECUTABLES: ${{ inputs.executables }}
            run: |
               set -euo pipefail
-              # One zip per commit: a rebuild of an already published sha (a manual
-              # re-dispatch) publishes nothing new. A missing release counts as none.
-              published="$(gh release view "$PROJECT" --json assets --jq "[.assets[].name | select(startswith(env.PROJECT + \"-\") and endswith(\"-${SHA:0:10}.zip\"))] | length" 2>/dev/null || echo 0)"
-              if [ "$published" != 0 ]; then
-                echo "$PROJECT ${SHA:0:10} is already published; skipping"
-                exit 0
-              fi
-              files="$RUNNER_TEMP/files" out="$RUNNER_TEMP/out"
+              out="$RUNNER_TEMP/out"
               mkdir -p "$out"
-              # Artifacts lose their mode bits.
-              for f in $EXECUTABLES; do chmod +x "$files/$f"; done
+              gh release view "$PROJECT" >/dev/null 2>&1 ||
+                gh release create "$PROJECT" --target "$GITHUB_SHA" --latest=false --title "$PROJECT integration builds" \
+                  --notes "Integration builds of $PROJECT; the newest 10 commits are kept, and each *-latest zip is a copy of the newest. Each zip holds the build and a RELEASE.md naming the commit, upstream base and carried pull requests."
+              assets="$(gh release view "$PROJECT" --json assets --jq '.assets[].name')"
               # The integration branch is the upstream base plus `PR #N:` squashes,
               # newest first; the first other commit is the base.
               gh api "repos/$FORK/commits?sha=$SHA&per_page=100" --jq '.[] | [.sha, (.commit.message | split("\n")[0])] | @tsv' > "$out/log.tsv"
-              {
-                echo "$PROJECT integration build of $FORK@$SHA (https://github.com/$FORK/commit/$SHA)."
-                echo "$DESCRIPTION"
-                echo
-                echo "Upstream base: $(awk -F'\t' '$2 !~ /^PR #[0-9]+: / { print substr($1, 1, 10) " " $2; exit }' "$out/log.tsv")"
-                echo
-                echo "Carried pull requests:"
-                awk -F'\t' '$2 !~ /^PR #[0-9]+: / { exit } { print "- " $2 }' "$out/log.tsv" | tac
-              } > "$files/RELEASE.md"
               # Basic ISO 8601 (no colons) so names stay URL-safe and sort by time.
-              name="$PROJECT-$(date -u +%Y%m%dT%H%M%SZ)-${SHA:0:10}.zip"
-              (cd "$files" && zip -qr "$out/$name" . && cp "$out/$name" "$out/$PROJECT-latest.zip")
-              gh release view "$PROJECT" >/dev/null 2>&1 ||
-                gh release create "$PROJECT" --target "$GITHUB_SHA" --latest=false --title "$PROJECT integration builds" \
-                  --notes "Integration builds of $PROJECT, newest 10 kept; $PROJECT-latest.zip is a copy of the newest. Each zip holds the build and a RELEASE.md naming the commit, upstream base and carried pull requests."
-              gh release upload "$PROJECT" "$out/$name"
-              gh release upload "$PROJECT" "$out/$PROJECT-latest.zip" --clobber
-              gh release view "$PROJECT" --json assets \
-                --jq '[.assets[].name | select(startswith(env.PROJECT + "-") and endswith(".zip") and . != env.PROJECT + "-latest.zip")] | sort | reverse | .[10:][]' |
-                while read -r old; do gh release delete-asset "$PROJECT" "$old" --yes; done
+              stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+              # No targets: one pass with an empty target, publishing the single artifact.
+              read -r -a targets <<< "$TARGETS"
+              [ "${#targets[@]}" -gt 0 ] || targets=("")
+              for target in "${targets[@]}"; do
+                suffix="${target:+-$target}"
+                files="$RUNNER_TEMP/files/$ARTIFACT$suffix"
+                # One zip per commit and target: a re-dispatch publishes nothing new.
+                if grep -qE "^$PROJECT-[0-9]{8}T[0-9]{6}Z-${SHA:0:10}$suffix\.zip$" <<< "$assets"; then
+                  echo "$PROJECT ${SHA:0:10}${target:+ $target} is already published; skipping"
+                  continue
+                fi
+                # Artifacts lose their mode bits.
+                for f in $EXECUTABLES; do [ ! -e "$files/$f" ] || chmod +x "$files/$f"; done
+                {
+                  echo "$PROJECT integration build of $FORK@$SHA (https://github.com/$FORK/commit/$SHA)."
+                  echo "${DESCRIPTION//\{target\}/$target}"
+                  echo
+                  echo "Upstream base: $(awk -F'\t' '$2 !~ /^PR #[0-9]+: / { print substr($1, 1, 10) " " $2; exit }' "$out/log.tsv")"
+                  echo
+                  echo "Carried pull requests:"
+                  awk -F'\t' '$2 !~ /^PR #[0-9]+: / { exit } { print "- " $2 }' "$out/log.tsv" | tac
+                } > "$files/RELEASE.md"
+                name="$PROJECT-$stamp-${SHA:0:10}$suffix.zip"
+                latest="$PROJECT-latest$suffix.zip"
+                (cd "$files" && zip -qr "$out/$name" . && cp "$out/$name" "$out/$latest")
+                gh release upload "$PROJECT" "$out/$name"
+                gh release upload "$PROJECT" "$out/$latest" --clobber
+                # Keep the newest 10 commits of this target; the stamp sorts by time.
+                gh release view "$PROJECT" --json assets --jq '.assets[].name' |
+                  grep -E "^$PROJECT-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{10}$suffix\.zip$" | sort -r | tail -n +11 |
+                  while read -r old; do gh release delete-asset "$PROJECT" "$old" --yes; done
+              done
