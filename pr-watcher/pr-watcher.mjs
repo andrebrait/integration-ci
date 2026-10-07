@@ -12,6 +12,7 @@ const run = promisify(execFile);
 const CONFIG = process.env.PR_WATCHER_CONFIG ?? join(homedir(), ".config/pr-watcher/config.json");
 const STATE = process.env.PR_WATCHER_STATE ?? join(homedir(), ".local/state/pr-watcher/state.json");
 const TERMINAL_CI = new Set(["SUCCESS", "FAILURE", "ERROR"]);
+const FINISHED = new Set(["MERGED", "CLOSED"]);
 
 const QUERY = `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){
   state title
@@ -154,6 +155,9 @@ async function cycle() {
     }
     const key = `${watchEntry.pr}->${watchEntry.session}`;
     live[key] = state[key];
+    // Polled until merged or closed, so late bot re-reviews and human comments still arrive.
+    // The final state change has already been delivered; remove the watch to clear it.
+    if (FINISHED.has(state[key]?.state)) continue;
     try {
       const snap = await fetchPr(pr);
       const ignore = new Set([self, ...(config.ignoreAuthors ?? []), ...(watchEntry.ignoreAuthors ?? [])]);

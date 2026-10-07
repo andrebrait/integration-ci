@@ -72,7 +72,11 @@ newer, an authenticated `gh`, and a running omp-web.
 
 - **What it reports:** new comments and reviews (except the `gh` user's own
   and `ignoreAuthors`), a terminal CI result (`SUCCESS`, `FAILURE`, `ERROR`)
-  once per head commit, and PR state changes (merged, closed, reopened).
+  once per head commit, and the PR being merged or closed.
+- **How long it watches:** every cycle until the PR is merged or closed, so
+  bot re-reviews after a push and later maintainer or contributor comments
+  are still delivered. After the merged or closed notice it stops polling that
+  PR; removing the watch from the config clears it.
 - **How it delivers:** an idle session starts a turn; a session in the middle
   of a turn gets the update as a follow-up; a session with no omp process is
   resumed by omp-web first. A session running a shell command or compacting is
