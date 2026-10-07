@@ -1,8 +1,8 @@
 # integration-flow config for /root/git/oh-my-pi
 FORK_REMOTE=origin
 UPSTREAM=can1357/oh-my-pi
-# Third-party PRs carried from our fork (rebased + fixed copy). See EXTRA_PRS in the integration script.
-EXTRA_PRS='12229=carry/pr-12229'
+# PRs built on another open PR's branch (CHILD:PARENT). See STACKED_PRS in the integration script.
+STACKED_PRS='14458:14148 14468:14166'
 BRANCH=integration
 # build runs BUILD_CMD/TEST_CMD on GitHub Actions (.github/workflows/omp.yml sources this file).
 CI_REPO=andrebrait/integration-ci

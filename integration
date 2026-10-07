@@ -23,6 +23,11 @@
 #                               # holds our rebased/fixed copy; it is squashed and
 #                               # rebased like our own PRs while the upstream PR is
 #                               # open, and dropped once it is merged or closed.
+#   STACKED_PRS='14458:14148'   # optional, space-separated CHILD:PARENT pairs for PRs
+#                               # whose branch is built on another open PR's branch.
+#                               # `prs` rebases the child onto the parent's rebased
+#                               # branch (not the upstream base), and `rebuild` squashes
+#                               # only the child's own commits, after its parent.
 #   BUILD_CMD='...'             # runs inside a clean detached worktree at $BRANCH
 #   TEST_CMD='...'              # optional, runs after BUILD_CMD in the same worktree
 #   CI_REPO=owner/repo          # optional: build dispatches CI_WORKFLOW there for the
@@ -77,6 +82,21 @@ UPSTREAM_MAIN_REF="${UPSTREAM_MAIN_REF:-upstream/main}"
 for pair in ${EXTRA_PRS:-}; do
 	[[ "$pair" =~ ^[0-9]+=[^=]+$ ]] || { echo "integration: bad EXTRA_PRS entry '$pair' (want N=fork-branch)" >&2; exit 2; }
 done
+for pair in ${STACKED_PRS:-}; do
+	[[ "$pair" =~ ^[0-9]+:[0-9]+$ ]] || { echo "integration: bad STACKED_PRS entry '$pair' (want CHILD:PARENT)" >&2; exit 2; }
+done
+
+stack_parent() { # num -> parent PR number or empty
+	local pair
+	for pair in ${STACKED_PRS:-}; do
+		[ "${pair%%:*}" = "$1" ] && { echo "${pair#*:}"; return 0; }
+	done
+}
+
+# Field 2 (the fork branch) of PR $1's row in $2, or empty when it is not listed.
+row_branch() { # num rows -> branch
+	awk -F '\t' -v n="$1" '$1 == n { print $2 }' <<< "$2"
+}
 
 worktrees_root() {
 	local main
@@ -110,8 +130,9 @@ base_ref() {
 	fi
 }
 
-# Open PRs to integrate, ascending by number: this account's own plus EXTRA_PRS
-# whose upstream PR is still open. Emits "number<TAB>fork-branch<TAB>field".
+# Open PRs to integrate: this account's own plus EXTRA_PRS whose upstream PR is
+# still open, ascending by number with every STACKED_PRS child after its parent.
+# Emits "number<TAB>fork-branch<TAB>field".
 # Callers capture it with rows="$(...)": errexit is off inside command
 # substitution, so each gh failure exits explicitly and pipefail carries it out,
 # aborting instead of silently dropping a PR from the rebuild.
@@ -130,15 +151,25 @@ pr_rows() { # title|base
 			fi
 			printf '%s\t%s\t%s\n' "$num" "$head" "${row#*$'\t'}"
 		done
-	} | sort -t $'\t' -k1,1n
+	} | sort -t $'\t' -k1,1n | while IFS=$'\t' read -r num head row; do
+		# Stack depth leads the sort key, so parents always precede children.
+		local depth=0 p="$num"
+		while p="$(stack_parent "$p")" && [ -n "$p" ]; do
+			depth=$((depth + 1))
+			[ "$depth" -le 20 ] || { echo "integration: STACKED_PRS has a cycle through #$num" >&2; exit 1; }
+		done
+		printf '%s\t%s\t%s\t%s\n' "$depth" "$num" "$head" "$row"
+	done | sort -t $'\t' -k1,1n -k2,2n | cut -f2-
 }
 
 # Replay one PR branch onto BASE in a scratch worktree, so a PR based on upstream
 # main never drags post-BASE upstream commits into a tag-based integration branch.
+# A stacked PR passes its parent's branch as `from`: only the commits after the
+# parent's tip are replayed, since the parent is squashed separately.
 # Echoes the ref holding the replayed series.
-replay_pr() { # scratch-worktree base head-ref tmp-branch -> ref
+replay_pr() { # scratch-worktree base head-ref tmp-branch [from-ref] -> ref
 	local scratch="$1" base="$2" head="$3" tmp="$4" mb
-	mb="$(git -C "$REPO_DIR" merge-base "$base" "$head")"
+	mb="$(git -C "$REPO_DIR" merge-base "${5:-$base}" "$head")"
 	git -C "$scratch" checkout -q -B "$tmp" "$head"
 	if [ "$mb" != "$(git -C "$REPO_DIR" rev-parse "$base")" ]; then
 		# Command substitution swallows errexit: abort and fail explicitly, or the
@@ -152,11 +183,25 @@ replay_pr() { # scratch-worktree base head-ref tmp-branch -> ref
 	echo "$tmp"
 }
 
+# replay_pr for PR #num, stacked PRs on top of their parent's replayed series
+# (recursively). Reads cmd_rebuild's scratch, base and rows. Echoes the ref.
+replay_stack() { # num -> ref
+	local num="$1" parent parent_branch="" from
+	parent="$(stack_parent "$num")"
+	[ -z "$parent" ] || parent_branch="$(row_branch "$parent" "$rows")"
+	if [ -n "$parent_branch" ]; then
+		from="$(replay_stack "$parent")" || return 1
+		replay_pr "$scratch" "$from" "$FORK_REMOTE/$(row_branch "$num" "$rows")" "rebuild/pr-$num" "$FORK_REMOTE/$parent_branch"
+	else
+		replay_pr "$scratch" "$base" "$FORK_REMOTE/$(row_branch "$num" "$rows")" "rebuild/pr-$num"
+	fi
+}
+
 cmd_rebuild() {
 	[ -n "${UPSTREAM:-}" ] || { echo "integration: UPSTREAM not set; rebuild needs the PR list" >&2; exit 2; }
 	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --tags --prune
 	git -C "$REPO_DIR" fetch upstream --tags --prune
-	local base wt pre root scratch num head title tmp key resumed done_prs squashed squashed_head squashed_sha rows
+	local base wt pre root scratch num head title tmp key resumed done_prs squashed squashed_head squashed_sha rows parent parent_branch own squash
 	rows="$(pr_rows title)"
 	base="$(base_ref)"
 	key="${BRANCH//\//--}"
@@ -243,14 +288,29 @@ cmd_rebuild() {
 			echo "integration: PR #$num already squashed; skipping"
 			continue
 		fi
-		tmp="$(replay_pr "$scratch" "$base" "$FORK_REMOTE/$head" "rebuild/pr-$num")" || exit 1
+		parent="$(stack_parent "$num")"
+		parent_branch=""
+		[ -z "$parent" ] || parent_branch="$(row_branch "$parent" "$rows")"
+		if [ -n "$parent" ] && [ -z "$parent_branch" ]; then
+			echo "integration: PR #$num is stacked on #$parent, which is not open; squashing its whole branch" >&2
+		fi
+		tmp="$(replay_stack "$num")" || exit 1
 		echo "integration: squashing PR #$num ($head)"
 		# --squash records no second parent: the result stays a linear series that
 		# rebuilds identically next round, and rerere replays cross-PR resolutions.
-		# `merge --squash` reports failure even when rerere staged every conflict,
-		# so the unresolved-path list, not the exit status, decides whether this
+		# A stacked PR contributes only its diff against its replayed parent,
+		# collapsed into one commit and cherry-picked: its branch also carries the
+		# parent's commits, which the parent's own squash (fixups included) owns.
+		# Both commands report failure even when rerere staged every conflict, so
+		# the unresolved-path list, not the exit status, decides whether this
 		# round still needs a human.
-		if ! git -C "$wt" merge --squash "$tmp" >/dev/null && [ -n "$(git -C "$wt" diff --diff-filter=U --name-only)" ]; then
+		if [ -n "$parent_branch" ]; then
+			own="$(git -C "$REPO_DIR" commit-tree "$tmp^{tree}" -p "rebuild/pr-$parent" -m "PR #$num")"
+			squash=(cherry-pick --no-commit "$own")
+		else
+			squash=(merge --squash "$tmp")
+		fi
+		if ! git -C "$wt" "${squash[@]}" >/dev/null && [ -n "$(git -C "$wt" diff --diff-filter=U --name-only)" ]; then
 			echo "integration: PR #$num conflicts with the PRs squashed before it." >&2
 			echo "integration: resolve in $wt, then commit it as 'PR #$num: <title>'" >&2
 			echo "integration: and re-run 'integration rebuild' to continue from the next PR." >&2
@@ -470,9 +530,15 @@ cmd_prs() {
 	[ -n "${UPSTREAM:-}" ] || { echo "integration: UPSTREAM not set; skipping prs"; return 0; }
 	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --prune
 	git -C "$REPO_DIR" fetch upstream --prune
-	local root num branch base wt pre rows head_remote head_pre
+	local root num branch base wt pre rows head_remote head_pre parent parent_branch onto
+	local -A old_tip=()
 	rows="$(pr_rows base)"
 	root="$(worktrees_root)"
+	# Every branch's tip before this round moves any of them: a stacked child is
+	# cut from its parent where the parent stood when the child was last rebased.
+	while IFS=$'\t' read -r num branch base; do
+		[ -n "$num" ] && old_tip[$num]="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$branch")"
+	done <<< "$rows"
 	while read -r base; do
 		[ -n "$base" ] && sync_fork_base "$base"
 	done <<< "$(printf '%s\n' "$rows" | cut -f3 | sort -u)"
@@ -492,6 +558,12 @@ cmd_prs() {
 				exit 1
 			fi
 		fi
+		parent="$(stack_parent "$num")"
+		parent_branch=""
+		[ -z "$parent" ] || parent_branch="$(row_branch "$parent" "$rows")"
+		if [ -n "$parent" ] && [ -z "$parent_branch" ]; then
+			echo "integration: PR #$num is stacked on #$parent, which is not open; rebasing it onto upstream/$base" >&2
+		fi
 		wt="$root/pr-$num"
 		if [ -d "$wt" ] && rebase_in_progress "$wt"; then
 			echo "integration: resuming PR #$num rebase in $wt"
@@ -499,8 +571,16 @@ cmd_prs() {
 		else
 			git -C "$REPO_DIR" worktree remove --force "$wt" 2>/dev/null || rm -rf "$wt"
 			git -C "$REPO_DIR" worktree add --detach "$wt" "$FORK_REMOTE/$branch" >/dev/null
-			echo "integration: PR #$num rebasing $branch onto upstream/$base"
-			( cd "$wt" && git rebase "upstream/$base" )
+			if [ -n "$parent_branch" ]; then
+				# The parent was rebased and pushed earlier in this loop; replay only
+				# the child's own commits onto its new tip.
+				onto="$(git -C "$REPO_DIR" merge-base "${old_tip[$parent]}" "$FORK_REMOTE/$branch")"
+				echo "integration: PR #$num rebasing $branch onto #$parent ($FORK_REMOTE/$parent_branch)"
+				( cd "$wt" && git rebase --onto "$FORK_REMOTE/$parent_branch" "$onto" )
+			else
+				echo "integration: PR #$num rebasing $branch onto upstream/$base"
+				( cd "$wt" && git rebase "upstream/$base" )
+			fi
 		fi
 		pre="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$branch")"
 		# The base must still be the FETCHED upstream ref after the rebase: a long
