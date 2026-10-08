@@ -1,0 +1,69 @@
+diff --git a/packages/coding-agent/src/modes/rpc/rpc-server.ts b/packages/coding-agent/src/modes/rpc/rpc-server.ts
+index 9c002dd0952dcf7a203d884ca07a2a4b79fc0365..22b90afbd14d899644397d472ce76dbe6a92d1bf 100644
+--- a/packages/coding-agent/src/modes/rpc/rpc-server.ts
++++ b/packages/coding-agent/src/modes/rpc/rpc-server.ts
+@@ -1680,6 +1680,64 @@ export class RpcServer {
+ 				return rpcSuccess(id, "get_state", buildRpcSessionState(session, this.#goalTurnScheduled));
+ 			}
+ 
++			// The same session-owned workflow the interactive panel drives. Ids are server-issued by `prepare`;
++			// the controller refuses unknown, superseded or cross-session ones, so no path, snapshot, or model
++			// output ever comes from the client.
++			case "prepare_skill_diagnostic_analysis":
++			case "analyze_skill_diagnostics":
++			case "cancel_skill_diagnostic_analysis":
++			case "apply_skill_diagnostic_analysis": {
++				const controller = session.skillDiagnosticController;
++				try {
++					switch (command.type) {
++						case "prepare_skill_diagnostic_analysis": {
++							if (typeof command.name !== "string") return rpcError(id, command.type, "name must be a string");
++							if (command.model !== undefined && typeof command.model !== "string") {
++								return rpcError(id, command.type, "model must be a string");
++							}
++							return rpcSuccess(id, command.type, await controller.prepare(command.name, command.model));
++						}
++						case "analyze_skill_diagnostics": {
++							if (typeof command.analysisId !== "string") {
++								return rpcError(id, command.type, "analysisId must be a string");
++							}
++							// Consent is its own boolean: sending the disclosed files to a model is never implied.
++							if (command.consent !== true) {
++								return rpcError(
++									id,
++									command.type,
++									"consent must be true to send the disclosed files to the model",
++								);
++							}
++							// Starts the model work and returns the running record; the result arrives as update frames.
++							return rpcSuccess(id, command.type, controller.start(command.analysisId, true));
++						}
++						case "cancel_skill_diagnostic_analysis": {
++							if (typeof command.analysisId !== "string") {
++								return rpcError(id, command.type, "analysisId must be a string");
++							}
++							return rpcSuccess(id, command.type, controller.cancel(command.analysisId));
++						}
++						case "apply_skill_diagnostic_analysis": {
++							if (typeof command.analysisId !== "string") {
++								return rpcError(id, command.type, "analysisId must be a string");
++							}
++							// Separate from analysis consent: applying saves a global setting.
++							if (command.confirmed !== true) {
++								return rpcError(id, command.type, "confirmed must be true to apply the recommendation");
++							}
++							return rpcSuccess(id, command.type, await controller.apply(command.analysisId, true));
++						}
++					}
++				} catch (analysisError) {
++					return rpcError(
++						id,
++						command.type,
++						analysisError instanceof Error ? analysisError.message : String(analysisError),
++					);
++				}
++			}
++
+ 			case "set_fast_mode": {
+ 				const supported = session.setFastMode(command.enabled);
+ 				if (command.enabled && !supported) {

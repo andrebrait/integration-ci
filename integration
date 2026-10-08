@@ -28,6 +28,10 @@
 #                               # `prs` rebases the child onto the parent's rebased
 #                               # branch (not the upstream base), and `rebuild` squashes
 #                               # only the child's own commits, after its parent.
+# Fixups: ~/.config/integration/fixups/<slug>/<N>-<name>.patch (`git diff --full-index`)
+#                               # is applied with `git apply --3way` into PR #N's squash.
+#                               # For a change that adapts PR #N to PRs squashed before
+#                               # it and that no single PR branch can hold.
 #   BUILD_CMD='...'             # runs inside a clean detached worktree at $BRANCH
 #   TEST_CMD='...'              # optional, runs after BUILD_CMD in the same worktree
 #   CI_REPO=owner/repo          # optional: build dispatches CI_WORKFLOW there for the
@@ -60,6 +64,7 @@ COMMON_GIT="$(git -C "$SRC_DIR" rev-parse --path-format=absolute --git-common-di
 REPO_DIR="$(dirname "$COMMON_GIT")"
 SLUG="$(printf %s "$REPO_DIR" | sed 's#^/##; s#/#--#g')"
 CONF="$HOME/.config/integration/$SLUG.sh"
+FIXUP_DIR="$HOME/.config/integration/fixups/$SLUG"
 CACHE="$HOME/.cache/integration/$SLUG"
 mkdir -p "$CACHE"
 # One integration run per project at a time: two concurrent runs share the
@@ -202,7 +207,7 @@ cmd_rebuild() {
 	[ -n "${UPSTREAM:-}" ] || { echo "integration: UPSTREAM not set; rebuild needs the PR list" >&2; exit 2; }
 	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --tags --prune
 	git -C "$REPO_DIR" fetch upstream --tags --prune
-	local base wt pre root scratch num head title tmp key resumed done_prs squashed squashed_head squashed_sha rows parent parent_branch own squash
+	local base wt pre root scratch num head title tmp key resumed done_prs squashed squashed_head squashed_sha rows parent parent_branch own squash fixups patch
 	rows="$(pr_rows title)"
 	base="$(base_ref)"
 	key="${BRANCH//\//--}"
@@ -311,12 +316,26 @@ cmd_rebuild() {
 		else
 			squash=(merge --squash "$tmp")
 		fi
+		fixups=()
+		for patch in "$FIXUP_DIR/$num"-*.patch; do [ -f "$patch" ] && fixups+=("$patch"); done
 		if ! git -C "$wt" "${squash[@]}" >/dev/null && [ -n "$(git -C "$wt" diff --diff-filter=U --name-only)" ]; then
 			echo "integration: PR #$num conflicts with the PRs squashed before it." >&2
 			echo "integration: resolve in $wt, then commit it as 'PR #$num: <title>'" >&2
+			[ "${#fixups[@]}" -eq 0 ] || echo "integration: after applying its fixups with 'git apply --3way': ${fixups[*]}" >&2
 			echo "integration: and re-run 'integration rebuild' to continue from the next PR." >&2
 			exit 1
 		fi
+		# Fixups adapt a PR to the PRs squashed before it where no single branch can
+		# hold the change (e.g. handlers one PR adds in a file another PR splits).
+		# They are part of the PR's squash, so a from-scratch rebuild reproduces it.
+		for patch in "${fixups[@]}"; do
+			if ! git -C "$wt" apply --3way "$patch" >/dev/null 2>&1; then
+				echo "integration: fixup $patch no longer applies to PR #$num; the squash is staged in $wt." >&2
+				echo "integration: finish it there, refresh the patch, commit as 'PR #$num: $title', and re-run 'integration rebuild'." >&2
+				exit 1
+			fi
+			echo "integration: applied fixup $(basename "$patch") to PR #$num"
+		done
 		# A squash that splices two PRs' hunks together can land formatting the
 		# repo's own checks reject; the formatter runs before the commit so the
 		# result is exactly what a rebuild reproduces.
