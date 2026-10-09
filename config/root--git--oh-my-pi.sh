@@ -3,6 +3,9 @@ FORK_REMOTE=origin
 UPSTREAM=can1357/oh-my-pi
 # PRs built on another open PR's branch (CHILD:PARENT). See STACKED_PRS in the integration script.
 STACKED_PRS='14458:14148 14468:14166'
+# Third-party PRs carried from our fork (rebased copy). See EXTRA_PRS in the integration script.
+# 7851: szavadsky's per-role skill visibility; 12229: Xytronix's per-call task/eval model selector.
+EXTRA_PRS='7851=carry/pr-7851 12229=carry/pr-12229'
 BRANCH=integration
 # build runs BUILD_CMD/TEST_CMD on GitHub Actions (.github/workflows/omp.yml sources this file).
 CI_REPO=andrebrait/integration-ci
