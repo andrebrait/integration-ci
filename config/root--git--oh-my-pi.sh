@@ -22,6 +22,8 @@ TEST_CMD+=' packages/coding-agent/test/prefix-binding-tool-roster.test.ts packag
 # PR #14365 (retry.preferSlowMode) contract tests.
 TEST_CMD+=' packages/coding-agent/test/agent-session-retry-fallback.test.ts packages/coding-agent/test/sdk-model-selection.test.ts'
 TEST_CMD+=' packages/catalog/test/compat-compile.test.ts'
+# Carried PRs #7851 (per-role skill visibility) and #12229 (per-call task/eval model) contract tests.
+TEST_CMD+=' packages/coding-agent/test/discovery/agent-fields.test.ts packages/coding-agent/test/task/agents.test.ts packages/coding-agent/test/task/role-routing.test.ts packages/coding-agent/test/eval/agent-bridge.test.ts packages/coding-agent/test/task/task-schema.test.ts packages/coding-agent/test/task/task-spawn.test.ts'
 # Own process: upstream's issue-985 test calls Settings.init() without resetting a global
 # instance left by agent-session-message-pipeline.test.ts, so it fails when co-run (upstream too).
 TEST_CMD+=' && PI_CODING_AGENT_DIR="$(mktemp -d /tmp/omp-integration-agent-XXXXXX)" bun test packages/coding-agent/test/issue-985-subagent-auth-fallback.test.ts'
