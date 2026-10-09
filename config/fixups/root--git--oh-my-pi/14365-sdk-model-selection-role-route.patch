@@ -1,0 +1,12 @@
+diff --git a/packages/coding-agent/test/sdk-model-selection.test.ts b/packages/coding-agent/test/sdk-model-selection.test.ts
+index 5863c76ce13c28942ac4b7dd11e892b1db8f6e20..f772680e06d07ab4062cd7fdab7b087eb909c404 100644
+--- a/packages/coding-agent/test/sdk-model-selection.test.ts
++++ b/packages/coding-agent/test/sdk-model-selection.test.ts
+@@ -1234,7 +1234,6 @@ describe("createAgentSession deferred model pattern resolution", () => {
+ 				...buildSessionOptions("task"),
+ 				authStorage,
+ 				modelRegistry: new ModelRegistry(authStorage, path.join(tempDir, "models.yml")),
+-				modelPatternFallbackRole: "subagent:slow-mode",
+ 				settings,
+ 				hasUI: false,
+ 			});
