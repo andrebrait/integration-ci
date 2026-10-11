@@ -9,7 +9,8 @@ BASE=upstream/v8
 UPSTREAM_MAIN_REF=upstream/v8
 # Third-party PRs carried from our fork (rebased + fixed copy). See EXTRA_PRS in the integration script.
 # 3110: abhay-codes07's _origin=semantic stamp (Graphify-Labs/graphify#2843), rebased onto v8.
-EXTRA_PRS='3110=carry/pr-3110'
+# 3443: L4XB's per-agent soft-nudge budget (took our #3893 follow-up), rebased onto v8.
+EXTRA_PRS='3110=carry/pr-3110 3443=carry/pr-3443'
 # Install exactly the committed lockfile. Not `uv lock --check`: upstream release commits
 # bump the version without relocking, which fails that check on plain upstream/v8.
 BUILD_CMD='uv sync --frozen --extra leiden'
