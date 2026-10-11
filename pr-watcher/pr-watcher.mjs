@@ -80,34 +80,22 @@ export function formatMessage(ref, title, events) {
 
 class OmpWeb {
   #url;
-  #cookie = "";
   constructor(url) {
     this.#url = url.replace(/\/$/, "");
   }
-  async #login() {
-    const password = process.env.OMP_WEB_PASSWORD;
-    if (!password) return false;
-    const res = await fetch(`${this.#url}/api/web-auth/session`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-    if (!res.ok) throw new Error(`omp-web login failed: HTTP ${res.status}`);
-    this.#cookie = res.headers.getSetCookie().map(c => c.split(";")[0]).join("; ");
-    return true;
-  }
   async #request(path, body) {
-    for (let attempt = 0; ; attempt++) {
-      const res = await fetch(`${this.#url}${path}`, {
-        method: body ? "POST" : "GET",
-        headers: { "content-type": "application/json", cookie: this.#cookie },
-        body: body && JSON.stringify(body),
-      });
-      if (res.status === 401 && attempt === 0 && (await this.#login())) continue;
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(`omp-web ${path}: HTTP ${res.status} ${json.error ?? ""}`.trim());
-      return json;
-    }
+    const headers = { "content-type": "application/json" };
+    // omp-web only holds this secret's SHA-256 (OMP_WEB_TRUSTED_HEADER_SHA256).
+    const secret = process.env.OMP_WEB_TRUSTED_HEADER_SECRET;
+    if (secret) headers["x-omp-web-auth"] = secret;
+    const res = await fetch(`${this.#url}${path}`, {
+      method: body ? "POST" : "GET",
+      headers,
+      body: body && JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`omp-web ${path}: HTTP ${res.status} ${json.error ?? ""}`.trim());
+    return json;
   }
   /** Returns false when the session can't take a prompt right now (retry next cycle). */
   async notify(session, message) {

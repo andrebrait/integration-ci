@@ -91,9 +91,12 @@ newer, an authenticated `gh`, and a running omp-web.
 - **State:** `~/.local/state/pr-watcher/state.json` (`PR_WATCHER_STATE`)
   records what each session has been told. An update is recorded only after
   omp-web accepts it, so a failed delivery is retried.
-- **Authentication:** when `OMP_WEB_PASSWORD` is set, the watcher signs in to
-  omp-web with it. The unit reads it from the environment file omp-web uses;
-  never put it in the config.
+- **Authentication:** the watcher sends `OMP_WEB_TRUSTED_HEADER_SECRET` as the
+  `X-Omp-Web-Auth` header, and omp-web accepts requests whose header hashes to
+  its `OMP_WEB_TRUSTED_HEADER_SHA256`. The unit reads the secret from
+  `/opt/omp-deployment/pr-watcher.env` (mode `0600`), never omp-web's own
+  environment file, so omp sessions cannot inherit it. Never put it in the
+  config.
 
 ```sh
 mkdir -p ~/.config/pr-watcher
