@@ -1,16 +1,14 @@
 #!/usr/bin/env node
 // Polls GitHub pull requests and notifies the omp session mapped to each one
-// through omp-web's agent API. Config is re-read on every cycle (hot reload).
+// through omp-web's agent API. Watches live in the store (see store.mjs).
 import { execFile } from "node:child_process";
-import { mkdirSync, readFileSync, renameSync, watch, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { dataDir, openStore, parsePr } from "./store.mjs";
+
+export { parsePr };
 
 const run = promisify(execFile);
-const CONFIG = process.env.PR_WATCHER_CONFIG ?? join(homedir(), ".config/pr-watcher/config.json");
-const STATE = process.env.PR_WATCHER_STATE ?? join(homedir(), ".local/state/pr-watcher/state.json");
 const TERMINAL_CI = new Set(["SUCCESS", "FAILURE", "ERROR"]);
 const FINISHED = new Set(["MERGED", "CLOSED"]);
 
@@ -21,12 +19,6 @@ const QUERY = `query($owner:String!,$name:String!,$number:Int!){repository(owner
   commits(last:1){nodes{commit{oid statusCheckRollup{state}}}}}}}`;
 
 const log = (...args) => console.log(new Date().toISOString(), ...args);
-
-/** "owner/repo#123" → parts, or null. */
-export function parsePr(ref) {
-  const m = /^([\w.-]+)\/([\w.-]+)#(\d+)$/.exec(ref ?? "");
-  return m ? { owner: m[1], name: m[2], number: Number(m[3]) } : null;
-}
 
 async function fetchPr({ owner, name, number }) {
   const { stdout } = await run("gh", ["api", "graphql", "-f", `query=${QUERY}`, "-f", `owner=${owner}`, "-f", `name=${name}`, "-F", `number=${number}`]);
@@ -110,86 +102,54 @@ class OmpWeb {
   }
 }
 
-const readJson = (file, fallback) => {
-  try {
-    return JSON.parse(readFileSync(file, "utf8"));
-  } catch (error) {
-    if (error.code === "ENOENT") return fallback;
-    throw error;
-  }
-};
+/** Service settings, read once at start. */
+export function settings(env = process.env) {
+  const interval = Number(env.PR_WATCHER_INTERVAL_SECONDS);
+  return {
+    ompwebUrl: env.PR_WATCHER_OMPWEB_URL || "http://127.0.0.1:30185",
+    intervalSeconds: Number.isInteger(interval) && interval > 0 ? interval : 60,
+    ignoreAuthors: (env.PR_WATCHER_IGNORE_AUTHORS ?? "").split(",").map((login) => login.trim()).filter(Boolean),
+  };
+}
 
-const writeJson = (file, value) => {
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(`${file}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
-  renameSync(`${file}.tmp`, file);
-};
-
-let lastGoodConfig = { watches: [] };
-let self = "";
-
-async function cycle() {
-  try {
-    lastGoodConfig = readJson(CONFIG, { watches: [] });
-  } catch (error) {
-    log(`config unreadable, keeping the previous one: ${error.message}`);
-  }
-  const config = lastGoodConfig;
-  const ompweb = new OmpWeb(config.ompwebUrl ?? "http://127.0.0.1:30185");
-  const state = readJson(STATE, {});
-  const live = {};
-  for (const watchEntry of config.watches ?? []) {
-    const pr = parsePr(watchEntry.pr);
-    if (!pr || !watchEntry.session) {
-      log(`skipping invalid watch ${JSON.stringify(watchEntry)}`);
-      continue;
-    }
-    const key = `${watchEntry.pr}->${watchEntry.session}`;
-    live[key] = state[key];
-    // Polled until merged or closed, so late bot re-reviews and human comments still arrive.
-    // The final state change has already been delivered; remove the watch to clear it.
-    if (FINISHED.has(state[key]?.state)) continue;
+/** One poll of every watch. Deliveries are recorded only after omp-web accepts them, so failures retry. */
+export async function cycle(store, { fetchPr, notify, self, ignoreAuthors }) {
+  for (const watch of store.list()) {
+    const key = `${watch.pr}->${watch.session}`;
     try {
-      const snap = await fetchPr(pr);
-      const ignore = new Set([self, ...(config.ignoreAuthors ?? []), ...(watchEntry.ignoreAuthors ?? [])]);
-      const { events, next } = diffPr(state[key], snap, ignore);
-      if (events.length && !(await ompweb.notify(watchEntry.session, formatMessage(watchEntry.pr, snap.title, events)))) {
+      const snap = await fetchPr(parsePr(watch.pr));
+      const ignore = new Set([self, ...ignoreAuthors, ...watch.ignoreAuthors]);
+      const { events, next } = diffPr(watch.snapshot, snap, ignore);
+      if (events.length && !(await notify(watch.session, formatMessage(watch.pr, snap.title, events)))) {
         log(`${key}: session busy with a shell command or compaction, retrying next cycle`);
         continue;
       }
       if (events.length) log(`${key}: delivered ${events.length} event(s)`);
-      live[key] = next;
+      // A watch removed meanwhile matches no row and stays removed.
+      if (!store.saveSnapshot(watch.pr, watch.session, next)) continue;
+      // Merged or closed: the final notice is out (or the watch began after it), so the watch ends.
+      if (FINISHED.has(next.state)) {
+        store.remove(watch.pr, watch.session);
+        log(`${key}: PR ${next.state.toLowerCase()}, watch ended`);
+      }
     } catch (error) {
       log(`${key}: ${error.message}`);
     }
   }
-  // Dropping keys for removed watches means re-adding one starts from a fresh baseline.
-  writeJson(STATE, live);
-  return config.intervalSeconds ?? 60;
 }
 
-async function main() {
-  self = (await run("gh", ["api", "user", "-q", ".login"])).stdout.trim();
-  if (process.argv.includes("--once")) return void (await cycle());
-  let timer;
-  let running = false;
-  const loop = async () => {
-    clearTimeout(timer);
-    if (running) return;
-    running = true;
-    const seconds = await cycle();
-    running = false;
-    timer = setTimeout(loop, seconds * 1000);
-  };
-  mkdirSync(dirname(CONFIG), { recursive: true });
-  // Editors replace the file, so watch its directory; a burst of events coalesces into one cycle.
-  let debounce;
-  watch(dirname(CONFIG), () => {
-    clearTimeout(debounce);
-    debounce = setTimeout(loop, 500);
-  });
-  log(`watching ${CONFIG} as ${self}`);
-  await loop();
+async function serve(once) {
+  const config = settings();
+  const store = openStore(dataDir());
+  const ompweb = new OmpWeb(config.ompwebUrl);
+  const self = (await run("gh", ["api", "user", "-q", ".login"])).stdout.trim();
+  const deps = { fetchPr, notify: (session, message) => ompweb.notify(session, message), self, ignoreAuthors: config.ignoreAuthors };
+  if (once) return void (await cycle(store, deps));
+  log(`polling every ${config.intervalSeconds}s from ${dataDir()} as ${self}`);
+  for (;;) {
+    await cycle(store, deps);
+    await new Promise((resolve) => setTimeout(resolve, config.intervalSeconds * 1000));
+  }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) await main();
+if (process.argv[1] === fileURLToPath(import.meta.url)) await serve(process.argv.includes("--once"));
