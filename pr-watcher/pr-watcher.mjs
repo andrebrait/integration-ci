@@ -2,9 +2,10 @@
 // Polls GitHub pull requests and notifies the omp session mapped to each one
 // through omp-web's agent API. Watches live in the store (see store.mjs).
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { realpathSync } from "node:fs";
+import { promisify, parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
-import { dataDir, openStore, parsePr } from "./store.mjs";
+import { dataDir, isLogin, isSession, openStore, parsePr } from "./store.mjs";
 
 export { parsePr };
 
@@ -152,4 +153,55 @@ async function serve(once) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) await serve(process.argv.includes("--once"));
+const USAGE = `usage: pr-watcher [--once]
+       pr-watcher add OWNER/REPO#N --session ID [--ignore-author LOGIN]...
+       pr-watcher remove OWNER/REPO#N [--session ID]
+       pr-watcher list [--json]`;
+
+/** Watch management. Returns the exit status: 0 ok, 2 invalid input (nothing written). */
+export function cli(argv, { store, out, err }) {
+  let parsed;
+  try {
+    parsed = parseArgs({ args: argv, allowPositionals: true, options: { session: { type: "string" }, "ignore-author": { type: "string", multiple: true }, json: { type: "boolean" } } });
+  } catch (error) {
+    err(`${error.message}\n${USAGE}`);
+    return 2;
+  }
+  const { positionals: [command, pr, ...extra], values } = parsed;
+  const invalid = (message) => (err(`${message}\n${USAGE}`), 2);
+  if (command === "list") {
+    if (pr !== undefined) return invalid(`unexpected argument ${pr}`);
+    const watches = store.list();
+    if (values.json) out(JSON.stringify(watches));
+    else for (const w of watches) out([w.pr, w.session, w.ignoreAuthors.length ? `ignore=${w.ignoreAuthors.join(",")}` : "-", w.snapshot?.state ?? "new"].join("  "));
+    return 0;
+  }
+  if (command !== "add" && command !== "remove") return invalid(command ? `unknown command ${command}` : "missing command");
+  if (!parsePr(pr) || extra.length) return invalid(`expected one OWNER/REPO#N, got ${[pr, ...extra].join(" ") || "nothing"}`);
+  if (values.session !== undefined && !isSession(values.session)) return invalid(`invalid session id ${values.session}`);
+  if (command === "remove") {
+    const removed = store.remove(pr, values.session);
+    out(removed ? `removed ${removed} watch${removed === 1 ? "" : "es"}` : "no matching watch");
+    return 0;
+  }
+  if (values.session === undefined) return invalid("add needs --session");
+  const ignore = values["ignore-author"] ?? [];
+  const badLogin = ignore.find((login) => !isLogin(login));
+  if (badLogin !== undefined) return invalid(`invalid login ${badLogin}`);
+  store.add(pr, values.session, ignore);
+  out(`watching ${pr} for ${values.session}`);
+  return 0;
+}
+
+async function main(argv) {
+  if (argv.length === 0 || (argv.length === 1 && argv[0] === "--once")) return serve(argv[0] === "--once");
+  try {
+    process.exitCode = cli(argv, { store: openStore(dataDir()), out: console.log, err: console.error });
+  } catch (error) {
+    console.error(`pr-watcher: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+
+// Resolved, because the CLI is usually run through a symlink on PATH.
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) await main(process.argv.slice(2));
