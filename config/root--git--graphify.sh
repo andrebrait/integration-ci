@@ -9,12 +9,7 @@ BASE=upstream/v8
 UPSTREAM_MAIN_REF=upstream/v8
 # Third-party PRs carried from our fork (rebased + fixed copy). See EXTRA_PRS in the integration script.
 # 3110: abhay-codes07's _origin=semantic stamp (Graphify-Labs/graphify#2843), rebased onto v8.
-# 3443: L4XB's per-agent soft-nudge budget (took our #3893 follow-up) PLUS our L4XB/graphify#1
-#   (nudge hints + always-on wording) stacked on its branch. carry/pr-3443 is a one-commit squash
-#   of pfBlockerNG/graphify feat/nudge-hints onto v8; re-squash it after changing that branch.
-#   Keep carrying L4XB/graphify#1 until merged: if #3443 closes or merges upstream without it,
-#   this entry is skipped, so open L4XB/graphify#1's change as its own upstream PR first.
-EXTRA_PRS='3110=carry/pr-3110 3443=carry/pr-3443'
+EXTRA_PRS='3110=carry/pr-3110'
 # Install exactly the committed lockfile. Not `uv lock --check`: upstream release commits
 # bump the version without relocking, which fails that check on plain upstream/v8.
 BUILD_CMD='uv sync --frozen --extra leiden'
