@@ -8,8 +8,7 @@ CI_WORKFLOW=graphify.yml
 BASE=upstream/v8
 UPSTREAM_MAIN_REF=upstream/v8
 # Third-party PRs carried from our fork (rebased + fixed copy). See EXTRA_PRS in the integration script.
-# 3110: abhay-codes07's _origin=semantic stamp (Graphify-Labs/graphify#2843), rebased onto v8.
-EXTRA_PRS='3110=carry/pr-3110'
+EXTRA_PRS=''
 # Install exactly the committed lockfile. Not `uv lock --check`: upstream release commits
 # bump the version without relocking, which fails that check on plain upstream/v8.
 BUILD_CMD='uv sync --frozen --extra leiden'
