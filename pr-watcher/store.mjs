@@ -69,7 +69,17 @@ export function openStore(dir, legacy = {
 }) {
   mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync(join(dir, "pr-watcher.db"));
-  db.exec("PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
+  db.exec("PRAGMA busy_timeout = 5000");
+  // Switching a new database to WAL takes an exclusive lock that ignores busy_timeout; another process may hold it.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      db.exec("PRAGMA journal_mode = WAL");
+      break;
+    } catch (error) {
+      if (error.errcode !== 5 || attempt >= 250) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+    }
+  }
   if (db.prepare("PRAGMA user_version").get().user_version === 0) {
     db.exec("BEGIN IMMEDIATE");
     let imported = false;

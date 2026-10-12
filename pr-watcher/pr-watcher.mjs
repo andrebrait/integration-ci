@@ -7,8 +7,6 @@ import { promisify, parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { dataDir, isLogin, isSession, openStore, parsePr } from "./store.mjs";
 
-export { parsePr };
-
 const run = promisify(execFile);
 const TERMINAL_CI = new Set(["SUCCESS", "FAILURE", "ERROR"]);
 const FINISHED = new Set(["MERGED", "CLOSED"]);
@@ -108,7 +106,8 @@ export function settings(env = process.env) {
   const interval = Number(env.PR_WATCHER_INTERVAL_SECONDS);
   return {
     ompwebUrl: env.PR_WATCHER_OMPWEB_URL || "http://127.0.0.1:30185",
-    intervalSeconds: Number.isInteger(interval) && interval > 0 ? interval : 60,
+    // At most a day: a longer setTimeout delay overflows and fires at once.
+    intervalSeconds: Number.isInteger(interval) && interval > 0 && interval <= 86400 ? interval : 60,
     ignoreAuthors: (env.PR_WATCHER_IGNORE_AUTHORS ?? "").split(",").map((login) => login.trim()).filter(Boolean),
   };
 }

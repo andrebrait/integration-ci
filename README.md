@@ -79,9 +79,9 @@ newer, an authenticated `gh`, and a running omp-web.
   pr-watcher list [--json]
   ```
 
-  A new watch is picked up on the next cycle and starts from a baseline: it
-  reports only activity after it was added. Invalid input exits with status 2
-  and changes nothing.
+  A new watch is picked up on the next cycle, which records a baseline: it
+  reports only activity after that first poll (up to one interval after
+  `add`). Invalid input exits with status 2 and adds or removes no watch.
 - **What it reports:** new comments and reviews (except the `gh` user's own
   and ignored authors), a terminal CI result (`SUCCESS`, `FAILURE`, `ERROR`)
   once per head commit, and the PR being merged or closed.
@@ -114,12 +114,18 @@ newer, an authenticated `gh`, and a running omp-web.
   omp-web's own environment file, so omp sessions cannot inherit the secret.
 
 ```sh
-ln -s /root/git/integration-ci/pr-watcher/pr-watcher.mjs ~/.local/bin/pr-watcher
 systemctl enable --now /root/git/integration-ci/pr-watcher/pr-watcher.service
+ln -sfn /root/git/integration-ci/pr-watcher/pr-watcher.mjs ~/.local/bin/pr-watcher
 journalctl -u pr-watcher -f
 ```
 
-`pr-watcher --once` runs a single cycle; `node --test pr-watcher/` runs the
-tests. The first start of this version imports the watches from the previous
+`pr-watcher --once` runs a single cycle; `node --test 'pr-watcher/*.test.mjs'`
+runs the tests. The first open of the data directory, by the service or by any
+`pr-watcher` command, imports the watches from the previous
 `~/.config/pr-watcher/config.json` and its delivery state, then renames both
-files with a `.migrated` suffix.
+files with a `.migrated` suffix. Upgrade by restarting the service before
+anything runs the new command: a previous-version service still running after
+the import finds no watches. To roll back, stop the service, delete the data
+directory, rename the `.migrated` files back and run the previous version;
+watches added since are lost, and updates delivered since the import are
+delivered again.

@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
+import { promisify } from "node:util";
 import { dataDir, openStore } from "./store.mjs";
+
+const run = promisify(execFile);
 
 const tmp = () => mkdtempSync(join(tmpdir(), "pr-watcher-"));
 // Never import the real legacy files from a test.
@@ -101,11 +106,31 @@ test("migration runs once: a recreated config is not imported again", () => {
   assert.equal(openStore(dir, legacy).list().length, 2);
 });
 
-test("two stores opened on a fresh directory import once", () => {
+test("a store uses WAL", () => {
   const dir = tmp();
-  const legacy = legacyFixture(dir);
-  const first = openStore(dir, legacy);
-  const second = openStore(dir, legacy);
-  assert.equal(first.list().length, 2);
-  assert.equal(second.list().length, 2);
+  open(dir).close();
+  const raw = new DatabaseSync(join(dir, "pr-watcher.db"));
+  assert.equal(raw.prepare("PRAGMA journal_mode").get().journal_mode, "wal");
+  raw.close();
+});
+
+// The service and CLI calls can open a fresh data directory at the same moment.
+test("processes racing to open a fresh directory all succeed and import once", async () => {
+  const opener = `import { openStore } from ${JSON.stringify(new URL("./store.mjs", import.meta.url).href)};
+    const [dir, config, state, at] = process.argv.slice(1);
+    while (Date.now() < Number(at));
+    process.stdout.write("rows=" + openStore(dir, { config, state }).list().length);`;
+  for (let round = 0; round < 30; round++) {
+    const dir = tmp();
+    const legacy = legacyFixture(dir);
+    const at = String(Date.now() + 400);
+    const results = await Promise.allSettled(Array.from({ length: 8 }, () =>
+      run(process.execPath, ["--input-type=module", "-e", opener, dir, legacy.config, legacy.state, at])));
+    for (const result of results) {
+      assert.equal(result.status, "fulfilled", `round ${round}: ${result.reason?.stderr ?? ""}`);
+      assert.match(result.value.stdout, /rows=2$/);
+    }
+    // The importer logs the legacy settings it no longer reads: exactly one process imported.
+    assert.equal(results.filter((result) => result.value.stdout.includes("no longer read")).length, 1, `round ${round}`);
+  }
 });

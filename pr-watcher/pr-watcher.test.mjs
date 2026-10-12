@@ -70,7 +70,9 @@ test("settings apply defaults and parse the ignore list", () => {
 });
 
 test("settings fall back to 60 seconds for an invalid interval", () => {
-  for (const value of ["abc", "0", "-5", "1.5x"]) assert.equal(settings({ PR_WATCHER_INTERVAL_SECONDS: value }).intervalSeconds, 60);
+  // Over a day: setTimeout would overflow its 32-bit delay and fire at once, a hot loop.
+  for (const value of ["abc", "0", "-5", "1.5x", "86401", "3600000", "99999999999"]) assert.equal(settings({ PR_WATCHER_INTERVAL_SECONDS: value }).intervalSeconds, 60, value);
+  assert.equal(settings({ PR_WATCHER_INTERVAL_SECONDS: "86400" }).intervalSeconds, 86400);
 });
 
 test("a new watch stores a baseline and notifies nothing", async () => {
