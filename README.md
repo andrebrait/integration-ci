@@ -67,43 +67,59 @@ ln -sfn /root/git/integration-ci/integration ~/.local/bin/integration
 
 `pr-watcher/pr-watcher.mjs` polls GitHub pull requests through `gh` and
 notifies the omp session mapped to each one by sending it a prompt through
-omp-web's agent API (`POST /api/agent/<session id>`). It needs Node.js 22 or
+omp-web's agent API (`POST /api/agent/<session id>`). It needs Node.js 24 or
 newer, an authenticated `gh`, and a running omp-web.
 
+- **Watches:** managed with the `pr-watcher` command, never by editing files.
+  A session id is the omp session UUID, as shown in omp-web's URL.
+
+  ```sh
+  pr-watcher add OWNER/REPO#N --session ID [--ignore-author LOGIN]...
+  pr-watcher remove OWNER/REPO#N [--session ID]   # every session when omitted
+  pr-watcher list [--json]
+  ```
+
+  A new watch is picked up on the next cycle and starts from a baseline: it
+  reports only activity after it was added. Invalid input exits with status 2
+  and changes nothing.
 - **What it reports:** new comments and reviews (except the `gh` user's own
-  and `ignoreAuthors`), a terminal CI result (`SUCCESS`, `FAILURE`, `ERROR`)
+  and ignored authors), a terminal CI result (`SUCCESS`, `FAILURE`, `ERROR`)
   once per head commit, and the PR being merged or closed.
 - **How long it watches:** every cycle until the PR is merged or closed, so
   bot re-reviews after a push and later maintainer or contributor comments
-  are still delivered. After the merged or closed notice it stops polling that
-  PR; removing the watch from the config clears it.
+  are still delivered. Once the merged or closed notice is delivered, the watch
+  ends by itself.
 - **How it delivers:** an idle session starts a turn; a session in the middle
   of a turn gets the update as a follow-up; a session with no omp process is
   resumed by omp-web first. A session running a shell command or compacting is
-  retried on the next cycle. Updates are appended to the conversation and never
-  change the system prompt.
-- **Configuration:** `~/.config/pr-watcher/config.json`
-  (`PR_WATCHER_CONFIG` overrides it). The file is re-read every cycle and as
-  soon as it changes, so edits apply without a restart. See
-  `pr-watcher/config.example.json`. A session id is the omp session UUID,
-  as shown in omp-web's URL. A new watch starts from a baseline and reports
-  only activity after it was added.
-- **State:** `~/.local/state/pr-watcher/state.json` (`PR_WATCHER_STATE`)
-  records what each session has been told. An update is recorded only after
-  omp-web accepts it, so a failed delivery is retried.
+  retried on the next cycle. An update counts as delivered only after omp-web
+  accepts it, so a failed delivery is retried. Updates are appended to the
+  conversation and never change the system prompt.
+- **Data:** watches and delivery state live in one data directory and survive
+  restarts. The service and the `pr-watcher` command must use the same one:
+  keep the default, or set `PR_WATCHER_DATA_DIR` for both.
+- **Settings** (environment, read at service start):
+
+  | Variable | Default | Meaning |
+  | --- | --- | --- |
+  | `PR_WATCHER_DATA_DIR` | `${XDG_STATE_HOME:-~/.local/state}/pr-watcher` | Data directory |
+  | `PR_WATCHER_OMPWEB_URL` | `http://127.0.0.1:30185` | omp-web base URL |
+  | `PR_WATCHER_INTERVAL_SECONDS` | `60` | Poll interval |
+  | `PR_WATCHER_IGNORE_AUTHORS` | empty | Comma-separated logins never reported |
+
 - **Authentication:** the watcher sends `OMP_WEB_TRUSTED_HEADER_SECRET` as the
   `X-Omp-Web-Auth` header, and omp-web accepts requests whose header hashes to
-  its `OMP_WEB_TRUSTED_HEADER_SHA256`. The unit reads the secret from
-  `/opt/omp-deployment/pr-watcher.env` (mode `0600`), never omp-web's own
-  environment file, so omp sessions cannot inherit it. Never put it in the
-  config.
+  its `OMP_WEB_TRUSTED_HEADER_SHA256`. The unit reads the secret and the
+  settings from `/opt/omp-deployment/pr-watcher.env` (mode `0600`), never
+  omp-web's own environment file, so omp sessions cannot inherit the secret.
 
 ```sh
-mkdir -p ~/.config/pr-watcher
-cp pr-watcher/config.example.json ~/.config/pr-watcher/config.json  # then edit
+ln -s /root/git/integration-ci/pr-watcher/pr-watcher.mjs ~/.local/bin/pr-watcher
 systemctl enable --now /root/git/integration-ci/pr-watcher/pr-watcher.service
 journalctl -u pr-watcher -f
 ```
 
-`node pr-watcher/pr-watcher.mjs --once` runs a single cycle;
-`node --test pr-watcher/` runs the tests.
+`pr-watcher --once` runs a single cycle; `node --test pr-watcher/` runs the
+tests. The first start of this version imports the watches from the previous
+`~/.config/pr-watcher/config.json` and its delivery state, then renames both
+files with a `.migrated` suffix.
