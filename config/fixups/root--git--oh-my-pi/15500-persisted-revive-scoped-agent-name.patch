@@ -1,0 +1,31 @@
+diff --git a/packages/coding-agent/src/task/persisted-revive.ts b/packages/coding-agent/src/task/persisted-revive.ts
+index 4d36c01f64..ee3c6667fa 100644
+--- a/packages/coding-agent/src/task/persisted-revive.ts
++++ b/packages/coding-agent/src/task/persisted-revive.ts
+@@ -309,7 +309,7 @@ export function createPersistedSubagentReviverFactory(
+ 			// back to the display label too, keeping it scoped as an ordinary
+ 			// subagent under its generated id instead of `main` or the shared `sub`
+ 			// bucket.
+-			const agentName =
++			const scopedAgentName =
+ 				init.agent &&
+ 				init.agent.trim().toLowerCase() !== MAIN_AGENT_RULE_NAME &&
+ 				init.agent.trim().toLowerCase() !== SUB_AGENT_RULE_NAME
+@@ -335,7 +335,7 @@ export function createPersistedSubagentReviverFactory(
+ 					sessionManager: reopened,
+ 					agentId: ref.id,
+ 					agentDisplayName: ref.displayName,
+-					agentName,
++					agentName: scopedAgentName,
+ 					parentTaskPrefix: ref.id,
+ 					asyncJobManager: ctx.session.asyncJobManager,
+ 					parentAgentId: ref.parentId,
+@@ -402,7 +402,7 @@ export function createPersistedSubagentReviverFactory(
+ 				id: ref.id,
+ 				agent: persistedAgentDefinition(ref.displayName, init),
+ 				// The frames keep the ref label; `subagent_stop` reports the definition.
+-				agentType: agentName,
++				agentType: scopedAgentName,
+ 				eventBus: ctx.eventBus,
+ 				subagentEventBus: ctx.subagentEventBus,
+ 				// The session that spawned this child is what the `subagent_stop`
