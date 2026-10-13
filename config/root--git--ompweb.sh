@@ -14,3 +14,5 @@ BUILD_CMD='npm ci --no-audit --no-fund && npm run build && npm run lint && npm t
 # (killing running agent sessions; they verify on resume) and rolls back to
 # the previous release if the restarted service is unhealthy.
 DEPLOY_CMD='/opt/omp-deployment/bin/ompweb-deploy "$DEPLOY_SHA" "$BUILD_DIR"'
+# #254 (persistent notifications) is built on #253 (Node 24).
+STACKED_PRS='254:253'
