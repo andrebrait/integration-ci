@@ -98,7 +98,8 @@ export function openStore(dir, legacy = {
       }
       db.exec("COMMIT");
     } catch (error) {
-      db.exec("ROLLBACK");
+      // SQLite has already rolled back after some errors (a full disk); keep the original error.
+      if (db.isTransaction) db.exec("ROLLBACK");
       db.close();
       throw error;
     }
