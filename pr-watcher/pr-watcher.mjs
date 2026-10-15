@@ -13,8 +13,8 @@ const FINISHED = new Set(["MERGED", "CLOSED"]);
 
 const QUERY = `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){
   state title
-  comments(last:50){nodes{id author{login} body url}}
-  reviews(last:50){nodes{id author{login} state body url}}
+  comments(last:50){nodes{id author{login} body url lastEditedAt}}
+  reviews(last:50){nodes{id author{login} state body url lastEditedAt}}
   commits(last:1){nodes{commit{oid statusCheckRollup{state}}}}}}}`;
 
 const log = (...args) => console.log(new Date().toISOString(), ...args);
@@ -23,7 +23,7 @@ async function fetchPr({ owner, name, number }) {
   const { stdout } = await run("gh", ["api", "graphql", "-f", `query=${QUERY}`, "-f", `owner=${owner}`, "-f", `name=${name}`, "-F", `number=${number}`]);
   const pr = JSON.parse(stdout).data.repository.pullRequest;
   const commit = pr.commits.nodes[0]?.commit;
-  const item = kind => n => ({ kind, id: n.id, author: n.author?.login ?? "ghost", state: n.state, body: n.body, url: n.url });
+  const item = kind => n => ({ kind, id: n.id, author: n.author?.login ?? "ghost", state: n.state, body: n.body, url: n.url, edited: n.lastEditedAt ?? undefined });
   return {
     state: pr.state,
     title: pr.title,
@@ -34,7 +34,8 @@ async function fetchPr({ owner, name, number }) {
 }
 
 const excerpt = text => {
-  const flat = (text ?? "").replace(/\s+/g, " ").trim();
+  // HTML comments are bot bookkeeping (CodeRabbit opens every body with them).
+  const flat = (text ?? "").replace(/<!--[\s\S]*?-->/g, "").replace(/\s+/g, " ").trim();
   return flat.length > 300 ? `${flat.slice(0, 300)}…` : flat;
 };
 
@@ -48,13 +49,19 @@ export function diffPr(prev, snap, ignore) {
   // same result count as news again.
   const ciNow = TERMINAL_CI.has(snap.ci) ? `${snap.head}:${snap.ci}` : undefined;
   const ciReported = prev?.ciReported ?? (TERMINAL_CI.has(prev?.ci) ? `${prev.head}:${prev.ci}` : undefined);
-  const next = { seen: snap.items.map(i => i.id), head: snap.head, ci: snap.ci, ciReported: ciNow ?? ciReported, state: snap.state };
+  // `edits` maps item id -> lastEditedAt: bots such as CodeRabbit post their result by
+  // editing an earlier comment, which keeps its id. A snapshot without it is a baseline.
+  const edits = Object.fromEntries(snap.items.filter(i => i.edited).map(i => [i.id, i.edited]));
+  const next = { seen: snap.items.map(i => i.id), edits, head: snap.head, ci: snap.ci, ciReported: ciNow ?? ciReported, state: snap.state };
   if (!prev) return { events: [], next };
   const seen = new Set(prev.seen);
   const events = [];
   for (const i of snap.items) {
-    if (seen.has(i.id) || ignore.has(i.author)) continue;
-    const what = i.kind === "review" ? `${i.author} reviewed (${i.state})` : `${i.author} commented`;
+    if (ignore.has(i.author)) continue;
+    let what;
+    if (!seen.has(i.id)) what = i.kind === "review" ? `${i.author} reviewed (${i.state})` : `${i.author} commented`;
+    else if (prev.edits && i.edited && prev.edits[i.id] !== i.edited) what = `${i.author} edited a ${i.kind}`;
+    else continue;
     const body = excerpt(i.body) || "(inline comments only)";
     events.push(`- ${what}: ${body} ${i.url}`);
   }

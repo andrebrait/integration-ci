@@ -83,8 +83,10 @@ newer, an authenticated `gh`, and a running omp-web.
   reports only activity after that first poll (up to one interval after
   `add`). Invalid input exits with status 2 and adds or removes no watch.
 - **What it reports:** new comments and reviews (except the `gh` user's own
-  and ignored authors), a terminal CI result (`SUCCESS`, `FAILURE`, `ERROR`)
-  once per head commit, and the PR being merged or closed.
+  and ignored authors), edits to them (bots such as CodeRabbit post a finished
+  review by editing an earlier comment), a terminal CI result (`SUCCESS`,
+  `FAILURE`, `ERROR`) once per head commit, and the PR being merged or closed.
+  Excerpts leave out HTML comments.
 - **How long it watches:** every cycle until the PR is merged or closed, so
   bot re-reviews after a push and later maintainer or contributor comments
   are still delivered. Once the merged or closed notice is delivered, the watch

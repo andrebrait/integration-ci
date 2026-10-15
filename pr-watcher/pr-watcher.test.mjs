@@ -33,6 +33,28 @@ test("reports unseen items except ignored authors", () => {
   assert.deepEqual(events, ["- roboomp reviewed (COMMENTED): (inline comments only) u2"]);
 });
 
+test("an edit to a seen item is reported once, with the new body", () => {
+  const { next: prev } = diffPr(undefined, snap(), new Set());
+  const edited = [{ ...snap().items[0], body: "<!-- bot marker -->\nReview finished", edited: "2026-10-15T14:01:50Z" }];
+  const { events, next } = diffPr(prev, snap({ items: edited }), new Set());
+  assert.deepEqual(events, ["- kvn edited a comment: Review finished u1"]);
+  assert.deepEqual(diffPr(next, snap({ items: edited }), new Set()).events, []);
+  const again = [{ ...edited[0], edited: "2026-10-15T14:05:00Z" }];
+  assert.equal(diffPr(next, snap({ items: again }), new Set()).events.length, 1);
+});
+
+test("a snapshot from before edit tracking takes edits as a baseline", () => {
+  const items = [{ ...snap().items[0], edited: "2026-10-15T14:01:50Z" }];
+  const { events } = diffPr({ seen: ["c1"], head: "aaaaaaaaaaaa", ci: "PENDING", state: "OPEN" }, snap({ items }), new Set());
+  assert.deepEqual(events, []);
+});
+
+test("an ignored author's edit is not reported", () => {
+  const { next: prev } = diffPr(undefined, snap(), new Set());
+  const items = [{ ...snap().items[0], edited: "2026-10-15T14:01:50Z" }];
+  assert.deepEqual(diffPr(prev, snap({ items }), new Set(["kvn"])).events, []);
+});
+
 test("CI is reported once per terminal result per head", () => {
   const { next: pending } = diffPr(undefined, snap(), new Set());
   const { events, next: green } = diffPr(pending, snap({ ci: "SUCCESS" }), new Set());
