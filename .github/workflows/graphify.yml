@@ -70,4 +70,4 @@ jobs:
          sha: ${{ inputs.sha }}
          project: graphify
          artifact: graphify
-         description: Wheel and sdist of graphifyy; install with uv tool install '<wheel>[leiden]'.
+         description: Wheel and sdist of graphifyy; install with uv tool install '<wheel>[leiden,gdscript]'.
