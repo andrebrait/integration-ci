@@ -3,7 +3,7 @@ FORK_REMOTE=origin
 UPSTREAM=can1357/oh-my-pi
 # PRs built on another open PR's branch (CHILD:PARENT). See STACKED_PRS in the integration script.
 # 15730 (mnemopi embedding cache) is stacked on 15729 (mnemopi dense-candidate limit).
-STACKED_PRS='14458:14148 14468:14166 15730:15729'
+STACKED_PRS='14458:14148 14468:14166 15685:14166 15730:15729'
 # Third-party PRs carried from our fork (rebased copy). See EXTRA_PRS in the integration script.
 # 7851: szavadsky's per-role skill visibility. (#12229 is now carried as our own PR #15641.)
 EXTRA_PRS='7851=carry/pr-7851'
