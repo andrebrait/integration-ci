@@ -1,0 +1,13 @@
+diff --git a/packages/coding-agent/src/session-host/hosted-client.ts b/packages/coding-agent/src/session-host/hosted-client.ts
+index 311557e628..0124f00d78 100644
+--- a/packages/coding-agent/src/session-host/hosted-client.ts
++++ b/packages/coding-agent/src/session-host/hosted-client.ts
+@@ -328,7 +328,7 @@ export class HostedClientLink {
+ 		}
+ 		const pending = Promise.resolve()
+ 			.then(async () => {
+-				if (!this.#open || this.#lost || this.#epoch !== epoch || this.#idleActivity !== report) return;
++				if (!this.#open || this.#reconnecting || this.#epoch !== epoch || this.#idleActivity !== report) return;
+ 				await this.#client.setIdleActivity(isComposing, { ifEpoch: epoch });
+ 			})
+ 			.catch(error => {
