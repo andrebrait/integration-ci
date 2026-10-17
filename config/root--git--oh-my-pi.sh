@@ -6,8 +6,9 @@ UPSTREAM=can1357/oh-my-pi
 # 15730 (mnemopi embedding cache).
 STACKED_PRS='14458:14148 14468:14166 15685:14166 15896:15730'
 # Third-party PRs carried from our fork (rebased copy). See EXTRA_PRS in the integration script.
-# 7851: szavadsky's per-role skill visibility. (#12229 is now carried as our own PR #15641.)
-EXTRA_PRS='7851=carry/pr-7851'
+# 7851: szavadsky's per-role skill visibility; 12229: Xytronix's per-call task/eval model selector
+# (our #15641 fixes merged into it via xyxlabs/oh-my-pi#1, so #15641 is closed).
+EXTRA_PRS='7851=carry/pr-7851 12229=carry/pr-12229'
 BRANCH=integration
 # build runs BUILD_CMD/TEST_CMD on GitHub Actions (.github/workflows/omp.yml sources this file).
 CI_REPO=andrebrait/integration-ci
@@ -24,7 +25,7 @@ TEST_CMD+=' packages/coding-agent/test/prefix-binding-tool-roster.test.ts packag
 # PR #14365 (retry.preferSlowMode) contract tests.
 TEST_CMD+=' packages/coding-agent/test/agent-session-retry-fallback.test.ts packages/coding-agent/test/sdk-model-selection.test.ts'
 TEST_CMD+=' packages/catalog/test/compat-compile.test.ts'
-# Carried PR #7851 (per-role skill visibility) and PR #15641 (per-call task/eval model) contract tests.
+# Carried PRs #7851 (per-role skill visibility) and #12229 (per-call task/eval model) contract tests.
 TEST_CMD+=' packages/coding-agent/test/discovery/agent-fields.test.ts packages/coding-agent/test/task/agents.test.ts packages/coding-agent/test/task/role-routing.test.ts packages/coding-agent/test/eval/agent-bridge.test.ts packages/coding-agent/test/task/task-schema.test.ts packages/coding-agent/test/task/task-spawn.test.ts'
 # Own process: upstream's issue-985 test calls Settings.init() without resetting a global
 # instance left by agent-session-message-pipeline.test.ts, so it fails when co-run (upstream too).
