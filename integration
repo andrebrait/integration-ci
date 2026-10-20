@@ -88,15 +88,27 @@ for pair in ${EXTRA_PRS:-}; do
 	[[ "$pair" =~ ^[0-9]+=[^=]+$ ]] || { echo "integration: bad EXTRA_PRS entry '$pair' (want N=fork-branch)" >&2; exit 2; }
 done
 for pair in ${STACKED_PRS:-}; do
-	[[ "$pair" =~ ^[0-9]+:[0-9]+$ ]] || { echo "integration: bad STACKED_PRS entry '$pair' (want CHILD:PARENT)" >&2; exit 2; }
+	[[ "$pair" =~ ^[0-9]+:[0-9]+(,[0-9]+)*$ ]] || { echo "integration: bad STACKED_PRS entry '$pair' (want CHILD:PARENT[,PARENT2...])" >&2; exit 2; }
 done
 
-stack_parent() { # num -> parent PR number or empty
+stack_parent() { # num -> parent PR number(s) (comma-separated) or empty
 	local pair
 	for pair in ${STACKED_PRS:-}; do
 		[ "${pair%%:*}" = "$1" ] && { echo "${pair#*:}"; return 0; }
 	done
 	return 0
+}
+
+stack_depth() { # num [seen] -> max parent depth + 1 (0 if unstacked)
+	local num="$1" seen="${2:-} $1 " ps p d max=0
+	ps="$(stack_parent "$num")"
+	[ -n "$ps" ] || { echo 0; return 0; }
+	for p in ${ps//,/ }; do
+		case "$seen" in *" $p "*) echo "integration: STACKED_PRS has a cycle through #$num" >&2; return 1 ;; esac
+		d="$(stack_depth "$p" "$seen")" || return 1
+		[ "$((d + 1))" -le "$max" ] || max=$((d + 1))
+	done
+	echo "$max"
 }
 
 # Field 2 (the fork branch) of PR $1's row in $2, or empty when it is not listed.
@@ -159,11 +171,8 @@ pr_rows() { # title|base
 		done
 	} | sort -t $'\t' -k1,1n | while IFS=$'\t' read -r num head row; do
 		# Stack depth leads the sort key, so parents always precede children.
-		local depth=0 p="$num"
-		while p="$(stack_parent "$p")" && [ -n "$p" ]; do
-			depth=$((depth + 1))
-			[ "$depth" -le 20 ] || { echo "integration: STACKED_PRS has a cycle through #$num" >&2; exit 1; }
-		done
+		local depth
+		depth="$(stack_depth "$num")" || exit 1
 		printf '%s\t%s\t%s\t%s\n' "$depth" "$num" "$head" "$row"
 	done | sort -t $'\t' -k1,1n -k2,2n | cut -f2-
 }
@@ -191,15 +200,54 @@ replay_pr() { # scratch-worktree base head-ref tmp-branch [from-ref] -> ref
 
 # replay_pr for PR #num, stacked PRs on top of their parent's replayed series
 # (recursively). Reads cmd_rebuild's scratch, base and rows. Echoes the ref.
-replay_stack() { # num -> ref
-	local num="$1" parent parent_branch="" from
+replay_stack() { # num -> ref (also sets rebuild/pr-$num-base when stacked on open parent(s))
+	local num="$1" parent p pb from head_ref join_commit match i
+	local -a open_parents=() open_pbs=()
+	head_ref="$FORK_REMOTE/$(row_branch "$num" "$rows")"
 	parent="$(stack_parent "$num")"
-	[ -z "$parent" ] || parent_branch="$(row_branch "$parent" "$rows")"
-	if [ -n "$parent_branch" ]; then
-		from="$(replay_stack "$parent")" || return 1
-		replay_pr "$scratch" "$from" "$FORK_REMOTE/$(row_branch "$num" "$rows")" "rebuild/pr-$num" "$FORK_REMOTE/$parent_branch"
+	for p in ${parent//,/ }; do
+		pb="$(row_branch "$p" "$rows")"
+		[ -z "$pb" ] || { open_parents+=("$p"); open_pbs+=("$pb"); }
+	done
+	git -C "$scratch" branch -D "rebuild/pr-$num-base" >/dev/null 2>&1 || true
+	if [ "${#open_parents[@]}" -eq 0 ]; then
+		replay_pr "$scratch" "$base" "$head_ref" "rebuild/pr-$num"
+	elif [ "${#open_parents[@]}" -eq 1 ]; then
+		from="$(replay_stack "${open_parents[0]}")" || return 1
+		git -C "$scratch" branch -f "rebuild/pr-$num-base" "$from" >/dev/null
+		replay_pr "$scratch" "$from" "$head_ref" "rebuild/pr-$num" "$FORK_REMOTE/${open_pbs[0]}"
 	else
-		replay_pr "$scratch" "$base" "$FORK_REMOTE/$(row_branch "$num" "$rows")" "rebuild/pr-$num"
+		for p in "${open_parents[@]}"; do
+			replay_stack "$p" >/dev/null || return 1
+		done
+		join_commit="$(git -C "$REPO_DIR" rev-list --merges --first-parent "$UPSTREAM_MAIN_REF..$head_ref" | head -1)"
+		[ -n "$join_commit" ] || { echo "integration: PR #$num has multiple parents ($parent) but no merge commit in $UPSTREAM_MAIN_REF..$head_ref" >&2; return 1; }
+		match=1
+		for i in "${!open_parents[@]}"; do
+			p="${open_parents[$i]}"
+			if [ "$(git -C "$REPO_DIR" rev-parse "$join_commit^$((i + 1))" 2>/dev/null || true)" != "$(git -C "$REPO_DIR" rev-parse "rebuild/pr-$p")" ]; then
+				match=0
+				break
+			fi
+		done
+		if [ "$match" -eq 1 ]; then
+			git -C "$scratch" branch -f "rebuild/pr-$num-base" "$join_commit" >/dev/null
+			git -C "$scratch" checkout -q -B "rebuild/pr-$num" "$head_ref"
+			echo "rebuild/pr-$num"
+		else
+			git -C "$scratch" checkout -q -B "rebuild/pr-$num-base" "rebuild/pr-${open_parents[0]}"
+			for p in "${open_parents[@]:1}"; do
+				if ! git -C "$scratch" merge --no-edit "rebuild/pr-$p" >/dev/null 2>&1; then
+					if [ -n "$(git -C "$scratch" diff --diff-filter=U --name-only)" ]; then
+						git -C "$scratch" merge --abort 2>/dev/null || true
+						echo "integration: joining parents (${open_parents[*]}) for PR #$num failed; run 'integration prs' first" >&2
+						return 1
+					fi
+					git -C "$scratch" commit --no-edit -q
+				fi
+			done
+			replay_pr "$scratch" "rebuild/pr-$num-base" "$head_ref" "rebuild/pr-$num" "$join_commit"
+		fi
 	fi
 }
 
@@ -295,23 +343,23 @@ cmd_rebuild() {
 			continue
 		fi
 		parent="$(stack_parent "$num")"
-		parent_branch=""
-		[ -z "$parent" ] || parent_branch="$(row_branch "$parent" "$rows")"
-		if [ -n "$parent" ] && [ -z "$parent_branch" ]; then
-			echo "integration: PR #$num is stacked on #$parent, which is not open; squashing its whole branch" >&2
-		fi
+		for p in ${parent//,/ }; do
+			if [ -z "$(row_branch "$p" "$rows")" ]; then
+				echo "integration: PR #$num is stacked on #$p, which is not open" >&2
+			fi
+		done
 		tmp="$(replay_stack "$num")" || exit 1
 		echo "integration: squashing PR #$num ($head)"
 		# --squash records no second parent: the result stays a linear series that
 		# rebuilds identically next round, and rerere replays cross-PR resolutions.
-		# A stacked PR contributes only its diff against its replayed parent,
+		# A stacked PR contributes only its diff against its replayed parent(s),
 		# collapsed into one commit and cherry-picked: its branch also carries the
 		# parent's commits, which the parent's own squash (fixups included) owns.
 		# Both commands report failure even when rerere staged every conflict, so
 		# the unresolved-path list, not the exit status, decides whether this
 		# round still needs a human.
-		if [ -n "$parent_branch" ]; then
-			own="$(git -C "$REPO_DIR" commit-tree "$tmp^{tree}" -p "rebuild/pr-$parent" -m "PR #$num")"
+		if git -C "$REPO_DIR" rev-parse -q --verify "refs/heads/rebuild/pr-$num-base" >/dev/null; then
+			own="$(git -C "$REPO_DIR" commit-tree "$tmp^{tree}" -p "rebuild/pr-$num-base" -m "PR #$num")"
 			squash=(cherry-pick --no-commit "$own")
 		else
 			squash=(merge --squash "$tmp")
@@ -573,30 +621,72 @@ cmd_prs() {
 			fi
 		fi
 		parent="$(stack_parent "$num")"
-		parent_branch=""
-		[ -z "$parent" ] || parent_branch="$(row_branch "$parent" "$rows")"
-		if [ -n "$parent" ] && [ -z "$parent_branch" ]; then
-			echo "integration: PR #$num is stacked on #$parent, which is not open; rebasing it onto upstream/$base" >&2
-		fi
+		local -a open_parents=() open_pbs=()
+		local p pb join_commit join_new match i
+		for p in ${parent//,/ }; do
+			pb="$(row_branch "$p" "$rows")"
+			if [ -n "$pb" ]; then
+				open_parents+=("$p")
+				open_pbs+=("$pb")
+			else
+				echo "integration: PR #$num is stacked on #$p, which is not open" >&2
+			fi
+		done
 		wt="$root/pr-$num"
 		if [ -d "$wt" ] && rebase_in_progress "$wt"; then
 			echo "integration: resuming PR #$num rebase in $wt"
 			( cd "$wt" && GIT_EDITOR=true git rebase --continue )
+		elif [ -d "$wt" ] && [ -f "$(git -C "$wt" rev-parse --git-dir 2>/dev/null)/MERGE_HEAD" ]; then
+			echo "integration: resuming PR #$num parent join in $wt"
+			git -C "$wt" commit --no-edit -q
+			join_commit="$(git -C "$REPO_DIR" rev-list --merges --first-parent "$rebased_onto..$FORK_REMOTE/$branch" | head -1)"
+			[ -n "$join_commit" ] || join_commit="$(git -C "$REPO_DIR" rev-list --merges -n 1 "$FORK_REMOTE/$branch")"
+			join_new="$(git -C "$wt" rev-parse HEAD)"
+			( cd "$wt" && git rebase --onto "$join_new" "$join_commit" "$FORK_REMOTE/$branch" )
 		else
 			git -C "$REPO_DIR" worktree remove --force "$wt" 2>/dev/null || rm -rf "$wt"
 			git -C "$REPO_DIR" worktree add --detach "$wt" "$FORK_REMOTE/$branch" >/dev/null
-			if [ -n "$parent_branch" ]; then
+			if [ "${#open_parents[@]}" -eq 0 ]; then
+				echo "integration: PR #$num rebasing $branch onto upstream/$base"
+				( cd "$wt" && git rebase "upstream/$base" )
+			elif [ "${#open_parents[@]}" -eq 1 ]; then
+				parent_branch="${open_pbs[0]}"
 				# The parent was rebased and pushed earlier (this run or an interrupted
 				# one); replay only the child's own commits onto its new tip. The
 				# remote-tracking reflog remembers the parent tip the child was cut
 				# from; without that entry, fall back to the plain merge base.
 				onto="$(git -C "$REPO_DIR" merge-base --fork-point "$FORK_REMOTE/$parent_branch" "$FORK_REMOTE/$branch" ||
 					git -C "$REPO_DIR" merge-base "$FORK_REMOTE/$parent_branch" "$FORK_REMOTE/$branch")"
-				echo "integration: PR #$num rebasing $branch onto #$parent ($FORK_REMOTE/$parent_branch)"
+				echo "integration: PR #$num rebasing $branch onto #${open_parents[0]} ($FORK_REMOTE/$parent_branch)"
 				( cd "$wt" && git rebase --onto "$FORK_REMOTE/$parent_branch" "$onto" )
 			else
-				echo "integration: PR #$num rebasing $branch onto upstream/$base"
-				( cd "$wt" && git rebase "upstream/$base" )
+				join_commit="$(git -C "$REPO_DIR" rev-list --merges --first-parent "$rebased_onto..$FORK_REMOTE/$branch" | head -1)"
+				[ -n "$join_commit" ] || join_commit="$(git -C "$REPO_DIR" rev-list --merges -n 1 "$FORK_REMOTE/$branch")"
+				match=1
+				for i in "${!open_parents[@]}"; do
+					pb="${open_pbs[$i]}"
+					if [ "$(git -C "$REPO_DIR" rev-parse "$join_commit^$((i + 1))" 2>/dev/null || true)" != "$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$pb")" ]; then
+						match=0
+						break
+					fi
+				done
+				if [ "$match" -eq 1 ]; then
+					echo "integration: PR #$num ($branch) already joined on #${parent} (${open_pbs[*]})"
+				else
+					echo "integration: PR #$num joining parents #${parent} (${open_pbs[*]}) and rebasing $branch"
+					git -C "$wt" checkout -q --detach "$FORK_REMOTE/${open_pbs[0]}"
+					for pb in "${open_pbs[@]:1}"; do
+						if ! git -C "$wt" merge --no-edit "$FORK_REMOTE/$pb"; then
+							if [ -n "$(git -C "$wt" diff --diff-filter=U --name-only)" ]; then
+								echo "integration: PR #$num parent join conflicted in $wt" >&2
+								exit 1
+							fi
+							git -C "$wt" commit --no-edit -q
+						fi
+					done
+					join_new="$(git -C "$wt" rev-parse HEAD)"
+					( cd "$wt" && git rebase --onto "$join_new" "$join_commit" "$FORK_REMOTE/$branch" )
+				fi
 			fi
 		fi
 		pre="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$branch")"

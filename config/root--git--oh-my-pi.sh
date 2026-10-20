@@ -1,10 +1,10 @@
 # integration-flow config for /root/git/oh-my-pi
 FORK_REMOTE=origin
 UPSTREAM=can1357/oh-my-pi
-# PRs built on another open PR's branch (CHILD:PARENT). See STACKED_PRS in the integration script.
-# Mnemopi stack: 15896 (polyphonic default) on 15729 (dense candidate limit) on
-# 15730 (embedding cache).
-STACKED_PRS='14458:14148 14468:14166 15685:14166 15729:15730 15896:15729'
+# PRs built on another open PR's branch (CHILD:PARENT[,PARENT2...]). See STACKED_PRS in the integration script.
+# Session-host P3 stack: 16222 (goal) on 16221 (tree) on 16220 (deltas) on 14468 (idle) + 15685 (reconnect) on 14166.
+# Mnemopi stack: 15896 (polyphonic default) on 15729 (dense candidate limit) on 15730 (embedding cache).
+STACKED_PRS='14458:14148 14468:14166 15685:14166 16220:14468,15685 16221:16220 16222:16221 15729:15730 15896:15729'
 # Third-party PRs carried from our fork (rebased copy). See EXTRA_PRS in the integration script.
 # 7851: szavadsky's per-role skill visibility; 12229: Xytronix's per-call task/eval model selector
 # (our #15641 fixes merged into it via xyxlabs/oh-my-pi#1, so #15641 is closed).
