@@ -173,11 +173,16 @@ base_ref() {
 # substitution, so each gh failure exits explicitly and pipefail carries it out,
 # aborting instead of silently dropping a PR from the rebuild.
 pr_rows() { # title|base
-	local field pair num head row repo kind
+	local field pair num head row repo kind me
 	[ "$1" = title ] && field=title || field=baseRefName
+	# `--author` goes through GitHub's search index, which intermittently answers with
+	# no results; a short list made rebuilds drop every PR it lacked. List open PRs
+	# directly and filter by the authenticated login instead.
+	me="$(gh api user --jq .login)" || exit 1
 	{
-		gh pr list --repo "$UPSTREAM" --author @me --state open --limit 200 \
-			--json number,headRefName,"$field" --jq ".[] | [.number, .headRefName, .$field] | @tsv" || exit 1
+		gh pr list --repo "$UPSTREAM" --state open --limit 5000 \
+			--json number,headRefName,"$field",author \
+			--jq ".[] | select(.author.login == \"$me\") | [.number, .headRefName, .$field] | @tsv" || exit 1
 		for pair in ${EXTRA_PRS:-}; do
 			num="${pair%%=*}" head="${pair#*=}" repo="${num%#*}"
 			[ "$repo" != "$num" ] || repo="$UPSTREAM"
