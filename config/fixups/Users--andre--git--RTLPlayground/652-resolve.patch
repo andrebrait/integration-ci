@@ -1,0 +1,133 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 9450539a597d5f911a060556cc46eb9444f339ad..130d2323b6fc62934bd0e76d202156e2bad6345f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -20,13 +20,6 @@
+   - Replace the multi-page UI with a themed single-page app: light, dark and Selenized themes following the browser by default,
+     English, Japanese and Chinese, save to flash merges the command log into the startup config and verifies the write,
+     firmware images are checked in the browser before upload. #429
+-<<<<<<< HEAD
+-- SNMP
+-  - Bounded GETBULK walks, interface administrative state, aliases, error counters
+-    and 32-bit multicast/broadcast counters for the optional read-only agent.
+-  - Configure the manager IP/CIDR, community and agent state directly in the Web UI,
+-    with masked credentials, Apply/Refresh controls and the existing Save to flash flow.
+-=======
+   - Ports page: flow control and EEE sit next to the other port settings, each as a switch with its
+     state (TX/RX, Active, Inactive or Off); ⓘ buttons show what the port and its link partner
+     advertise, and the link speed is shown in the colour of the port strip. One Apply button sends
+@@ -35,7 +28,11 @@
+ - Commands
+   - `port <port> fc on|off` advertises 802.3x pause on a copper port, or not.
+     The choice survives later speed and duplex changes.
+->>>>>>> rebuild/pr-652
++- SNMP
++  - Bounded GETBULK walks, interface administrative state, aliases, error counters
++    and 32-bit multicast/broadcast counters for the optional read-only agent.
++  - Configure the manager IP/CIDR, community and agent state directly in the Web UI,
++    with masked credentials, Apply/Refresh controls and the existing Save to flash flow.
+ 
+ ## Changed
+ 
+@@ -46,7 +43,6 @@
+ 
+ ## Fixed
+ 
+-<<<<<<< HEAD
+ - Networking
+   - Wildcard UDP listeners reply to the current sender without retaining its
+     address or transmitting stale replies during periodic polls.
+@@ -56,11 +52,9 @@
+     reads resume once the SFR engine and statistics selector are idle.
+   - Align SNMP status labels and values with the existing settings-row spacing,
+     typography and theme colors.
+-=======
+ - PHY
+   - Setting a port's duplex on an autonegotiated link now changes only the duplex bits of the
+     advertisement. It used to clear the rest of the register, selector field and pause included.
+->>>>>>> rebuild/pr-652
+ - Config
+   - A startup configuration line longer than the command buffer no longer stops the replay:
+     the offending line is skipped and the following lines are still applied.
+diff --git a/html/app.js b/html/app.js
+index 84d46b21155515e4f53dc90a4d238a94ded7302f..513017f8ce7fa3fca199e115ac656b98f0bcbe6f 100644
+--- a/html/app.js
++++ b/html/app.js
+@@ -1093,15 +1093,12 @@
+   if(S.info.sw_ver)$("fver").textContent="RTLPlayground "+S.info.sw_ver;
+ }
+ function pollInfo(){
+-<<<<<<< HEAD
+-  return getJSON("/information.json").then(function(j){S.info=j;renderInfo();renderSnmp(j.snmp)});
+-=======
+   return getJSON("/information.json").then(function(j){
+     S.info=j;
+     (j.logPort||[]).forEach(function(l,i){S.physToLog[i]=l;S.logToPhys[l]=i+1});
+     renderInfo();
+-  });
+->>>>>>> rebuild/pr-652
++    renderSnmp(j.snmp);
++  });
+ }
+ function dashStatus(){
+   var tb=$("traffic").tBodies[0];
+diff --git a/httpd/page_impl.c b/httpd/page_impl.c
+index f2b462665f6b4dc8985e1cd6c95eecd858712eef..b2c5e65d7c1aa61c725cde2160410a6d1e724808 100644
+--- a/httpd/page_impl.c
++++ b/httpd/page_impl.c
+@@ -321,8 +321,14 @@
+ 			send_sfp_info(1);
+ 		}
+ 	}
+-<<<<<<< HEAD
+-	char_to_html('"');
++	// Chip (logical) port of each front-panel port, in front-panel order
++	slen += strtox(outbuf + slen, "\",\"logPort\":[");
++	for (__xdata uint8_t i = 0; i <= machine.max_port - machine.min_port; i++) {
++		if (i)
++			char_to_html(',');
++		itoa_html(machine.phys_to_log_port[i]);
++	}
++	char_to_html(']');
+ 
+ #ifdef SNMP
+     {
+@@ -338,16 +344,6 @@
+     }
+ #endif
+ 	char_to_html('}');
+-=======
+-	// Chip (logical) port of each front-panel port, in front-panel order
+-	slen += strtox(outbuf + slen, "\",\"logPort\":[");
+-	for (__xdata uint8_t i = 0; i <= machine.max_port - machine.min_port; i++) {
+-		if (i)
+-			char_to_html(',');
+-		itoa_html(machine.phys_to_log_port[i]);
+-	}
+-	slen += strtox(outbuf + slen, "]}");
+->>>>>>> rebuild/pr-652
+ }
+ 
+ 
+diff --git a/test/test_page_json.c b/test/test_page_json.c
+index 2347be3873f88165fc68304c0c5c5b11f180bf62..2f0b240bff54706a3272787231fba2916db33040 100644
+--- a/test/test_page_json.c
++++ b/test/test_page_json.c
+@@ -323,17 +323,14 @@
+ 	t_l2_page();
+ 	t_status_counters();
+ 	t_status_macs();
+-<<<<<<< HEAD
+ #ifndef SNMP
+     send_basic_info();
+     CHECK(!has("\"snmp\"") && balanced(), "SNMP-disabled information JSON remains valid and omits status");
+ #endif
+-=======
+ 	t_status_fc();
+ 	t_status_eee();
+ 	t_info_mapping();
+ 	t_pause_set();
+->>>>>>> rebuild/pr-652
+ 	printf("\n%d checks, %d failed\n", tests_run, tests_failed);
+ 	return tests_failed ? 1 : 0;
+ }

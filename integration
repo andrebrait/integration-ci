@@ -32,6 +32,9 @@
 #                               # is applied with `git apply --3way` into PR #N's squash.
 #                               # For a change that adapts PR #N to PRs squashed before
 #                               # it and that no single PR branch can hold.
+#   <N>-resolve.patch            # optional exact conflict-marker resolution. Every
+#                               # unresolved path must have its full preimage hash
+#                               # in this patch; applies strictly, never with 3-way.
 #   BUILD_CMD='...'             # runs inside a clean detached worktree at $BRANCH
 #   TEST_CMD='...'              # optional, runs after BUILD_CMD in the same worktree
 #   CI_REPO=owner/repo          # optional: build dispatches CI_WORKFLOW there for the
@@ -366,13 +369,45 @@ cmd_rebuild() {
 			squash=(merge --squash "$tmp")
 		fi
 		fixups=()
-		for patch in "$FIXUP_DIR/$num"-*.patch; do [ -f "$patch" ] && fixups+=("$patch"); done
+		for patch in "$FIXUP_DIR/$num"-*.patch; do
+			[ -f "$patch" ] && [ "$patch" != "$FIXUP_DIR/$num-resolve.patch" ] && fixups+=("$patch")
+		done
 		if ! git -C "$wt" "${squash[@]}" >/dev/null && [ -n "$(git -C "$wt" diff --diff-filter=U --name-only)" ]; then
-			echo "integration: PR #$num conflicts with the PRs squashed before it." >&2
-			echo "integration: resolve in $wt, then commit it as 'PR #$num: <title>'" >&2
-			[ "${#fixups[@]}" -eq 0 ] || echo "integration: after applying its fixups with 'git apply --3way': ${fixups[*]}" >&2
-			echo "integration: and re-run 'integration rebuild' to continue from the next PR." >&2
-			exit 1
+			local resolve="$FIXUP_DIR/$num-resolve.patch" path expected actual patch_paths
+			local -a unresolved=()
+			mapfile -t unresolved < <(git -C "$wt" diff --diff-filter=U --name-only)
+			if [ ! -f "$resolve" ]; then
+				echo "integration: PR #$num conflicts with the PRs squashed before it." >&2
+				echo "integration: resolve in $wt, then commit it as 'PR #$num: <title>'" >&2
+				[ "${#fixups[@]}" -eq 0 ] || echo "integration: after applying its fixups with 'git apply --3way': ${fixups[*]}" >&2
+				echo "integration: and re-run 'integration rebuild' to continue from the next PR." >&2
+				exit 1
+			fi
+			patch_paths="$(git -C "$wt" apply --numstat "$resolve" | cut -f3-)" || exit 1
+			if [ "$(printf '%s\n' "${unresolved[@]}" | sort)" != "$(printf '%s\n' "$patch_paths" | sort)" ]; then
+				echo "integration: $resolve must cover exactly all unresolved paths in $wt; review and refresh it." >&2
+				exit 1
+			fi
+			for path in "${unresolved[@]}"; do
+				expected="$(awk -v header="diff --git a/$path b/$path" '
+					$0 == header { found=1; next }
+					found && $1 == "index" { sub(/\.\..*/, "", $2); print $2; exit }
+				' "$resolve")"
+				actual="$(git -C "$wt" hash-object -- "$path")"
+				if [ "$expected" != "$actual" ]; then
+					echo "integration: $resolve preimage mismatch for $path (expected $expected, actual $actual); review in $wt." >&2
+					exit 1
+				fi
+			done
+			# Only verified marker blobs become stage 0; no fuzzy/3-way resolution.
+			git -C "$wt" add -- "${unresolved[@]}"
+			if ! git -C "$wt" apply --index "$resolve" ||
+				[ -n "$(git -C "$wt" diff --diff-filter=U --name-only)" ] ||
+				git -C "$wt" grep -n -E '^(<<<<<<< |=======$|>>>>>>> )' -- "${unresolved[@]}"; then
+				echo "integration: strict resolution $resolve failed or left conflict markers; inspect $wt before continuing." >&2
+				exit 1
+			fi
+			echo "integration: applied exact resolution $(basename "$resolve") to PR #$num"
 		fi
 		# Fixups adapt a PR to the PRs squashed before it where no single branch can
 		# hold the change (e.g. handlers one PR adds in a file another PR splits).

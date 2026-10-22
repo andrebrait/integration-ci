@@ -75,3 +75,60 @@ bash "$DRIVER" rebuild "$TMP/repo"
 [[ "$(cat "$TMP/integration/first.txt")" == resolved ]]
 [[ "$(cat "$TMP/integration/second.txt")" == second ]]
 printf 'PASS: completed rebuild starts fresh; detached interrupted rebuild resumes\n'
+
+# Exact, reviewed conflict resolutions must work without any rerere cache.
+git checkout -qb left main
+printf 'left\n' > base.txt
+git add base.txt
+git commit -qm left
+git push -q fork left
+git checkout -qb right main
+printf 'right\n' > base.txt
+git add base.txt
+git commit -qm right
+git push -q fork right
+git checkout -q main
+printf '3\tleft\tLeft change\n4\tright\tRight change\n' > "$ROWS"
+if bash "$DRIVER" rebuild "$TMP/repo"; then
+	echo "FAIL: unreviewed conflict was accepted" >&2
+	exit 1
+fi
+mkdir -p "$HOME/.config/integration/fixups/$SLUG"
+RESOLUTION="$HOME/.config/integration/fixups/$SLUG/4-resolve.patch"
+git init -q -b main "$TMP/resolution"
+cp "$TMP/integration/base.txt" "$TMP/resolution/base.txt"
+git -C "$TMP/resolution" add base.txt
+git -C "$TMP/resolution" commit -qm preimage
+PREIMAGE="$(git -C "$TMP/resolution" rev-parse HEAD:base.txt)"
+printf 'left\nright\n' > "$TMP/resolution/base.txt"
+PATCH="$(git -C "$TMP/resolution" diff --full-index)"
+reset_fixture() {
+	git -C "$TMP/integration" restore --source=HEAD --staged --worktree -- base.txt
+	git -C "$TMP/integration" checkout -q -B integration main
+}
+
+# Reject a full hash mismatch without staging away the unresolved index.
+reset_fixture
+printf '%s\n' "${PATCH/$PREIMAGE/0000000000000000000000000000000000000000}" > "$RESOLUTION"
+if bash "$DRIVER" rebuild "$TMP/repo"; then
+	echo "FAIL: mismatched conflict preimage was accepted" >&2
+	exit 1
+fi
+[[ -n "$(git -C "$TMP/integration" ls-files -u)" ]]
+
+# Reject a patch that does not cover every unresolved path.
+reset_fixture
+printf '%s\n' "${PATCH//base.txt/missing.txt}" > "$RESOLUTION"
+if bash "$DRIVER" rebuild "$TMP/repo"; then
+	echo "FAIL: uncovered conflict was accepted" >&2
+	exit 1
+fi
+[[ -n "$(git -C "$TMP/integration" ls-files -u)" ]]
+
+# Exact marker preimages resolve strictly and preserve both PRs' behavior.
+reset_fixture
+printf '%s\n' "$PATCH" > "$RESOLUTION"
+bash "$DRIVER" rebuild "$TMP/repo"
+[[ -z "$(git -C "$TMP/integration" ls-files -u)" ]]
+cmp "$TMP/integration/base.txt" "$TMP/resolution/base.txt"
+printf 'PASS: exact conflict resolution succeeds; mismatched and uncovered preimages refuse\n'

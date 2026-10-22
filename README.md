@@ -95,6 +95,15 @@ integration commits. `588:600` intentionally composes the TX carries; third-part
 authorship and original PR heads are preserved. Closed/merged carries drop out
 only when GitHub reports them closed/merged, not because the carry lacks its own PR.
 
+`N-resolve.patch` is separate from ordinary fixups: it records the exact
+conflict-marker preimages and reviewed resolutions using full-index hashes.
+Every unresolved path must be covered, no other path may be changed, and every
+preimage hash must match before anything is staged. Resolution uses strict
+`git apply --index` (no three-way fallback); changed conflicts or leftover markers
+stop for review. Capture marker blobs with `git hash-object -w` before resolving,
+then generate the full-index diff between those blobs and the resolved files.
+Ordinary `N-name.patch` fixups still run afterward with `git apply --3way`.
+
 There are deliberately no RTL build/test/deploy hooks or workflow. Do not use
 `all`; build and validate firmware manually before publishing. Driver regression
 check (temporary local Git fixtures, no network): `bash integration.test.sh`.

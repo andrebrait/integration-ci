@@ -1,0 +1,71 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index fb09c340bbd3ae8b41b4f366a9f9217a3a529aa1..5fc2ea8aa0528cf0ccbd9bfb991f5b69ce35f414 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -43,7 +43,6 @@
+ 
+ ## Fixed
+ 
+-<<<<<<< HEAD
+ - Networking
+   - Wildcard UDP listeners reply to the current sender without retaining its
+     address or transmitting stale replies during periodic polls.
+@@ -56,12 +55,9 @@
+ - PHY
+   - Setting a port's duplex on an autonegotiated link now changes only the duplex bits of the
+     advertisement. It used to clear the rest of the register, selector field and pause included.
+-=======
+ - Web UI
+   - Accept firmware uploads regardless of the file part's MIME type, including
+     `application/macbinary` sent by Chrome on macOS for `.bin` files.
+-
+->>>>>>> rebuild/pr-656
+ - Config
+   - A startup configuration line longer than the command buffer no longer stops the replay:
+     the offending line is skipped and the following lines are still applied.
+diff --git a/test/test_httpd_tx.c b/test/test_httpd_tx.c
+index eb55c944b67f9cca354804659aa91c61a85163c3..3ee75c3469aceab1d97668bb5254a43ef87e79bb 100644
+--- a/test/test_httpd_tx.c
++++ b/test/test_httpd_tx.c
+@@ -1069,7 +1069,6 @@
+ 	      "multipart/config: every split writes the exact configuration and NUL to its sector");
+ }
+ 
+-<<<<<<< HEAD
+ /* Same UDP length guard must protect services with SNMP compiled out. */
+ static void scenario_udp_lengths(void)
+ {
+@@ -1225,7 +1224,8 @@
+ 
+ 	httpd_tx_udp_app = NULL;
+ 	uip_init();
+-=======
++}
++
+ /* Requiring octet-stream would leave alternate or absent MIME types buffered
+  * as headers forever instead of staging the binary and checking its CRC. */
+ static void scenario_upload(const char *name, const char *part_type, int split)
+@@ -1280,7 +1280,6 @@
+ 	CHECK(!uip_conn->appstate.fw_reset_pending && reset_calls == 0,
+ 	      "upload: deliberately invalid CRC never schedules or triggers reset");
+ 	flash_size = saved_flash_size;
+->>>>>>> rebuild/pr-656
+ }
+ 
+ int main(int argc, char **argv)
+@@ -1311,15 +1310,12 @@
+ 	scenario_oversized_get_header();
+ 	scenario_split_method_names();
+ 	scenario_config_upload();
+-<<<<<<< HEAD
+ 	scenario_information_auth();
+ 	scenario_udp_lengths();
+ 	scenario_udp_wildcard_reply();
+-=======
+ 	scenario_upload("octet-stream control", "Content-Type: application/octet-stream\r\n", 0);
+ 	scenario_upload("MacBinary, split part terminator", "Content-Type: application/macbinary\r\n", 1);
+ 	scenario_upload("no part Content-Type", "", 0);
+->>>>>>> rebuild/pr-656
+ 
+ 	printf("\n%s (%d failure%s)\n",
+ 	       failures ? "BENCH: FAILURES" : "BENCH: ALL PASS",

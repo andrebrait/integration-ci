@@ -1,0 +1,22 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index a832cccb29a6946817c8b60e5d82584ab0bc6638..017877ad831035cebd8cd9b86851a53d1ec91bfd 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -67,17 +67,14 @@
+   - The web UI and the configuration upload now refuse a line the replay cannot take,
+     instead of writing it to flash.
+ 
+-<<<<<<< HEAD
+ - Serial console
+   - Keys that send an escape sequence the line editor does not use (Home, End, PgUp, the function keys,
+     Ctrl-arrows, ...) no longer hang the switch. The sequence is now ignored. #664
+-=======
+ - Startup
+   - Initialised and zero-initialised globals above xdata 0x4000 now get their values at boot.
+     The boot loader leaves SFR 0x97 at 1, which maps xdata 0x4000-0xbfff to the flash image,
+     and it was cleared only in `main()`, after the C startup code had copied and cleared them.
+     This showed as a random web session timeout and LLDP blocked on some ports without config.
+->>>>>>> rebuild/pr-673
+ 
+ ## Breaking changes
+ 
