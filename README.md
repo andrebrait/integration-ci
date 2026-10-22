@@ -67,7 +67,7 @@ ln -sfn /root/git/integration-ci/integration ~/.local/bin/integration
 ## RTLPlayground
 
 `config/Users--andre--git--RTLPlayground.sh` integrates all this account's open
-upstream PRs (including drafts), plus the listed third-party carry branches.
+upstream PRs, plus the listed third-party carries and fork-only drafts.
 Install the symlinks above using `/Users/andre/git/integration-ci` on this host;
 macOS needs Homebrew Bash and `brew install flock`. Keep `origin` and add the
 upstream alias if absent:
@@ -89,11 +89,23 @@ For the first migration only, use `INTEGRATION_DROP_NON_PR=1` on `rebuild`
 after preserving old integration-only changes in PR branches or config fixups.
 The driver backs up the old branch. A completed rebuild starts from upstream
 each pass; interrupted detached rebuilds resume after conflicts are resolved
-and committed with the requested `PR #N:` subject. Resolve cross-PR adaptations
+and committed with the requested `PR #N:` (or `PR owner/repo#N:`) subject. Resolve cross-PR adaptations
 in `config/fixups/Users--andre--git--RTLPlayground/N-name.patch`, not only in
 integration commits. `588:600` intentionally composes the TX carries; third-party
 authorship and original PR heads are preserved. Closed/merged carries drop out
 only when GitHub reports them closed/merged, not because the carry lacks its own PR.
+
+`EXTRA_PRS` and `STACKED_PRS` also take repo-qualified IDs, `owner/repo#N`, for
+PRs in another repository (for example a draft opened in the fork); a bare `N`
+still means `UPSTREAM#N`, so `2=carry/pr-2` and `andrebrait/RTLPlayground#2=draft-2`
+can both be listed. A qualified ID is looked up in its own repository, and its
+branch is the `FORK_REMOTE` copy that is rebased and squashed. A separate
+third-party source head is never pushed. Stack with `andrebrait/RTLPlayground#2:589` or
+`andrebrait/RTLPlayground#3:andrebrait/RTLPlayground#2`. A qualified squash is
+committed as `PR andrebrait/RTLPlayground#2: title`, and its fixups and
+`-resolve.patch` use the whole ID as the file prefix, nested by owner:
+`config/fixups/Users--andre--git--RTLPlayground/andrebrait/RTLPlayground#2-resolve.patch`.
+At one stack depth, bare IDs run before qualified ones, then by PR number.
 
 `N-resolve.patch` is separate from ordinary fixups: it records the exact
 conflict-marker preimages and reviewed resolutions using full-index hashes.

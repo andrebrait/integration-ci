@@ -1,5 +1,5 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index de4f91086cffdc416e025c9152444c8316cd97be..30fab8f93a26c98a269dbf659c6f60ff4232252a 100644
+index dc0cc9777ab1ad475990b27982c700a44d879f83..30fab8f93a26c98a269dbf659c6f60ff4232252a 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
 @@ -47,7 +47,6 @@
@@ -23,12 +23,12 @@ index de4f91086cffdc416e025c9152444c8316cd97be..30fab8f93a26c98a269dbf659c6f60ff
      This branch accepts only six-octet MAC Chassis IDs; arbitrary Chassis ID storage and
      its separate display-capacity correction belong to the neighbor-details branch.
 -
-->>>>>>> 4e310be (PR #678)
+->>>>>>> 28538c5 (PR andrebrait/RTLPlayground#1)
  - Config
    - A startup configuration line longer than the command buffer no longer stops the replay:
      the offending line is skipped and the following lines are still applied.
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index b38a3a4d4c57a9da744781f5aff2f5f12ef3f89b..37a89c6cb05011beb7de3e8bad9cf31d86c469db 100644
+index 14ad283ed55c334417c1ef19071319ec49767aa4..37a89c6cb05011beb7de3e8bad9cf31d86c469db 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
 @@ -248,9 +248,6 @@
@@ -46,7 +46,7 @@ index b38a3a4d4c57a9da744781f5aff2f5f12ef3f89b..37a89c6cb05011beb7de3e8bad9cf31d
  }
  
 -static bool lldp_mac_eq(__xdata uint8_t *a, __xdata uint8_t *b) __reentrant
-->>>>>>> 4e310be (PR #678)
+->>>>>>> 28538c5 (PR andrebrait/RTLPlayground#1)
 +static bool lldp_bytes_eq(__xdata uint8_t *a, __xdata uint8_t *b, uint8_t n) __reentrant
  {
      uint8_t i;
@@ -66,7 +66,7 @@ index b38a3a4d4c57a9da744781f5aff2f5f12ef3f89b..37a89c6cb05011beb7de3e8bad9cf31d
 +            if (len < 2 || len > 256 || p[0] < 1 || p[0] > 7)
                  return true;
 -            memcpy(lldp_tmp.chassis, p + 1, MAC_ADDR_LEN);
-->>>>>>> 4e310be (PR #678)
+->>>>>>> 28538c5 (PR andrebrait/RTLPlayground#1)
 +            if (p[0] == LLDP_CHASSIS_ID_TLV_SUBTYPE && len != MAC_ADDR_LEN + 1)
 +                return true;
 +            lldp_tmp.chassis_subtype = p[0];
@@ -86,13 +86,13 @@ index b38a3a4d4c57a9da744781f5aff2f5f12ef3f89b..37a89c6cb05011beb7de3e8bad9cf31d
 -    for (type = 0; type < MAC_ADDR_LEN; type++)
 -        any |= lldp_tmp.chassis[type];
 -    if (!any || !lldp_tmp.port_id[0])
-->>>>>>> 4e310be (PR #678)
+->>>>>>> 28538c5 (PR andrebrait/RTLPlayground#1)
 +    if (!lldp_tmp.chassis_len || !lldp_tmp.port_id[0])
          return true;
  
      nb = lldp_find();
 diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
-index a0d1558265def80414bb7dd8123d8ebda00428ab..8983d0be57b4bac520eafe53432edd1490fc815e 100644
+index 051193c5e68afd1d8ce6a0d192fe71c1ab19326e..8983d0be57b4bac520eafe53432edd1490fc815e 100644
 --- a/rtl837x_lldp.h
 +++ b/rtl837x_lldp.h
 @@ -12,16 +12,11 @@
@@ -108,7 +108,7 @@ index a0d1558265def80414bb7dd8123d8ebda00428ab..8983d0be57b4bac520eafe53432edd14
 -#define LLDP_PORT_ID_TLV_LENGTH 0x02
 -#define LLDP_PORT_ID_TLV_SUBTYPE 0x07
  #define LLDP_PORT_ID_SUBTYPE_MAC 3
-->>>>>>> 4e310be (PR #678)
+->>>>>>> 28538c5 (PR andrebrait/RTLPlayground#1)
  
  #define LLDP_TTL_TLV_TYPE 3
  #define LLDP_TTL_TLV_LENGTH 2
@@ -122,7 +122,7 @@ index a0d1558265def80414bb7dd8123d8ebda00428ab..8983d0be57b4bac520eafe53432edd14
 -=======
  /* shortcut: retain 17 printable ID characters; expand only when full remote IDs are needed. */
  #define LLDP_NB_PORT_ID_LENGTH 17
-->>>>>>> 4e310be (PR #678)
+->>>>>>> 28538c5 (PR andrebrait/RTLPlayground#1)
  #define LLDP_NB_SYS_NAME_LENGTH 16
  #define LLDP_NB_JSON_LENGTH 112	/* separator + worst-case neighbour entry in /lldp.json */
  

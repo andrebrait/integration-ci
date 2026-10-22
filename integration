@@ -18,20 +18,27 @@
 #   BASE=upstream/main          # what the PRs are rebuilt onto: a ref or "latest-tag"
 #   UPSTREAM_MAIN_REF=upstream/main
 #   FORMAT_CMD='...'            # optional, runs on each squashed merge before it commits
-#   EXTRA_PRS='12229=carry/pr-12229'  # optional, space-separated UPSTREAM-PR=fork-branch
-#                               # pairs for third-party PRs we carry. The fork branch
-#                               # holds our rebased/fixed copy; it is squashed and
-#                               # rebased like our own PRs while the upstream PR is
-#                               # open, and dropped once it is merged or closed.
-#   STACKED_PRS='14458:14148'   # optional, space-separated CHILD:PARENT pairs for PRs
-#                               # whose branch is built on another open PR's branch.
-#                               # `prs` rebases the child onto the parent's rebased
-#                               # branch (not the upstream base), and `rebuild` squashes
-#                               # only the child's own commits, after its parent.
+#   EXTRA_PRS='12229=carry/pr-12229 fork/repo#1=local-draft'
+#                               # optional, space-separated PR=fork-branch pairs for PRs
+#                               # we carry. PR is a bare UPSTREAM number or a repo-qualified
+#                               # owner/repo#N (a PR in another repo, e.g. a draft opened in
+#                               # the fork), looked up in its own repo. The fork branch holds
+#                               # our rebased/fixed copy; it is squashed and rebased like our
+#                               # own PRs while the PR is open, and dropped once it is merged
+#                               # or closed. A separate third-party source head is never pushed.
+#   STACKED_PRS='14458:14148 fork/repo#2:fork/repo#1'
+#                               # optional, space-separated CHILD:PARENT[,PARENT2...] pairs
+#                               # (each a bare number or owner/repo#N) for PRs whose branch
+#                               # is built on another open PR's branch. `prs` rebases the
+#                               # child onto the parent's rebased branch (not the upstream
+#                               # base), and `rebuild` squashes only the child's own commits,
+#                               # after its parent. At one stack depth rows run bare UPSTREAM
+#                               # numbers first, then qualified IDs, each by PR number.
 # Fixups: ~/.config/integration/fixups/<slug>/<N>-<name>.patch (`git diff --full-index`)
 #                               # is applied with `git apply --3way` into PR #N's squash.
 #                               # For a change that adapts PR #N to PRs squashed before
 #                               # it and that no single PR branch can hold.
+#                               # A qualified PR is named by its whole ID: fixups/<slug>/owner/repo#N-<name>.patch
 #   <N>-resolve.patch            # optional exact conflict-marker resolution. Every
 #                               # unresolved path must have its full preimage hash
 #                               # in this patch; applies strictly, never with 3-way.
@@ -54,7 +61,7 @@
 # Conflicts: a subcommand may stop mid-rebase. Resolve the conflicts, then re-run
 # the SAME subcommand — an in-progress rebase resumes instead of restarting.
 # Never commit feature work on the integration branch: `rebuild` refuses while it
-# carries non-`PR #<n>:` commits (override: INTEGRATION_DROP_NON_PR=1, only once
+# carries non-`PR #<n>:` / `PR owner/repo#<n>:` commits (override: INTEGRATION_DROP_NON_PR=1, only once
 # they live on a PR branch). Only one run per project at a time (flock on
 # $CACHE/lock); a concurrent run exits 75.
 set -euo pipefail
@@ -87,12 +94,19 @@ FORK_REMOTE="${FORK_REMOTE:-origin}"
 BRANCH="${BRANCH:-integration}"
 BASE="${BASE:-latest-tag}"
 UPSTREAM_MAIN_REF="${UPSTREAM_MAIN_REF:-upstream/main}"
+# A PR ID is a bare UPSTREAM number or a repo-qualified owner/repo#N. Each name part
+# starts with a non-dot so the ID stays valid inside a git ref and a path.
+PR_QUALIFIED='[A-Za-z0-9_-][A-Za-z0-9._-]*/[A-Za-z0-9_-][A-Za-z0-9._-]*#[0-9]+'
+PR_ID="([0-9]+|$PR_QUALIFIED)"
 for pair in ${EXTRA_PRS:-}; do
-	[[ "$pair" =~ ^[0-9]+=[^=]+$ ]] || { echo "integration: bad EXTRA_PRS entry '$pair' (want N=fork-branch)" >&2; exit 2; }
+	[[ "$pair" =~ ^$PR_ID=[^=]+$ ]] || { echo "integration: bad EXTRA_PRS entry '$pair' (want N=fork-branch or owner/repo#N=fork-branch)" >&2; exit 2; }
 done
 for pair in ${STACKED_PRS:-}; do
-	[[ "$pair" =~ ^[0-9]+:[0-9]+(,[0-9]+)*$ ]] || { echo "integration: bad STACKED_PRS entry '$pair' (want CHILD:PARENT[,PARENT2...])" >&2; exit 2; }
+	[[ "$pair" =~ ^$PR_ID:$PR_ID(,$PR_ID)*$ ]] || { echo "integration: bad STACKED_PRS entry '$pair' (want CHILD:PARENT[,PARENT2...]; each N or owner/repo#N)" >&2; exit 2; }
 done
+
+# How messages and commit subjects name a PR: #N, or owner/repo#N for qualified IDs.
+pr_label() { case "$1" in *#*) echo "$1" ;; *) echo "#$1" ;; esac; }
 
 stack_parent() { # num -> parent PR number(s) (comma-separated) or empty
 	local pair
@@ -107,7 +121,7 @@ stack_depth() { # num [seen] -> max parent depth + 1 (0 if unstacked)
 	ps="$(stack_parent "$num")"
 	[ -n "$ps" ] || { echo 0; return 0; }
 	for p in ${ps//,/ }; do
-		case "$seen" in *" $p "*) echo "integration: STACKED_PRS has a cycle through #$num" >&2; return 1 ;; esac
+		case "$seen" in *" $p "*) echo "integration: STACKED_PRS has a cycle through $(pr_label "$num")" >&2; return 1 ;; esac
 		d="$(stack_depth "$p" "$seen")" || return 1
 		[ "$((d + 1))" -le "$max" ] || max=$((d + 1))
 	done
@@ -116,7 +130,7 @@ stack_depth() { # num [seen] -> max parent depth + 1 (0 if unstacked)
 
 # Field 2 (the fork branch) of PR $1's row in $2, or empty when it is not listed.
 row_branch() { # num rows -> branch
-	awk -F '\t' -v n="$1" '$1 == n { print $2 }' <<< "$2"
+	awk -F '\t' -v n="$1" '($1 "") == (n "") { print $2 }' <<< "$2"
 }
 
 worktrees_root() {
@@ -151,33 +165,38 @@ base_ref() {
 	fi
 }
 
-# Open PRs to integrate: this account's own plus EXTRA_PRS whose upstream PR is
-# still open, ascending by number with every STACKED_PRS child after its parent.
-# Emits "number<TAB>fork-branch<TAB>field".
+# Open PRs to integrate: this account's own plus EXTRA_PRS still open in their own
+# repo, by stack depth (every STACKED_PRS child after its parent), then bare UPSTREAM
+# numbers before qualified IDs, then PR number.
+# Emits "id<TAB>fork-branch<TAB>field".
 # Callers capture it with rows="$(...)": errexit is off inside command
 # substitution, so each gh failure exits explicitly and pipefail carries it out,
 # aborting instead of silently dropping a PR from the rebuild.
 pr_rows() { # title|base
-	local field pair num head row
+	local field pair num head row repo kind
 	[ "$1" = title ] && field=title || field=baseRefName
 	{
 		gh pr list --repo "$UPSTREAM" --author @me --state open --limit 200 \
 			--json number,headRefName,"$field" --jq ".[] | [.number, .headRefName, .$field] | @tsv" || exit 1
 		for pair in ${EXTRA_PRS:-}; do
-			num="${pair%%=*}" head="${pair#*=}"
-			row="$(gh pr view "$num" --repo "$UPSTREAM" --json state,"$field" --jq "[.state, .$field] | @tsv")" || exit 1
+			num="${pair%%=*}" head="${pair#*=}" repo="${num%#*}"
+			[ "$repo" != "$num" ] || repo="$UPSTREAM"
+			row="$(gh pr view "${num##*#}" --repo "$repo" --json state,"$field" --jq "[.state, .$field] | @tsv")" || exit 1
 			if [ "${row%%$'\t'*}" != OPEN ]; then
-				echo "integration: extra PR #$num is ${row%%$'\t'*} upstream; skipping (remove it from EXTRA_PRS)" >&2
+				echo "integration: extra PR $(pr_label "$num") is ${row%%$'\t'*} in $repo; skipping (remove it from EXTRA_PRS)" >&2
 				continue
 			fi
 			printf '%s\t%s\t%s\n' "$num" "$head" "${row#*$'\t'}"
 		done
-	} | sort -t $'\t' -k1,1n | while IFS=$'\t' read -r num head row; do
-		# Stack depth leads the sort key, so parents always precede children.
+	} | while IFS=$'\t' read -r num head row; do
+		# Stack depth leads the sort key, so parents always precede children; at one
+		# depth bare UPSTREAM numbers precede qualified IDs, ordered by PR number.
 		local depth
 		depth="$(stack_depth "$num")" || exit 1
-		printf '%s\t%s\t%s\t%s\n' "$depth" "$num" "$head" "$row"
-	done | sort -t $'\t' -k1,1n -k2,2n | cut -f2-
+		kind=0
+		[[ "$num" != *#* ]] || kind=1
+		printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$depth" "$kind" "${num##*#}" "$num" "$head" "$row"
+	done | sort -t $'\t' -k1,1n -k2,2n -k3,3n | cut -f4-
 }
 
 # Replay one PR branch onto BASE in a scratch worktree, so a PR based on upstream
@@ -224,7 +243,7 @@ replay_stack() { # num -> ref (also sets rebuild/pr-$num-base when stacked on op
 			replay_stack "$p" >/dev/null || return 1
 		done
 		join_commit="$(git -C "$REPO_DIR" rev-list --merges --first-parent "$UPSTREAM_MAIN_REF..$head_ref" | head -1)"
-		[ -n "$join_commit" ] || { echo "integration: PR #$num has multiple parents ($parent) but no merge commit in $UPSTREAM_MAIN_REF..$head_ref" >&2; return 1; }
+		[ -n "$join_commit" ] || { echo "integration: PR $(pr_label "$num") has multiple parents ($parent) but no merge commit in $UPSTREAM_MAIN_REF..$head_ref" >&2; return 1; }
 		match=1
 		for i in "${!open_parents[@]}"; do
 			p="${open_parents[$i]}"
@@ -243,7 +262,7 @@ replay_stack() { # num -> ref (also sets rebuild/pr-$num-base when stacked on op
 				if ! git -C "$scratch" merge --no-edit "rebuild/pr-$p" >/dev/null 2>&1; then
 					if [ -n "$(git -C "$scratch" diff --diff-filter=U --name-only)" ]; then
 						git -C "$scratch" merge --abort 2>/dev/null || true
-						echo "integration: joining parents (${open_parents[*]}) for PR #$num failed; run 'integration prs' first" >&2
+						echo "integration: joining parents (${open_parents[*]}) for PR $(pr_label "$num") failed; run 'integration prs' first" >&2
 						return 1
 					fi
 					git -C "$scratch" commit --no-edit -q
@@ -258,7 +277,7 @@ cmd_rebuild() {
 	[ -n "${UPSTREAM:-}" ] || { echo "integration: UPSTREAM not set; rebuild needs the PR list" >&2; exit 2; }
 	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --tags --prune
 	git -C "$REPO_DIR" fetch upstream --tags --prune
-	local base wt pre root scratch num head title tmp key resumed done_prs squashed squashed_head squashed_sha rows parent parent_branch own squash fixups patch
+	local base wt pre root scratch num head title tmp key resumed done_prs squashed squashed_head squashed_sha rows parent parent_branch own squash fixups patch lbl
 	rows="$(pr_rows title)"
 	base="$(base_ref)"
 	key="${BRANCH//\//--}"
@@ -275,7 +294,7 @@ cmd_rebuild() {
 	[ -z "$(git -C "$wt" status --porcelain)" ] || { echo "integration: $wt is dirty; commit or discard first" >&2; exit 1; }
 	# A conflicting PR is resolved and committed by hand; re-running must continue
 	# from the next PR instead of discarding that work, so an interrupted rebuild
-	# is resumed only while HEAD is detached at BASE plus `PR #<n>:` commits. rerere
+	# is resumed only while HEAD is detached at BASE plus `PR #<n>:` / `PR owner/repo#<n>:` commits. rerere
 	# replays textual conflicts, but a semantic fixup (an API a later PR renamed)
 	# lives only in that commit.
 	#
@@ -287,13 +306,13 @@ cmd_rebuild() {
 	if ! git -C "$wt" symbolic-ref -q HEAD >/dev/null &&
 		git -C "$REPO_DIR" merge-base --is-ancestor "$base" "$(git -C "$wt" rev-parse HEAD)" 2>/dev/null &&
 		[ -n "$(git -C "$wt" log --format=%s "$base"..HEAD)" ] &&
-		! git -C "$wt" log --format=%s "$base"..HEAD | grep -qvE '^PR #[0-9]+: '; then
+		! git -C "$wt" log --format=%s "$base"..HEAD | grep -qvE "^PR (#[0-9]+|$PR_QUALIFIED): "; then
 		resumed=1
 		squashed="$(git -C "$wt" log --format=%b "$base"..HEAD |
 			sed -nE 's#^Squashed from [^/]+/(.+) \(([0-9a-f]+)\) onto .*#\1 \2#p')"
 		# Every PR commit must carry its source sha; a series without them predates
 		# this check and cannot be proven current.
-		if [ "$(printf '%s\n' "$squashed" | grep -c .)" != "$(git -C "$wt" log --format=%s "$base"..HEAD | grep -c '^PR #')" ]; then
+		if [ "$(printf '%s\n' "$squashed" | grep -c .)" != "$(git -C "$wt" log --format=%s "$base"..HEAD | grep -c '^PR ')" ]; then
 			echo "integration: squashed series does not record its PR shas; rebuilding from scratch"
 			resumed=""
 		fi
@@ -306,7 +325,7 @@ cmd_rebuild() {
 			fi
 		done <<< "$squashed"
 		if [ -n "$resumed" ]; then
-			done_prs="$(git -C "$wt" log --format=%s "$base"..HEAD | sed -nE 's/^PR #([0-9]+):.*/\1/p')"
+			done_prs="$(git -C "$wt" log --format=%s "$base"..HEAD | sed -nE "s~^PR #([0-9]+):.*~\1~p; s~^PR ($PR_QUALIFIED):.*~\1~p")"
 		fi
 	fi
 	root="$(worktrees_root)"
@@ -316,7 +335,7 @@ cmd_rebuild() {
 	if [ -n "$resumed" ]; then
 		echo "integration: resuming rebuild of $BRANCH from $base ($(echo "$done_prs" | wc -w) PRs already squashed)"
 	else
-		# A rebuild keeps only `PR #<n>:` squashes. Anything else on the branch was
+		# A rebuild keeps only `PR #<n>:` / `PR owner/repo#<n>:` squashes. Anything else on the branch was
 		# committed straight onto integration and would be silently discarded, so
 		# stop and name it: it belongs on its own PR branch. Set
 		# INTEGRATION_DROP_NON_PR=1 once every listed commit is carried by a PR or
@@ -325,7 +344,7 @@ cmd_rebuild() {
 		stray="$(for ref in "$BRANCH" "$FORK_REMOTE/$BRANCH"; do
 			git -C "$REPO_DIR" rev-parse -q --verify "$ref" >/dev/null || continue
 			git -C "$REPO_DIR" log --no-merges --format='%h %s' "$base..$ref"
-		done | grep -vE '^[0-9a-f]+ PR #[0-9]+: ' | sort -u -k2 || true)"
+		done | grep -vE "^[0-9a-f]+ PR (#[0-9]+|$PR_QUALIFIED): " | sort -u -k2 || true)"
 		if [ -n "$stray" ] && [ "${INTEGRATION_DROP_NON_PR:-}" != 1 ]; then
 			echo "integration: $BRANCH carries commits that are not PR squashes; a rebuild would drop them:" >&2
 			sed 's/^/  /' <<< "$stray" >&2
@@ -342,18 +361,19 @@ cmd_rebuild() {
 	fi
 	while IFS=$'\t' read -r num head title; do
 		[ -n "$num" ] || continue
-		if [ -n "$done_prs" ] && printf '%s\n' $done_prs | grep -qx "$num"; then
-			echo "integration: PR #$num already squashed; skipping"
+		lbl="$(pr_label "$num")"
+		if [ -n "$done_prs" ] && printf '%s\n' $done_prs | grep -qxFe "$num"; then
+			echo "integration: PR $lbl already squashed; skipping"
 			continue
 		fi
 		parent="$(stack_parent "$num")"
 		for p in ${parent//,/ }; do
 			if [ -z "$(row_branch "$p" "$rows")" ]; then
-				echo "integration: PR #$num is stacked on #$p, which is not open" >&2
+				echo "integration: PR $lbl is stacked on $(pr_label "$p"), which is not open" >&2
 			fi
 		done
 		tmp="$(replay_stack "$num")" || exit 1
-		echo "integration: squashing PR #$num ($head)"
+		echo "integration: squashing PR $lbl ($head)"
 		# --squash records no second parent: the result stays a linear series that
 		# rebuilds identically next round, and rerere replays cross-PR resolutions.
 		# A stacked PR contributes only its diff against its replayed parent(s),
@@ -367,7 +387,7 @@ cmd_rebuild() {
 			own="$(GIT_AUTHOR_NAME=integration GIT_AUTHOR_EMAIL=integration@localhost \
 				GIT_COMMITTER_NAME=integration GIT_COMMITTER_EMAIL=integration@localhost \
 				GIT_AUTHOR_DATE=2000-01-01T00:00:00Z GIT_COMMITTER_DATE=2000-01-01T00:00:00Z \
-				git -C "$REPO_DIR" commit-tree "$tmp^{tree}" -p "rebuild/pr-$num-base" -m "PR #$num")"
+				git -C "$REPO_DIR" commit-tree "$tmp^{tree}" -p "rebuild/pr-$num-base" -m "PR $lbl")"
 			squash=(cherry-pick --no-commit "$own")
 		else
 			squash=(merge --squash "$tmp")
@@ -381,8 +401,8 @@ cmd_rebuild() {
 			local -a unresolved=()
 			mapfile -t unresolved < <(git -C "$wt" diff --diff-filter=U --name-only)
 			if [ ! -f "$resolve" ]; then
-				echo "integration: PR #$num conflicts with the PRs squashed before it." >&2
-				echo "integration: resolve in $wt, then commit it as 'PR #$num: <title>'" >&2
+				echo "integration: PR $lbl conflicts with the PRs squashed before it." >&2
+				echo "integration: resolve in $wt, then commit it as 'PR $lbl: <title>'" >&2
 				[ "${#fixups[@]}" -eq 0 ] || echo "integration: after applying its fixups with 'git apply --3way': ${fixups[*]}" >&2
 				echo "integration: and re-run 'integration rebuild' to continue from the next PR." >&2
 				exit 1
@@ -411,31 +431,31 @@ cmd_rebuild() {
 				echo "integration: strict resolution $resolve failed or left conflict markers; inspect $wt before continuing." >&2
 				exit 1
 			fi
-			echo "integration: applied exact resolution $(basename "$resolve") to PR #$num"
+			echo "integration: applied exact resolution $(basename "$resolve") to PR $lbl"
 		fi
 		# Fixups adapt a PR to the PRs squashed before it where no single branch can
 		# hold the change (e.g. handlers one PR adds in a file another PR splits).
 		# They are part of the PR's squash, so a from-scratch rebuild reproduces it.
 		for patch in "${fixups[@]}"; do
 			if ! git -C "$wt" apply --3way "$patch" >/dev/null 2>&1; then
-				echo "integration: fixup $patch no longer applies to PR #$num; the squash is staged in $wt." >&2
-				echo "integration: finish it there, refresh the patch, commit as 'PR #$num: $title', and re-run 'integration rebuild'." >&2
+				echo "integration: fixup $patch no longer applies to PR $lbl; the squash is staged in $wt." >&2
+				echo "integration: finish it there, refresh the patch, commit as 'PR $lbl: $title', and re-run 'integration rebuild'." >&2
 				exit 1
 			fi
-			echo "integration: applied fixup $(basename "$patch") to PR #$num"
+			echo "integration: applied fixup $(basename "$patch") to PR $lbl"
 		done
 		# A squash that splices two PRs' hunks together can land formatting the
 		# repo's own checks reject; the formatter runs before the commit so the
 		# result is exactly what a rebuild reproduces.
 		if [ -n "${FORMAT_CMD:-}" ]; then
 			if ! ( cd "$wt" && eval "$FORMAT_CMD" >/dev/null ); then
-				echo "integration: FORMAT_CMD failed for PR #$num; the squash is staged uncommitted in $wt." >&2
-				echo "integration: fix the formatter, run it there, commit as 'PR #$num: $title', and re-run 'integration rebuild'." >&2
+				echo "integration: FORMAT_CMD failed for PR $lbl; the squash is staged uncommitted in $wt." >&2
+				echo "integration: fix the formatter, run it there, commit as 'PR $lbl: $title', and re-run 'integration rebuild'." >&2
 				exit 1
 			fi
 			git -C "$wt" add -A
 		fi
-		git -C "$wt" commit -q -m "PR #$num: $title" \
+		git -C "$wt" commit -q -m "PR $lbl: $title" \
 			-m "Squashed from $FORK_REMOTE/$head ($(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$head")) onto $base." || true
 	done <<< "$rows"
 	git -C "$REPO_DIR" worktree remove --force "$scratch"
@@ -638,7 +658,7 @@ cmd_prs() {
 	[ -n "${UPSTREAM:-}" ] || { echo "integration: UPSTREAM not set; skipping prs"; return 0; }
 	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --prune
 	git -C "$REPO_DIR" fetch upstream --prune
-	local root num branch base wt pre rows head_remote head_pre parent parent_branch onto
+	local root num branch base wt pre rows head_remote head_pre parent parent_branch onto lbl
 	rows="$(pr_rows base)"
 	root="$(worktrees_root)"
 	while read -r base; do
@@ -646,6 +666,7 @@ cmd_prs() {
 	done <<< "$(printf '%s\n' "$rows" | cut -f3 | sort -u)"
 	while IFS=$'\t' read -r num branch base; do
 		[ -n "$num" ] || continue
+		lbl="$(pr_label "$num")"
 		rebased_onto="$(git -C "$REPO_DIR" rev-parse "upstream/$base")"
 		head_remote="$(pr_head_remote "$num")" || exit 1
 		# FORK_REMOTE is the source that gets rebased, so the PR head must hold
@@ -656,7 +677,7 @@ cmd_prs() {
 			git -C "$REPO_DIR" fetch "$head_remote" "+refs/heads/$branch:refs/remotes/$head_remote/$branch"
 			head_pre="$(git -C "$REPO_DIR" rev-parse "$head_remote/$branch")"
 			if ! git -C "$REPO_DIR" merge-base --is-ancestor "$head_pre" "$FORK_REMOTE/$branch"; then
-				echo "integration: PR #$num head $head_remote/$branch (${head_pre:0:9}) has commits $FORK_REMOTE/$branch lacks; reconcile them first" >&2
+				echo "integration: PR $lbl head $head_remote/$branch (${head_pre:0:9}) has commits $FORK_REMOTE/$branch lacks; reconcile them first" >&2
 				exit 1
 			fi
 		fi
@@ -669,15 +690,15 @@ cmd_prs() {
 				open_parents+=("$p")
 				open_pbs+=("$pb")
 			else
-				echo "integration: PR #$num is stacked on #$p, which is not open" >&2
+				echo "integration: PR $lbl is stacked on $(pr_label "$p"), which is not open" >&2
 			fi
 		done
 		wt="$root/pr-$num"
 		if [ -d "$wt" ] && rebase_in_progress "$wt"; then
-			echo "integration: resuming PR #$num rebase in $wt"
+			echo "integration: resuming PR $lbl rebase in $wt"
 			( cd "$wt" && GIT_EDITOR=true git rebase --continue )
 		elif [ -d "$wt" ] && [ -f "$(git -C "$wt" rev-parse --git-dir 2>/dev/null)/MERGE_HEAD" ]; then
-			echo "integration: resuming PR #$num parent join in $wt"
+			echo "integration: resuming PR $lbl parent join in $wt"
 			git -C "$wt" commit --no-edit -q
 			join_commit="$(git -C "$REPO_DIR" rev-list --merges --first-parent "$rebased_onto..$FORK_REMOTE/$branch" | head -1)"
 			[ -n "$join_commit" ] || join_commit="$(git -C "$REPO_DIR" rev-list --merges -n 1 "$FORK_REMOTE/$branch")"
@@ -687,7 +708,7 @@ cmd_prs() {
 			git -C "$REPO_DIR" worktree remove --force "$wt" 2>/dev/null || rm -rf "$wt"
 			git -C "$REPO_DIR" worktree add --detach "$wt" "$FORK_REMOTE/$branch" >/dev/null
 			if [ "${#open_parents[@]}" -eq 0 ]; then
-				echo "integration: PR #$num rebasing $branch onto upstream/$base"
+				echo "integration: PR $lbl rebasing $branch onto upstream/$base"
 				( cd "$wt" && git rebase "upstream/$base" )
 			elif [ "${#open_parents[@]}" -eq 1 ]; then
 				parent_branch="${open_pbs[0]}"
@@ -697,7 +718,7 @@ cmd_prs() {
 				# from; without that entry, fall back to the plain merge base.
 				onto="$(git -C "$REPO_DIR" merge-base --fork-point "$FORK_REMOTE/$parent_branch" "$FORK_REMOTE/$branch" ||
 					git -C "$REPO_DIR" merge-base "$FORK_REMOTE/$parent_branch" "$FORK_REMOTE/$branch")"
-				echo "integration: PR #$num rebasing $branch onto #${open_parents[0]} ($FORK_REMOTE/$parent_branch)"
+				echo "integration: PR $lbl rebasing $branch onto $(pr_label "${open_parents[0]}") ($FORK_REMOTE/$parent_branch)"
 				( cd "$wt" && git rebase --onto "$FORK_REMOTE/$parent_branch" "$onto" )
 			else
 				join_commit="$(git -C "$REPO_DIR" rev-list --merges --first-parent "$rebased_onto..$FORK_REMOTE/$branch" | head -1)"
@@ -711,14 +732,14 @@ cmd_prs() {
 					fi
 				done
 				if [ "$match" -eq 1 ]; then
-					echo "integration: PR #$num ($branch) already joined on #${parent} (${open_pbs[*]})"
+					echo "integration: PR $lbl ($branch) already joined on ${parent} (${open_pbs[*]})"
 				else
-					echo "integration: PR #$num joining parents #${parent} (${open_pbs[*]}) and rebasing $branch"
+					echo "integration: PR $lbl joining parents ${parent} (${open_pbs[*]}) and rebasing $branch"
 					git -C "$wt" checkout -q --detach "$FORK_REMOTE/${open_pbs[0]}"
 					for pb in "${open_pbs[@]:1}"; do
 						if ! git -C "$wt" merge --no-edit "$FORK_REMOTE/$pb"; then
 							if [ -n "$(git -C "$wt" diff --diff-filter=U --name-only)" ]; then
-								echo "integration: PR #$num parent join conflicted in $wt" >&2
+								echo "integration: PR $lbl parent join conflicted in $wt" >&2
 								exit 1
 							fi
 							git -C "$wt" commit --no-edit -q
@@ -735,7 +756,7 @@ cmd_prs() {
 		# was just rebased onto a base nobody ships. Fail loudly instead of pushing.
 		git -C "$REPO_DIR" fetch upstream "$base"
 		if [ "$(git -C "$REPO_DIR" rev-parse "upstream/$base")" != "$rebased_onto" ]; then
-			echo "integration: PR #$num base upstream/$base moved during rebase; re-run integration prs" >&2
+			echo "integration: PR $lbl base upstream/$base moved during rebase; re-run integration prs" >&2
 			exit 1
 		fi
 		# Lease expect must come from a fetch of the exact head ref, not a stale tracking ref.
@@ -745,18 +766,18 @@ cmd_prs() {
 		# Verify the push actually landed before claiming success.
 		pushed="$(remote_sha "$FORK_REMOTE" "$branch")"
 		if [ "$pushed" != "$(git -C "$wt" rev-parse HEAD)" ]; then
-			echo "integration: FATAL PR #$num push did not land (origin/$branch = ${pushed:0:9})" >&2
+			echo "integration: FATAL PR $lbl push did not land (origin/$branch = ${pushed:0:9})" >&2
 			exit 1
 		fi
 		if [ -n "$head_remote" ]; then
 			git -C "$wt" push --force-with-lease="refs/heads/$branch:$head_pre" "$head_remote" "HEAD:refs/heads/$branch"
 			if [ "$(remote_sha "$head_remote" "$branch")" != "$(git -C "$wt" rev-parse HEAD)" ]; then
-				echo "integration: FATAL PR #$num push to $head_remote/$branch did not land" >&2
+				echo "integration: FATAL PR $lbl push to $head_remote/$branch did not land" >&2
 				exit 1
 			fi
 		fi
 		git -C "$REPO_DIR" worktree remove --force "$wt"
-		echo "integration: PR #$num rebased onto upstream/$base and pushed to $FORK_REMOTE${head_remote:+ and $head_remote} (verified ${pushed:0:9})"
+		echo "integration: PR $lbl rebased onto upstream/$base and pushed to $FORK_REMOTE${head_remote:+ and $head_remote} (verified ${pushed:0:9})"
 	done <<< "$rows"
 }
 

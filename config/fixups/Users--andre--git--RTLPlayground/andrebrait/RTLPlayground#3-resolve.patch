@@ -1,5 +1,5 @@
 diff --git a/html/app.js b/html/app.js
-index 7033487381d00d27a6134e56d43fc90fc166f292..291287c1f9b1e7f0d2fd70da42e7e327ecf76606 100644
+index 9d798487e9b13f8feb16fcf1ef5a91e1b583ef19..291287c1f9b1e7f0d2fd70da42e7e327ecf76606 100644
 --- a/html/app.js
 +++ b/html/app.js
 @@ -42,12 +42,9 @@
@@ -11,7 +11,7 @@ index 7033487381d00d27a6134e56d43fc90fc166f292..291287c1f9b1e7f0d2fd70da42e7e327
 -=======
  lldp_tlvs:"Optional TLVs",lldp_t_portdesc:"Port Description",lldp_t_syscap:"System Capabilities",lldp_t_mgmt:"Management Address",
  lldp_t_pvid:"Port VLAN ID",lldp_t_macphy:"MAC/PHY Status",lldp_t_lag:"Link Aggregation",lldp_t_mfs:"Maximum Frame Size",
-->>>>>>> 71bc8ba (PR #680)
+->>>>>>> 11fc1ed (PR andrebrait/RTLPlayground#3)
  st_title:"Port statistics",st_h:"totals since boot",st_txg:"TX good",st_txb:"TX bad",st_rxg:"RX good",
  st_rxb:"RX bad",st_details:"Details",st_counters:"MIB counters",st_nonzero:"non-zero only",
  st_autoref:"auto-refresh",st_counter:"Counter",st_value:"Value",st_fail:"failed to load counters",
@@ -24,7 +24,7 @@ index 7033487381d00d27a6134e56d43fc90fc166f292..291287c1f9b1e7f0d2fd70da42e7e327
  function lldpCaps(c){return LLDP_CAPS.filter(function(x){return c&x[0]}).map(function(x){return x[1]}).join(", ")}
 -=======
  var LLDP_TLVS=["portdesc","syscap","mgmt","pvid","macphy","lag","mfs"];
-->>>>>>> 71bc8ba (PR #680)
+->>>>>>> 11fc1ed (PR andrebrait/RTLPlayground#3)
  function lldpLoad(){
    return getJSON("/lldp.json").then(function(s){
      $("lldp_en").checked=s.on;
@@ -36,13 +36,13 @@ index 7033487381d00d27a6134e56d43fc90fc166f292..291287c1f9b1e7f0d2fd70da42e7e327
 -var CONF_TOGGLE=[/^(snmp)\s+(on|off)$/,/^(syslog)\s+(on|off)$/,/^(ntp)\s+(on|off)$/,/^(stp)\s+(on|off)$/,/^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
 -=======
 -var CONF_TOGGLE=[/^(syslog)\s+(on|off)$/,/^(ntp)\s+(on|off)$/,/^(stp)\s+(on|off)$/,/^(lldp\s+tlv\s+\w+)\s+(on|off)$/,/^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
-->>>>>>> 71bc8ba (PR #680)
+->>>>>>> 11fc1ed (PR andrebrait/RTLPlayground#3)
 +var CONF_TOGGLE=[/^(snmp)\s+(on|off)$/,/^(syslog)\s+(on|off)$/,/^(ntp)\s+(on|off)$/,/^(stp)\s+(on|off)$/,/^(lldp\s+tlv\s+\w+)\s+(on|off)$/,/^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
  function mergeConf(base,texts){
    var conf=base.slice();
    function drop(rx){conf=conf.filter(function(c){return!rx.test(c)})}
 diff --git a/html/index.html b/html/index.html
-index 3fe5d41d9df3c9a998e5d7607d45bbd6321cdd41..95342e0f717387a700e8361fc2c8a6035f7e6047 100644
+index 3fca5c76ca5ccf27a44a7704831f8aa984339298..95342e0f717387a700e8361fc2c8a6035f7e6047 100644
 --- a/html/index.html
 +++ b/html/index.html
 @@ -101,14 +101,9 @@
@@ -56,7 +56,7 @@ index 3fe5d41d9df3c9a998e5d7607d45bbd6321cdd41..95342e0f717387a700e8361fc2c8a603
 -label.row{display:flex;align-items:center;gap:10px;margin:8px 0}
 -label.row span.lb{width:110px;flex:none;color:var(--fg2);font-size:13px}
  #lldp_tlvs label.row span.lb{width:170px}
-->>>>>>> 71bc8ba (PR #680)
+->>>>>>> 11fc1ed (PR andrebrait/RTLPlayground#3)
  .switch{position:relative;display:inline-block;width:34px;height:19px;flex:none}
  .switch input{opacity:0;width:0;height:0}
  .switch i{
@@ -73,12 +73,12 @@ index 3fe5d41d9df3c9a998e5d7607d45bbd6321cdd41..95342e0f717387a700e8361fc2c8a603
 +      </div>
        <div class="card"><h2 data-i18n="lldp_tlvs">Optional TLVs</h2>
          <div id="lldp_tlvs"></div>
-->>>>>>> 71bc8ba (PR #680)
+->>>>>>> 11fc1ed (PR andrebrait/RTLPlayground#3)
        </div>
      </section>
  
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index 19c72bf95d7b09855bc8436d91eb6630228d365c..fdc89dae45ad8c146d186f1613074525fbed950e 100644
+index 5db2c92073fb202ad718ca247e757d69bad0410a..fdc89dae45ad8c146d186f1613074525fbed950e 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
 @@ -31,12 +31,9 @@
@@ -90,12 +90,12 @@ index 19c72bf95d7b09855bc8436d91eb6630228d365c..fdc89dae45ad8c146d186f1613074525
  static __xdata struct lldp_neighbor lldp_tmp;
 -=======
  __xdata uint8_t lldp_tlv_mask = LLDP_TX_ALL;
-->>>>>>> 71bc8ba (PR #680)
+->>>>>>> 11fc1ed (PR andrebrait/RTLPlayground#3)
  
  void lldp_init(void) __banked
  {
 diff --git a/test/Makefile b/test/Makefile
-index dd2b5ceb045159dbab5848af6c9dace76752df03..d0f9a6a5dd207e1332d2347618cacd2943439227 100644
+index f88f4e7b380b31df75f59bb4061f9879a4388bb8..d0f9a6a5dd207e1332d2347618cacd2943439227 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -40,11 +40,8 @@
@@ -107,7 +107,7 @@ index dd2b5ceb045159dbab5848af6c9dace76752df03..d0f9a6a5dd207e1332d2347618cacd29
 -=======
 +        $(BUILDDIR)/test_lldp \
          $(BUILDDIR)/test_lldp_tx
-->>>>>>> 71bc8ba (PR #680)
+->>>>>>> 11fc1ed (PR andrebrait/RTLPlayground#3)
  
  # The table tests link the register mock and one environment file; stub/
  # stands in for the two headers a firmware build generates.
@@ -125,7 +125,7 @@ index dd2b5ceb045159dbab5848af6c9dace76752df03..d0f9a6a5dd207e1332d2347618cacd29
 -	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 -
 -run: $(TESTS)
-->>>>>>> 71bc8ba (PR #680)
+->>>>>>> 11fc1ed (PR andrebrait/RTLPlayground#3)
  	@fail=0; for t in $(TESTS); do \
  		echo "=== $$t ==="; \
  		$$t || fail=1; \
@@ -145,9 +145,9 @@ index dd2b5ceb045159dbab5848af6c9dace76752df03..d0f9a6a5dd207e1332d2347618cacd29
  	cd $(SRCROOT) && CC="$(CC)" python3 test/test_config_replay.py
 -=======
 -.PHONY: all run lldp-conf clean
-->>>>>>> 71bc8ba (PR #680)
+->>>>>>> 11fc1ed (PR andrebrait/RTLPlayground#3)
 diff --git a/tools/httpd_sim.c b/tools/httpd_sim.c
-index 835ba0fc5fd3fb82b46b2cadadc93eb28ce91e08..28d20761172aba04e4fa2b070c988f3205600de7 100644
+index 81d591aab4d8384cb9b3eeaf80913c3b5e9595f3..28d20761172aba04e4fa2b070c988f3205600de7 100644
 --- a/tools/httpd_sim.c
 +++ b/tools/httpd_sim.c
 @@ -837,11 +837,15 @@
@@ -180,7 +180,7 @@ index 835ba0fc5fd3fb82b46b2cadadc93eb28ce91e08..28d20761172aba04e4fa2b070c988f32
 -						for (int n = 0; n < 7; n++)
 -							if (!strcmp(tlv, names[n]))
 -								lldp_tlv = strstr(p + 4, " on") ? lldp_tlv | 1 << n : lldp_tlv & ~(1 << n);
-->>>>>>> 71bc8ba (PR #680)
+->>>>>>> 11fc1ed (PR andrebrait/RTLPlayground#3)
  					}
  					print_cmd_history();
  					char *response = "HTTP/1.1 200 OK\r\n"
