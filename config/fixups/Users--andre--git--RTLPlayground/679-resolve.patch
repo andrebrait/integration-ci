@@ -125,7 +125,7 @@ index 4c509b8446154376508d50a83b8f65be6b627755..7f337f09e3c2dea310c63e6e00c791e1
  struct lldp_neighbor {
      uint8_t port;		/* logical ingress port */
 diff --git a/test/Makefile b/test/Makefile
-index 0dc1963a938b3d7627427190a9975bd7d293a8be..2513cfe2d2454548e682171acf7ebed0fe913166 100644
+index c6c00cd0d759e7af4283060f2aa7183021fc9879..10cd7e54f7843ba1995c3502a535de9dead73788 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -40,12 +40,8 @@

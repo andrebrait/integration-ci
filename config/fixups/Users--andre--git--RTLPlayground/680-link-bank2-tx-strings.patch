@@ -1,5 +1,5 @@
 diff --git a/test/Makefile b/test/Makefile
-index d0f9a6a5dd207e1332d2347618cacd2943439227..2513cfe2d2454548e682171acf7ebed0fe913166 100644
+index d0f9a6a5dd207e1332d2347618cacd2943439227..10cd7e54f7843ba1995c3502a535de9dead73788 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -97,7 +97,7 @@ endif
@@ -8,6 +8,7 @@ index d0f9a6a5dd207e1332d2347618cacd2943439227..2513cfe2d2454548e682171acf7ebed0
  
 -$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c | $(BUILDDIR)
 +$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c | $(BUILDDIR)
- 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
++	$(CC) $(CFLAGS) $(GC_CFLAGS) $^ -o $@ $(LDFLAGS) $(GC_LDFLAGS)
  
  run: $(TESTS) snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay
