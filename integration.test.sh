@@ -4,6 +4,7 @@ set -euo pipefail
 DRIVER="$(cd "$(dirname "$0")" && pwd)/integration"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+TMP="$(cd "$TMP" && pwd -P)"
 export HOME="$TMP/home"
 export GIT_CONFIG_NOSYSTEM=1
 export GIT_CONFIG_GLOBAL=/dev/null
