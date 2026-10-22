@@ -1,0 +1,22 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 9ffdd7696fc09cde3eeef12967466651eb70cd21..f38d56ac419615a23e789187b302b757c72cc751 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -36,17 +36,14 @@
+ 
+ ## Changed
+ 
+-<<<<<<< HEAD
+ - HTTP
+   - `/status.json` carries the flow control (`fc`) and EEE (`eee`) state of every port; `/eee.json` is gone.
+   - The chip port of each front-panel port moved from `logPort` in every `/status.json` entry to one
+     `logPort` array in `/information.json`.
+-=======
+ - Web UI
+   - The web session expires after one hour without a request (was 200 seconds). The UI stops
+     polling while its tab is hidden, so with 200 seconds switching tabs for a few minutes logged
+     you out. `session <seconds>` still sets it.
+->>>>>>> rebuild/pr-675
+ 
+ ## Fixed
+ 

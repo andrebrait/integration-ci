@@ -1,0 +1,59 @@
+diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
+index 4c3d3e2e1d163f3ed2440908e9a4514597b88bf3..2bc8fb1011d8680a4658c9d2e96b1c961c010704 100644
+--- a/rtl837x_lldp.c
++++ b/rtl837x_lldp.c
+@@ -9,25 +9,20 @@
+ #include "uip.h"
+ #include "uip/uip.h"
+ #include "machine.h"
+-<<<<<<< HEAD
+ #include "rtl837x_trap.h"
+ #include "page_impl.h"
++#include "rtl837x_regs.h"
++#include "rtl837x_port.h"
++#include "phy.h"
+ 
+ extern __xdata bool lldp_enabled;
+ extern __code const struct machine machine;
+ extern __xdata uint8_t outbuf[];
+ extern __xdata uint16_t slen;
+-=======
+-#include "rtl837x_regs.h"
+-#include "rtl837x_port.h"
+-#include "phy.h"
+-
+-extern __xdata bool lldp_enabled;
+-extern __code const struct machine machine;
++
+ extern __xdata uint8_t sfr_data[4];
+ static __code const uint8_t lldp_oui_8021[3] = {0x00, 0x80, 0xc2};
+ static __code const uint8_t lldp_oui_8023[3] = {0x00, 0x12, 0x0f};
+->>>>>>> dce5c85 (PR #600)
+ 
+ extern volatile __xdata uint32_t ticks;
+ 
+@@ -189,7 +184,6 @@
+     return name_length + 2;
+ }
+ 
+-<<<<<<< HEAD
+ #define LLDP_RX_TAG ((__xdata struct rtl_tag *)&uip_buf[2 * MAC_ADDR_LEN])
+ 
+ static uint8_t lldp_printable(uint8_t c) __reentrant
+@@ -402,7 +396,8 @@
+         lldp_put_dec(lldp_nb[i].ttl, false);
+         print_string("s\n");
+     }
+-=======
++}
++
+ static __xdata uint8_t *lldp_org_header(__xdata uint8_t *p, __code const uint8_t *oui, uint8_t subtype, uint8_t length) __reentrant
+ {
+     *p++ = (uint8_t)LLDP_TYPE(LLDP_ORG_TLV_TYPE);
+@@ -501,5 +496,4 @@
+     *p++ = v & 0xff;
+ 
+     return p - start;
+->>>>>>> dce5c85 (PR #600)
+-}
++}

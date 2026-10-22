@@ -1,0 +1,12 @@
+diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
+index e32c27395e2ab618ed75d268ce691f9e9680a335..a8cb77b418ab1869f5827d4aefab1cebebf82d6c 100644
+--- a/rtl837x_lldp.c
++++ b/rtl837x_lldp.c
+@@ -22,7 +22,6 @@ extern __xdata uint8_t outbuf[];
+ extern __xdata uint16_t slen;
+ extern __xdata uint8_t sfr_data[4];
+ 
+-extern __xdata uint8_t sfr_data[4];
+ static __code const uint8_t lldp_oui_8021[3] = {0x00, 0x80, 0xc2};
+ static __code const uint8_t lldp_oui_8023[3] = {0x00, 0x12, 0x0f};
+ 

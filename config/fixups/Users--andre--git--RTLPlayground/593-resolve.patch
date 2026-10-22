@@ -1,0 +1,35 @@
+diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
+index fcb186dd3232e64e9944a40a6b0298128195021b..58419e2b18d28bb4c2cdec5c3657cf176a6c7ef0 100644
+--- a/rtl837x_lldp.h
++++ b/rtl837x_lldp.h
+@@ -27,7 +27,6 @@
+ #define LLDP_CHASSIS_ID_TLV_SUBTYPE 4
+ 
+ #define LLDP_PORT_DESC_TLV_TYPE 4
+-<<<<<<< HEAD
+ #define LLDP_ORG_TLV_TYPE 127
+ #define LLDP_ORG_TLV_HEADER_LENGTH 4
+ #define LLDP_8021_SUBTYPE_PVID 1
+@@ -65,8 +64,6 @@
+ #define LLDP_8023_SUBTYPE_MAX_FRAME 4
+ #define LLDP_AGG_CAPABLE 0x01
+ #define LLDP_AGG_ACTIVE 0x02
+-=======
+->>>>>>> 251b92a (PR #593)
+ #define LLDP_SYSNAME_TLV_TYPE 5
+ #define LLDP_SYSDESC_TLV_TYPE 6
+ #define LLDP_CAPABILITIES_TLV_TYPE 7
+@@ -87,12 +84,8 @@
+ /* shortcut: retain 17 printable ID characters; expand only when full remote IDs are needed. */
+ #define LLDP_NB_PORT_ID_LENGTH 17
+ #define LLDP_NB_SYS_NAME_LENGTH 16
+-<<<<<<< HEAD
+-#define LLDP_NB_JSON_LENGTH 112	/* separator + worst-case neighbour entry in /lldp.json */
+-=======
+ #define LLDP_NB_PORT_DESC_LENGTH 16
+-#define LLDP_NB_JSON_LENGTH 179	/* separator + worst-case neighbour entry in /lldp.json */
+->>>>>>> 251b92a (PR #593)
++#define LLDP_NB_JSON_LENGTH 184	/* separator + worst-case neighbour entry in /lldp.json */
+ 
+ struct lldp_neighbor {
+     uint8_t port;		/* logical ingress port */

@@ -1,0 +1,127 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index df7f58f760019f4bb4bcac5d2278356eec4e87ed..70ae02c1ae50527e8c8bb380880770167edfdbfb 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -36,7 +36,6 @@
+ 
+ ## Changed
+ 
+-<<<<<<< HEAD
+ - HTTP
+   - `/status.json` carries the flow control (`fc`) and EEE (`eee`) state of every port; `/eee.json` is gone.
+   - The chip port of each front-panel port moved from `logPort` in every `/status.json` entry to one
+@@ -45,14 +44,11 @@
+   - The web session expires after one hour without a request (was 200 seconds). The UI stops
+     polling while its tab is hidden, so with 200 seconds switching tabs for a few minutes logged
+     you out. `session <seconds>` still sets it.
+-=======
+-- Web UI
+   - Place LLDP warnings beside the affected maximum frame size, aggregation state
+     and chassis ID. Open warning details for local and advertised values; read
+     existing MTU and LAG endpoints on demand without changing firmware defaults.
+     Closing a warning restores keyboard focus to the correct neighbour even when
+     multiple neighbours share a physical port and the table refreshes.
+->>>>>>> b87fb5e (PR #686)
+ 
+ ## Fixed
+ 
+diff --git a/html/app.js b/html/app.js
+index 85cb142ebe06fb2b48949403bfa2a855d8bb11f8..63f38990268023f58a6ef333e3ba3f9e38da626b 100644
+--- a/html/app.js
++++ b/html/app.js
+@@ -42,17 +42,13 @@
+ stp_dis_q:"Disable spanning tree?",stp_dis_d:"All ports go straight to forwarding; loop protection is lost.",
+ stp_cost_err:"Path cost must be 0-200000000",
+ lldp_enabled: "LLDP Enabled",lldp_title:"Service Status",lldp_portname:"Name",lldp_enable:"Send Frames",
+-<<<<<<< HEAD
+ lldp_tlvs:"Optional TLVs",lldp_t_portdesc:"Port Description",lldp_t_syscap:"System Capabilities",lldp_t_mgmt:"Management Address",
+ lldp_t_pvid:"Port VLAN ID",lldp_t_macphy:"MAC/PHY Status",lldp_t_lag:"Link Aggregation",lldp_t_mfs:"Maximum Frame Size",
+-lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_sysdesc:"System Description",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_pvid:"PVID",lldp_nb_mtu:"MTU",lldp_nb_lag:"LAG",lldp_nb_warn:"Warnings",lldp_w_mtu:"MTU differs",lldp_w_lag:"LAG only on one side",lldp_w_dup:"same neighbour on another port",lldp_nb_ttl:"TTL",
+-=======
+-lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_pvid:"PVID",lldp_nb_mtu:"MTU",lldp_nb_lag:"LAG",lldp_w_mtu:"Maximum frame size differs",lldp_w_lag:"LAG only on one side",lldp_w_dup:"Same neighbour on another port",lldp_nb_ttl:"TTL",
++lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_sysdesc:"System Description",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_pvid:"PVID",lldp_nb_mtu:"MTU",lldp_nb_lag:"LAG",lldp_w_mtu:"Maximum frame size differs",lldp_w_lag:"LAG only on one side",lldp_w_dup:"Same neighbour on another port",lldp_nb_ttl:"TTL",
+ lldp_w_local:"Local switch: {name}; physical port: {port}",lldp_w_unavailable:"Unavailable",lldp_w_size:"The advertised maximum Ethernet frame size differs from the local limit. This is not the IP MTU.",
+ lldp_w_local_size:"Local maximum frame size: {value}",lldp_w_remote_size:"Neighbour advertised maximum frame size: {value}",lldp_w_bytes:"{value} bytes",
+ lldp_w_aggregation:"Only one side reports active link aggregation.",lldp_w_local_agg:"Local aggregation: {value}",lldp_w_remote_agg:"Neighbour aggregation: {value}",lldp_w_group:"Yes (LAG {group})",
+ lldp_w_duplicate:"The same chassis appears on different ports that do not belong to the same LAG.",lldp_w_ports:"Ports reporting this chassis ID: {ports}",
+->>>>>>> b87fb5e (PR #686)
+ st_title:"Port statistics",st_h:"totals since boot",st_txg:"TX good",st_txb:"TX bad",st_rxg:"RX good",
+ st_rxb:"RX bad",st_details:"Details",st_counters:"MIB counters",st_nonzero:"non-zero only",
+ st_autoref:"auto-refresh",st_counter:"Counter",st_value:"Value",st_fail:"failed to load counters",
+@@ -878,11 +874,8 @@
+ }
+ function modal(title,bodyEl,buttons){
+   S.detail=null;
+-<<<<<<< HEAD
+   $("modal").classList.remove("narrow");
+-=======
+   if(!$("mback").classList.contains("show"))S.modalFocus=document.activeElement;
+->>>>>>> b87fb5e (PR #686)
+   $("mtitle").textContent=title;
+   var b=$("mbody");b.innerHTML="";b.appendChild(bodyEl);
+   var f=$("mfoot");f.innerHTML="";
+@@ -2089,9 +2082,7 @@
+ 
+ var LLDP_CAPS=[[1,"Other"],[2,"Repeater"],[4,"Bridge"],[8,"WLAN AP"],[16,"Router"],[32,"Telephone"],[64,"DOCSIS"],[128,"Station"]];
+ function lldpCaps(c){return LLDP_CAPS.filter(function(x){return c&x[0]}).map(function(x){return x[1]}).join(", ")}
+-<<<<<<< HEAD
+ var LLDP_TLVS=["portdesc","syscap","mgmt","pvid","macphy","lag","mfs"];
+-=======
+ function lldpWarning(cell,n,bit,key,s){
+   if(!(n.warn&bit))return;
+   var label=t(key)+" ("+t("c_port")+" "+n.port+")";
+@@ -2114,8 +2105,8 @@
+           if(port&&/^0x[0-9a-f]+$/i.test(port.mtu))value=t("lldp_w_bytes",{value:parseInt(port.mtu,16)});
+         }else{
+           var port=s.portStatus.filter(function(p){return p.portNum===n.port})[0];
+-          if(port&&data.length===4&&data.every(function(g){return /^[01]{16}$/.test(g.members)})){
+-            var group=data.filter(function(g){return (parseInt(g.members,2)>>port.logPort)&1})[0];
++          if(port&&S.physToLog[n.port-1]!=null&&data.length===4&&data.every(function(g){return /^[01]{16}$/.test(g.members)})){
++            var group=data.filter(function(g){return (parseInt(g.members,2)>>S.physToLog[n.port-1])&1})[0];
+             value=group?t("lldp_w_group",{group:group.lagNum+1}):t("c_no");
+           }
+         }
+@@ -2125,7 +2116,6 @@
+     modal(t(key),body);
+   }}));
+ }
+->>>>>>> b87fb5e (PR #686)
+ function lldpLoad(){
+   return getJSON("/lldp.json").then(function(s){
+     $("lldp_en").checked=s.on;
+diff --git a/html/index.html b/html/index.html
+index 3ebc071abc4836bd7a747668953835cd650e1681..f73f981afc0b650d7eb0ee2723b7335d630bab7e 100644
+--- a/html/index.html
++++ b/html/index.html
+@@ -394,11 +394,7 @@
+       </div>
+       <div class="card"><h2 data-i18n="lldp_nb_title">Neighbours</h2>
+         <div class="scrollx"><table class="t" id="lldp_nb_table">
+-<<<<<<< HEAD
+-          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_warn">Warnings</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
+-=======
+-          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
+->>>>>>> b87fb5e (PR #686)
++          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
+           <tbody></tbody></table></div>
+       </div>
+       <div class="card"><h2 data-i18n="lldp_tlvs">Optional TLVs</h2>
+diff --git a/tools/httpd_sim.c b/tools/httpd_sim.c
+index 6476fc86c5dc23ee74830a8a9f39d11f59cae20f..c8c800cf5d1ff8e9be764129d5e1bd54558747f2 100644
+--- a/tools/httpd_sim.c
++++ b/tools/httpd_sim.c
+@@ -129,13 +129,9 @@
+ 	char map[64] = "";
+ 	char *response = "HTTP/1.1 200 OK\r\n"
+ 		    "Content-Type: application/json; charset=UTF-8\r\n\r\n"
+-<<<<<<< HEAD
+-			"{\"ip_address\":\"192.168.10.247\",\"ip_gateway\":\"192.168.2.22\",\"ip_netmask\":\"255.255.255.0\",\"mac_address\":\"1c:2a:a3:23:00:02\",\"sw_ver\":\"" VERSION_SW "\",\"hw_ver\":\"SWGT024-V2.0\",\"logPort\":[";
++			"{\"hostname\":\"RTLPlayground simulator\",\"ip_address\":\"192.168.10.247\",\"ip_gateway\":\"192.168.2.22\",\"ip_netmask\":\"255.255.255.0\",\"mac_address\":\"1c:2a:a3:23:00:02\",\"sw_ver\":\"" VERSION_SW "\",\"hw_ver\":\"SWGT024-V2.0\",\"logPort\":[";
+ 	for (int i = 0; i < PORTS; i++)
+ 		sprintf(map + strlen(map), "%s%d", i ? "," : "", physToLogPort[i]);
+-=======
+-			"{\"hostname\":\"RTLPlayground simulator\",\"ip_address\":\"192.168.10.247\",\"ip_gateway\":\"192.168.2.22\",\"ip_netmask\":\"255.255.255.0\",\"mac_address\":\"1c:2a:a3:23:00:02\",\"sw_ver\":\"" VERSION_SW "\",\"hw_ver\":\"SWGT024-V2.0\"}";
+->>>>>>> b87fb5e (PR #686)
+ 	write(socket, response, strlen(response));
+ 	write(socket, map, strlen(map));
+ 	write(socket, "]}", 2);

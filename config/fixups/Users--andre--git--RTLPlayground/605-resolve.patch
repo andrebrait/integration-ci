@@ -1,0 +1,84 @@
+diff --git a/html/app.js b/html/app.js
+index a8a23c1e867ca4fad6ac2e505f7184ee137303ca..a6a298c44f7593204ac5209cdc6aa6ff9511da96 100644
+--- a/html/app.js
++++ b/html/app.js
+@@ -42,13 +42,9 @@
+ stp_dis_q:"Disable spanning tree?",stp_dis_d:"All ports go straight to forwarding; loop protection is lost.",
+ stp_cost_err:"Path cost must be 0-200000000",
+ lldp_enabled: "LLDP Enabled",lldp_title:"Service Status",lldp_portname:"Name",lldp_enable:"Send Frames",
+-<<<<<<< HEAD
+-lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_ttl:"TTL",
+ lldp_tlvs:"Optional TLVs",lldp_t_portdesc:"Port Description",lldp_t_syscap:"System Capabilities",lldp_t_mgmt:"Management Address",
+ lldp_t_pvid:"Port VLAN ID",lldp_t_macphy:"MAC/PHY Status",lldp_t_lag:"Link Aggregation",lldp_t_mfs:"Maximum Frame Size",
+-=======
+ lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_pvid:"PVID",lldp_nb_mtu:"MTU",lldp_nb_lag:"LAG",lldp_nb_warn:"Warnings",lldp_w_mtu:"MTU differs",lldp_w_lag:"LAG only on one side",lldp_w_dup:"same neighbour on another port",lldp_nb_ttl:"TTL",
+->>>>>>> 1376eb9 (PR #605)
+ st_title:"Port statistics",st_h:"totals since boot",st_txg:"TX good",st_txb:"TX bad",st_rxg:"RX good",
+ st_rxb:"RX bad",st_details:"Details",st_counters:"MIB counters",st_nonzero:"non-zero only",
+ st_autoref:"auto-refresh",st_counter:"Counter",st_value:"Value",st_fail:"failed to load counters",
+diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
+index a9e6b6c133987dac2642f5fa1dde36503e313476..eeb9b66cf98fcdc9570d7f232f95d6c4a0fa55dc 100644
+--- a/rtl837x_lldp.c
++++ b/rtl837x_lldp.c
+@@ -14,10 +14,7 @@
+ #include "page_impl.h"
+ #include "rtl837x_regs.h"
+ #include "rtl837x_port.h"
+-<<<<<<< HEAD
+ #include "phy.h"
+-=======
+->>>>>>> 1376eb9 (PR #605)
+ 
+ extern __xdata bool lldp_enabled;
+ extern __code const struct machine machine;
+@@ -36,11 +33,7 @@
+ __xdata uint16_t lldp_logical_port_status = 0xffff;
+ __xdata struct lldp_neighbor lldp_nb[LLDP_NB_MAX];
+ static __xdata struct lldp_neighbor lldp_tmp;
+-<<<<<<< HEAD
+ __xdata uint8_t lldp_tlv_mask = LLDP_TX_ALL;
+-=======
+-static __code const uint8_t lldp_oui_8021[3] = {0x00, 0x80, 0xc2};
+-static __code const uint8_t lldp_oui_8023[3] = {0x00, 0x12, 0x0f};
+ 
+ static void lldp_put_dec(uint16_t v, bool html) __reentrant;
+ static bool lldp_bytes_eq(__xdata uint8_t *a, __xdata uint8_t *b, uint8_t n) __reentrant;
+@@ -92,7 +85,6 @@
+         print_string(" same-neighbour-twice");
+     write_char('\n');
+ }
+->>>>>>> 1376eb9 (PR #605)
+ 
+ void lldp_init(void) __banked
+ {
+diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
+index ba0479aac3fb2876eb1a89f022676ca1363fa140..4f199f34f974774b65920679e4e6e9fd2de651ed 100644
+--- a/rtl837x_lldp.h
++++ b/rtl837x_lldp.h
+@@ -85,25 +85,11 @@
+ #define LLDP_NB_PORT_ID_LENGTH 17
+ #define LLDP_NB_SYS_NAME_LENGTH 16
+ #define LLDP_NB_PORT_DESC_LENGTH 16
+-<<<<<<< HEAD
+-#define LLDP_NB_JSON_LENGTH 184	/* separator + worst-case neighbour entry in /lldp.json */
+-=======
+-
+-#define LLDP_ORG_TLV_TYPE 127
+-#define LLDP_ORG_TLV_HEADER_LENGTH 4
+-#define LLDP_8021_SUBTYPE_PVID 1
+-#define LLDP_8023_SUBTYPE_LINK_AGG 3
+-#define LLDP_8023_SUBTYPE_MAX_FRAME 4
+-#define LLDP_AGG_CAPABLE 0x01
+-#define LLDP_AGG_ACTIVE 0x02
+ #define LLDP_AGG_ANNOUNCED 0x80
+-
+ #define LLDP_WARN_MTU 0x01
+ #define LLDP_WARN_AGG 0x02
+ #define LLDP_WARN_DUPLICATE 0x04
+-#define PORT_MAX_LEN_MASK 0x3fff
+-#define LLDP_NB_JSON_LENGTH 221	/* separator + worst-case neighbour entry in /lldp.json */
+->>>>>>> 1376eb9 (PR #605)
++#define LLDP_NB_JSON_LENGTH 226	/* separator + worst-case neighbour entry in /lldp.json */
+ 
+ struct lldp_neighbor {
+     uint8_t port;		/* logical ingress port */

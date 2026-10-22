@@ -363,7 +363,11 @@ cmd_rebuild() {
 		# the unresolved-path list, not the exit status, decides whether this
 		# round still needs a human.
 		if git -C "$REPO_DIR" rev-parse -q --verify "refs/heads/rebuild/pr-$num-base" >/dev/null; then
-			own="$(git -C "$REPO_DIR" commit-tree "$tmp^{tree}" -p "rebuild/pr-$num-base" -m "PR #$num")"
+			# Conflict labels include this scratch SHA; keep it clone-stable.
+			own="$(GIT_AUTHOR_NAME=integration GIT_AUTHOR_EMAIL=integration@localhost \
+				GIT_COMMITTER_NAME=integration GIT_COMMITTER_EMAIL=integration@localhost \
+				GIT_AUTHOR_DATE=2000-01-01T00:00:00Z GIT_COMMITTER_DATE=2000-01-01T00:00:00Z \
+				git -C "$REPO_DIR" commit-tree "$tmp^{tree}" -p "rebuild/pr-$num-base" -m "PR #$num")"
 			squash=(cherry-pick --no-commit "$own")
 		else
 			squash=(merge --squash "$tmp")
@@ -372,7 +376,7 @@ cmd_rebuild() {
 		for patch in "$FIXUP_DIR/$num"-*.patch; do
 			[ -f "$patch" ] && [ "$patch" != "$FIXUP_DIR/$num-resolve.patch" ] && fixups+=("$patch")
 		done
-		if ! git -C "$wt" "${squash[@]}" >/dev/null && [ -n "$(git -C "$wt" diff --diff-filter=U --name-only)" ]; then
+		if ! git -C "$wt" -c merge.conflictStyle=merge -c core.abbrev=7 "${squash[@]}" >/dev/null && [ -n "$(git -C "$wt" diff --diff-filter=U --name-only)" ]; then
 			local resolve="$FIXUP_DIR/$num-resolve.patch" path expected actual patch_paths
 			local -a unresolved=()
 			mapfile -t unresolved < <(git -C "$wt" diff --diff-filter=U --name-only)

@@ -1,0 +1,143 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index c6103a04fa163789082c10cee289eb4e1a090af6..2a1c8ab9c51392c6c3e82abd22133f6614c58b4f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -47,7 +47,6 @@
+ 
+ ## Fixed
+ 
+-<<<<<<< HEAD
+ - Networking
+   - Wildcard UDP listeners reply to the current sender without retaining its
+     address or transmitting stale replies during periodic polls.
+@@ -66,8 +65,6 @@
+ - Health
+   - `HEALTH=1` builds no longer write past the phase timing arrays at the LLDP checkpoint, which
+     corrupted the `link` slow counter and the DHCP client state. #658
+-=======
+->>>>>>> 579a26e (PR #679)
+ - LLDP
+   - Format binary MAC-address Port IDs as 17 colon-separated hexadecimal characters instead
+     of interpreting their six octets as text. Deliver LLDP before the shared STP/LACP
+@@ -78,12 +75,6 @@
+   - Text fields already used bounded copies with an explicit trailing NUL; embedded NUL,
+     controls, quotes and backslashes remain replaced by dots. The garbled binary Port ID
+     was not a missing-terminator bug.
+-<<<<<<< HEAD
+-  - Port IDs retain at most 17 printable characters locally, not the IEEE wire maximum:
+-    identifiers contain 1..255 octets plus a subtype byte. Longer valid IDs are truncated.
+-    This branch accepts only six-octet MAC Chassis IDs; arbitrary Chassis ID storage and
+-    its separate display-capacity correction belong to the neighbor-details branch.
+-=======
+   - Retain 17 Chassis ID octets and 17 printable Port ID characters locally, not the IEEE
+     wire maximum: identifiers contain 1..255 octets plus a subtype byte. Longer valid IDs
+     are truncated. Chassis IDs are length-delimited raw bytes, sanitized only at output;
+@@ -91,7 +82,6 @@
+     Chassis IDs sharing the retained prefix can still merge on the same ingress port.
+     The MAC-only link-down branch has no arbitrary Chassis ID storage to enlarge.
+ 
+->>>>>>> 579a26e (PR #679)
+ - Config
+   - A startup configuration line longer than the command buffer no longer stops the replay:
+     the offending line is skipped and the following lines are still applied.
+diff --git a/html/app.js b/html/app.js
+index 1e15542a37ceee06d550e8da21806a75cf92e7af..f089ec88cb98023f5b2a027d36dc4b80f4a70f93 100644
+--- a/html/app.js
++++ b/html/app.js
+@@ -42,13 +42,9 @@
+ stp_dis_q:"Disable spanning tree?",stp_dis_d:"All ports go straight to forwarding; loop protection is lost.",
+ stp_cost_err:"Path cost must be 0-200000000",
+ lldp_enabled: "LLDP Enabled",lldp_title:"Service Status",lldp_portname:"Name",lldp_enable:"Send Frames",
+-<<<<<<< HEAD
+ lldp_tlvs:"Optional TLVs",lldp_t_portdesc:"Port Description",lldp_t_syscap:"System Capabilities",lldp_t_mgmt:"Management Address",
+ lldp_t_pvid:"Port VLAN ID",lldp_t_macphy:"MAC/PHY Status",lldp_t_lag:"Link Aggregation",lldp_t_mfs:"Maximum Frame Size",
+-lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_pvid:"PVID",lldp_nb_mtu:"MTU",lldp_nb_lag:"LAG",lldp_nb_warn:"Warnings",lldp_w_mtu:"MTU differs",lldp_w_lag:"LAG only on one side",lldp_w_dup:"same neighbour on another port",lldp_nb_ttl:"TTL",
+-=======
+-lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_sysdesc:"System Description",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_ttl:"TTL",
+->>>>>>> 579a26e (PR #679)
++lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_sysdesc:"System Description",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_pvid:"PVID",lldp_nb_mtu:"MTU",lldp_nb_lag:"LAG",lldp_nb_warn:"Warnings",lldp_w_mtu:"MTU differs",lldp_w_lag:"LAG only on one side",lldp_w_dup:"same neighbour on another port",lldp_nb_ttl:"TTL",
+ st_title:"Port statistics",st_h:"totals since boot",st_txg:"TX good",st_txb:"TX bad",st_rxg:"RX good",
+ st_rxb:"RX bad",st_details:"Details",st_counters:"MIB counters",st_nonzero:"non-zero only",
+ st_autoref:"auto-refresh",st_counter:"Counter",st_value:"Value",st_fail:"failed to load counters",
+diff --git a/html/index.html b/html/index.html
+index 67597766c2f46e24311c7fc248913fb31e13c7d5..fa083b0821550ccdec1671fd7117646b4b958822 100644
+--- a/html/index.html
++++ b/html/index.html
+@@ -394,11 +394,7 @@
+       </div>
+       <div class="card"><h2 data-i18n="lldp_nb_title">Neighbours</h2>
+         <div class="scrollx"><table class="t" id="lldp_nb_table">
+-<<<<<<< HEAD
+-          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_warn">Warnings</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
+-=======
+-          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
+->>>>>>> 579a26e (PR #679)
++          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_warn">Warnings</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
+           <tbody></tbody></table></div>
+       </div>
+       <div class="card"><h2 data-i18n="lldp_tlvs">Optional TLVs</h2>
+diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
+index 4c509b8446154376508d50a83b8f65be6b627755..7f337f09e3c2dea310c63e6e00c791e14894a091 100644
+--- a/rtl837x_lldp.h
++++ b/rtl837x_lldp.h
+@@ -12,15 +12,10 @@
+ #define LLDP_HOLD_MULTIPLIER 4
+ 
+ #define LLDP_PORT_ID_TLV_TYPE 2
+-<<<<<<< HEAD
+ #define LLDP_PORT_ID_PREFIX "Port "
+ #define LLDP_PORT_ID_PREFIX_LENGTH 5
+ #define LLDP_PORT_ID_TLV_LENGTH (1 + LLDP_PORT_ID_PREFIX_LENGTH + 1)
+ #define LLDP_PORT_ID_TLV_SUBTYPE 0x05
+-=======
+-#define LLDP_PORT_ID_TLV_LENGTH 0x02
+-#define LLDP_PORT_ID_TLV_SUBTYPE 0x07
+->>>>>>> 579a26e (PR #679)
+ #define LLDP_PORT_ID_SUBTYPE_MAC 3
+ 
+ #define LLDP_TTL_TLV_TYPE 3
+@@ -85,26 +80,17 @@
+ #define LLDP_NETWORK_ADDR_IPV4_LENGTH 5
+ 
+ #define LLDP_NB_MAX 16
+-<<<<<<< HEAD
+-#define LLDP_NB_CHASSIS_LENGTH 16
+-/* shortcut: retain 17 printable ID characters; expand only when full remote IDs are needed. */
+-=======
+ /* shortcut: retain 17 ID bytes; expand when full IDs must distinguish matching prefixes. */
+ #define LLDP_NB_CHASSIS_LENGTH 17
+->>>>>>> 579a26e (PR #679)
+ #define LLDP_NB_PORT_ID_LENGTH 17
+ #define LLDP_NB_SYS_NAME_LENGTH 16
+ #define LLDP_NB_SYS_DESC_LENGTH 32
+ #define LLDP_NB_PORT_DESC_LENGTH 16
+-<<<<<<< HEAD
+ #define LLDP_AGG_ANNOUNCED 0x80
+ #define LLDP_WARN_MTU 0x01
+ #define LLDP_WARN_AGG 0x02
+ #define LLDP_WARN_DUPLICATE 0x04
+-#define LLDP_NB_JSON_LENGTH 226	/* separator + worst-case neighbour entry in /lldp.json */
+-=======
+-#define LLDP_NB_JSON_LENGTH 229	/* separator + worst-case neighbour entry in /lldp.json */
+->>>>>>> 579a26e (PR #679)
++#define LLDP_NB_JSON_LENGTH 272	/* separator + worst-case neighbour entry in /lldp.json */
+ 
+ struct lldp_neighbor {
+     uint8_t port;		/* logical ingress port */
+diff --git a/test/Makefile b/test/Makefile
+index 0dc1963a938b3d7627427190a9975bd7d293a8be..2513cfe2d2454548e682171acf7ebed0fe913166 100644
+--- a/test/Makefile
++++ b/test/Makefile
+@@ -40,12 +40,8 @@
+         $(BUILDDIR)/test_tick_gate \
+         $(BUILDDIR)/test_nic_rx \
+         $(BUILDDIR)/test_lacp \
+-<<<<<<< HEAD
+         $(BUILDDIR)/test_lldp \
+         $(BUILDDIR)/test_lldp_tx
+-=======
+-        $(BUILDDIR)/test_lldp
+->>>>>>> 579a26e (PR #679)
+ 
+ # The table tests link the register mock and one environment file; stub/
+ # stands in for the two headers a firmware build generates.

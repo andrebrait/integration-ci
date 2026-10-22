@@ -1,23 +1,25 @@
 diff --git a/Makefile b/Makefile
-index c95f12af71d547d536edd3540fcdf83ce5c82a9a..7e799eed45565dd94f39b7b1ce60957209565ae8 100644
+index 75faeeaf8a925f9b1b14a37fd41bfa3251ce3950..59c480d123dab7ef84bc9d41a6f7028a8825e4e7 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -111,6 +111,7 @@ SRCS += \
- 	rtl837x_port.c \
+@@ -116,6 +116,7 @@
  	rtl837x_stp.c \
  	rtl837x_lldp.c \
+ 	rtl837x_pause.c \
 +	rtl837x_lldp_tx_strings.c \
  	rtl837x_storm.c \
  	rtl837x_lacp.c \
  	rtl837x_trap.c
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index a7bd19cdc0614eac5a91a9adc3eb63e5d795fa65..91be4a97241199fdade2cf1f65a7d183a3ab9223 100644
+index a2874bcda892266a85056b7e20fafdef3d9a07cb..2afbb069f6e5fda2fbbe2576032b5617fd95e0c3 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -159,26 +159,6 @@ void lldp_set_rtl_wrapper(void) __banked {
-     LLDP_O->ether_type = HTONS(LLDP_ETHERTYPE);
- }
+@@ -162,26 +162,6 @@
+     LLDP_O->rtl_tag.flags = HTONS(RTL_TAG_LEARN_DIS);
  
+     LLDP_O->ether_type = HTONS(LLDP_ETHERTYPE);
+-}
+-
 -uint8_t lldp_sysname(__xdata uint8_t *p) __banked
 -{
 -    uint8_t hostname_length = strlen_x(hostname);
@@ -36,11 +38,9 @@ index a7bd19cdc0614eac5a91a9adc3eb63e5d795fa65..91be4a97241199fdade2cf1f65a7d183
 -    *p++ = machine_name_length;
 -    memcpyc(p, machine.machine_name, machine_name_length);
 -    return machine_name_length + 2; 
--}
--
- #define LLDP_RX_TAG ((__xdata struct rtl_tag *)&uip_buf[2 * MAC_ADDR_LEN])
+ }
  
- static uint8_t lldp_printable(uint8_t c) __reentrant
+ uint8_t lldp_portdesc(__xdata uint8_t *p, uint8_t port) __banked
 diff --git a/rtl837x_lldp_tx_strings.c b/rtl837x_lldp_tx_strings.c
 new file mode 100644
 index 0000000000000000000000000000000000000000..0e2f536b75ef8fa1a012bffb51261790ce8bea79
