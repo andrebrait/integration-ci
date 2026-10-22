@@ -1,0 +1,66 @@
+diff --git a/Makefile b/Makefile
+index c8d5b8d3983a7578dfdf6e1b864b136771a8069e..75faeeaf8a925f9b1b14a37fd41bfa3251ce3950 100644
+--- a/Makefile
++++ b/Makefile
+@@ -128,8 +128,7 @@ SRCS += \
+ 	uip/uiplib.c \
+ 	uip/uip_arp.c \
+ 	uip/uip-fw.c \
+-	uip/uip-neighbor.c \
+-	uip/uip-split.c
++	uip/uip-neighbor.c
+ 
+ ifeq ($(SNMP),1)
+ SRCS += snmp.c snmp_hw.c snmp_control.c
+diff --git a/test/test_rx_bounds.c b/test/test_rx_bounds.c
+index d25c77d09c5c3edc3a772b0471f2f6a147b288cc..05396645b5f58f2f7977dc6635f53619ffe7b513 100644
+--- a/test/test_rx_bounds.c
++++ b/test/test_rx_bounds.c
+@@ -12,9 +12,6 @@ void uip_arp_ipin(void) { assert(order++==0);arp_calls++;arp_len=uip_len; }
+ void uip_process(uint8_t flag) { (void)flag;assert(order++==1);ip_calls++;ip_len=uip_len; }
+ int main(void)
+ {
+-	const unsigned cap=(UIP_BUFSIZE+2u)&~7u;
+-	assert(uip_rx_dma_fits(0)&&uip_rx_dma_fits(cap));
+-	assert(!uip_rx_dma_fits(cap+1)&&!uip_rx_dma_fits(65535));
+ 	for (unsigned n=0;n<UIP_LLH_LEN+UIP_IPH_LEN;n++) {
+ 		uip_len=n;uip_rx_ip_input();assert(!uip_len&&!arp_calls&&!ip_calls);
+ 	}
+@@ -23,6 +20,6 @@ int main(void)
+ 	assert(order==2&&arp_len==UIP_LLH_LEN+UIP_IPH_LEN&&ip_len==UIP_IPH_LEN);
+ 	order=0;uip_len=UIP_BUFSIZE;uip_rx_ip_input();
+ 	assert(arp_calls==2&&ip_calls==2&&ip_len==UIP_BUFSIZE-UIP_LLH_LEN);
+-	puts("PASS generic RX guards: DMA rounding, truncated/oversized frames, ARP-before-IP order and exact captured IP length");
++	puts("PASS generic RX guards: truncated/oversized frames, ARP-before-IP order and exact captured IP length");
+ 	return 0;
+ }
+diff --git a/test/test_snmp_transport.c b/test/test_snmp_transport.c
+index 2f31286a580f034b1efb54c7f0391ebca7fc520f..3af2b9689b0ef0c777daa37a684ca32005e8de95 100644
+--- a/test/test_snmp_transport.c
++++ b/test/test_snmp_transport.c
+@@ -297,13 +297,6 @@ int main(void)
+ 	uip_ipaddr(uip_netmask, 255, 255, 255, 0);
+ 	uip_ipaddr(uip_draddr, 192, 0, 2, 254);
+ 	memcpy(uip_ethaddr.addr, local_mac, 6);
+-	/* Exhaust the 16-bit descriptor domain using the production DMA guard.
+-	 * Host arithmetic is independent and does not issue a hardware transfer. */
+-	for (uint32_t n = 0; n <= 65535; n++)
+-		assert(!!uip_rx_dma_fits(n) == (((n + 7) / 8) * 8 <= sizeof(uip_buf)));
+-	CHECK(uip_rx_dma_fits(1552) && !uip_rx_dma_fits(1553) && !uip_rx_dma_fits(1556) &&
+-		  !uip_rx_dma_fits(65535),
+-	      "pre-DMA guard rejects every rounded transfer beyond packet storage");
+ 	snmp_init();
+ 	assert(test_snmp_configure(comm, sizeof(comm) - 1, network, acl));
+ 	fixture(wire_get, sizeof(wire_get));
+diff --git a/uip/uip_rx.h b/uip/uip_rx.h
+index 6b25b09de535f7c0e7f31408cef26442a8faf1fa..5988bb1ca4d3ee02a4b094aacd4e627757834e69 100644
+--- a/uip/uip_rx.h
++++ b/uip/uip_rx.h
+@@ -1,7 +1,5 @@
+ #ifndef UIP_RX_H
+ #define UIP_RX_H
+-/* The NIC DMA rounds to eight bytes; reject before programming its length. */
+-#define uip_rx_dma_fits(length) ((length) <= ((UIP_BUFSIZE + 2u) & ~7u))
+ /* Driver input is a whole Ethernet frame. Preserve ARP-before-IP ordering;
+  * uIP itself expects the captured IP byte count, excluding the link header. */
+ #define uip_rx_ip_input() do { \

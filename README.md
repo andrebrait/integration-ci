@@ -63,6 +63,42 @@ ln -sfn /root/git/integration-ci/config ~/.config/integration
 ln -sfn /root/git/integration-ci/integration ~/.local/bin/integration
 ```
 
+
+## RTLPlayground
+
+`config/Users--andre--git--RTLPlayground.sh` integrates all this account's open
+upstream PRs (including drafts), plus the listed third-party carry branches.
+Install the symlinks above using `/Users/andre/git/integration-ci` on this host;
+macOS needs Homebrew Bash and `brew install flock`. Keep `origin` and add the
+upstream alias if absent:
+
+```sh
+git -C /Users/andre/git/RTLPlayground remote add upstream https://github.com/logicog/RTLPlayground.git
+```
+
+After feature edits are committed and pushed and the integration worktree is
+clean, refresh PR/carry heads, recreate the integration, then publish it:
+
+```sh
+/opt/homebrew/bin/bash ~/.local/bin/integration prs /Users/andre/git/RTLPlayground
+/opt/homebrew/bin/bash ~/.local/bin/integration rebuild /Users/andre/git/RTLPlayground
+/opt/homebrew/bin/bash ~/.local/bin/integration push /Users/andre/git/RTLPlayground
+```
+
+For the first migration only, use `INTEGRATION_DROP_NON_PR=1` on `rebuild`
+after preserving old integration-only changes in PR branches or config fixups.
+The driver backs up the old branch. A completed rebuild starts from upstream
+each pass; interrupted detached rebuilds resume after conflicts are resolved
+and committed with the requested `PR #N:` subject. Resolve cross-PR adaptations
+in `config/fixups/Users--andre--git--RTLPlayground/N-name.patch`, not only in
+integration commits. `588:600` intentionally composes the TX carries; third-party
+authorship and original PR heads are preserved. Closed/merged carries drop out
+only when GitHub reports them closed/merged, not because the carry lacks its own PR.
+
+There are deliberately no RTL build/test/deploy hooks or workflow. Do not use
+`all`; build and validate firmware manually before publishing. Driver regression
+check (temporary local Git fixtures, no network): `bash integration.test.sh`.
+
 ## pr-watcher
 
 `pr-watcher/pr-watcher.mjs` polls GitHub pull requests through `gh` and

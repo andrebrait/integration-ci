@@ -272,7 +272,7 @@ cmd_rebuild() {
 	[ -z "$(git -C "$wt" status --porcelain)" ] || { echo "integration: $wt is dirty; commit or discard first" >&2; exit 1; }
 	# A conflicting PR is resolved and committed by hand; re-running must continue
 	# from the next PR instead of discarding that work, so an interrupted rebuild
-	# is resumed whenever HEAD is BASE plus nothing but `PR #<n>:` commits. rerere
+	# is resumed only while HEAD is detached at BASE plus `PR #<n>:` commits. rerere
 	# replays textual conflicts, but a semantic fixup (an API a later PR renamed)
 	# lives only in that commit.
 	#
@@ -281,7 +281,8 @@ cmd_rebuild() {
 	# reproducing the old code.
 	resumed=""
 	done_prs=""
-	if git -C "$REPO_DIR" merge-base --is-ancestor "$base" "$(git -C "$wt" rev-parse HEAD)" 2>/dev/null &&
+	if ! git -C "$wt" symbolic-ref -q HEAD >/dev/null &&
+		git -C "$REPO_DIR" merge-base --is-ancestor "$base" "$(git -C "$wt" rev-parse HEAD)" 2>/dev/null &&
 		[ -n "$(git -C "$wt" log --format=%s "$base"..HEAD)" ] &&
 		! git -C "$wt" log --format=%s "$base"..HEAD | grep -qvE '^PR #[0-9]+: '; then
 		resumed=1

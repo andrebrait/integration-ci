@@ -1,0 +1,13 @@
+diff --git a/test/Makefile b/test/Makefile
+index 9057ccb4662482bff5eb441074876b0c289e3416..5f1f95f7cdbecbc08f2210027192e5accd8f8eb4 100644
+--- a/test/Makefile
++++ b/test/Makefile
+@@ -71,7 +71,7 @@
+ $(BUILDDIR)/test_httpd_tx: test_httpd_tx.c $(SRCROOT)/httpd/httpd.c $(SRCROOT)/uip/uip.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)
+ 
+-$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c | $(BUILDDIR)
++$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+ 
+ run: $(TESTS)

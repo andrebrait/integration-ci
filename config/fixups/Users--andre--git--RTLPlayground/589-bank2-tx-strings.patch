@@ -1,0 +1,81 @@
+diff --git a/Makefile b/Makefile
+index c95f12af71d547d536edd3540fcdf83ce5c82a9a..7e799eed45565dd94f39b7b1ce60957209565ae8 100644
+--- a/Makefile
++++ b/Makefile
+@@ -111,6 +111,7 @@ SRCS += \
+ 	rtl837x_port.c \
+ 	rtl837x_stp.c \
+ 	rtl837x_lldp.c \
++	rtl837x_lldp_tx_strings.c \
+ 	rtl837x_storm.c \
+ 	rtl837x_lacp.c \
+ 	rtl837x_trap.c
+diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
+index a7bd19cdc0614eac5a91a9adc3eb63e5d795fa65..91be4a97241199fdade2cf1f65a7d183a3ab9223 100644
+--- a/rtl837x_lldp.c
++++ b/rtl837x_lldp.c
+@@ -159,26 +159,6 @@ void lldp_set_rtl_wrapper(void) __banked {
+     LLDP_O->ether_type = HTONS(LLDP_ETHERTYPE);
+ }
+ 
+-uint8_t lldp_sysname(__xdata uint8_t *p) __banked
+-{
+-    uint8_t hostname_length = strlen_x(hostname);
+-
+-    *p++ = LLDP_TYPE(LLDP_SYSNAME_TLV_TYPE);
+-    *p++ = hostname_length;
+-    memcpy(p, hostname, hostname_length);
+-    return hostname_length + 2;
+-}
+-
+-uint8_t lldp_sysdesc(__xdata uint8_t *p) __banked
+-{
+-    uint16_t machine_name_length = strlen(machine.machine_name);
+-
+-    *p++ = LLDP_TYPE(LLDP_SYSDESC_TLV_TYPE);
+-    *p++ = machine_name_length;
+-    memcpyc(p, machine.machine_name, machine_name_length);
+-    return machine_name_length + 2; 
+-}
+-
+ #define LLDP_RX_TAG ((__xdata struct rtl_tag *)&uip_buf[2 * MAC_ADDR_LEN])
+ 
+ static uint8_t lldp_printable(uint8_t c) __reentrant
+diff --git a/rtl837x_lldp_tx_strings.c b/rtl837x_lldp_tx_strings.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..0e2f536b75ef8fa1a012bffb51261790ce8bea79
+--- /dev/null
++++ b/rtl837x_lldp_tx_strings.c
+@@ -0,0 +1,32 @@
++/* Keep the existing banked TX text helpers out of the full RX bank. */
++#pragma codeseg BANK2
++#pragma constseg BANK2
++
++#include "rtl837x_common.h"
++#include "rtl837x_lldp.h"
++#include "dhcp.h"
++#include "machine.h"
++
++extern __code const struct machine machine;
++
++#define LLDP_TYPE(value) (value << 1)
++
++uint8_t lldp_sysname(__xdata uint8_t *p) __banked
++{
++    uint8_t hostname_length = strlen_x(hostname);
++
++    *p++ = LLDP_TYPE(LLDP_SYSNAME_TLV_TYPE);
++    *p++ = hostname_length;
++    memcpy(p, hostname, hostname_length);
++    return hostname_length + 2;
++}
++
++uint8_t lldp_sysdesc(__xdata uint8_t *p) __banked
++{
++    uint16_t machine_name_length = strlen(machine.machine_name);
++
++    *p++ = LLDP_TYPE(LLDP_SYSDESC_TLV_TYPE);
++    *p++ = machine_name_length;
++    memcpyc(p, machine.machine_name, machine_name_length);
++    return machine_name_length + 2;
++}
