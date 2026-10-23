@@ -1,5 +1,5 @@
 diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
-index 49632443cad017845b1bb5e4394b7ab1d7130417..0e2d97e8e1742d2a7e03666849d489bcfa1e8893 100644
+index e30be8a58b6517df65724ac7b75939ea6aa56594..0e2d97e8e1742d2a7e03666849d489bcfa1e8893 100644
 --- a/rtl837x_lldp.h
 +++ b/rtl837x_lldp.h
 @@ -66,7 +66,6 @@
@@ -10,7 +10,7 @@ index 49632443cad017845b1bb5e4394b7ab1d7130417..0e2d97e8e1742d2a7e03666849d489bc
  #define LLDP_END_TLV_TYPE 0
  #define LLDP_MULTICAST_ADDR "\x01\x80\xc2\x00\x00\x0e"
  
-@@ -84,7 +83,6 @@
+@@ -84,7 +83,6 @@ struct lldp_neighbor {
  };
  
  extern __xdata struct lldp_neighbor lldp_nb[LLDP_NB_MAX];
@@ -18,11 +18,11 @@ index 49632443cad017845b1bb5e4394b7ab1d7130417..0e2d97e8e1742d2a7e03666849d489bc
  #define LLDP_CAPABILITIES_TLV_TYPE 7
  #define LLDP_CAPABILITIES_TLV_LENGTH 4
  #define LLDP_CAPABILITY_BRIDGE 0x0004
-@@ -96,18 +94,14 @@
+@@ -96,18 +94,14 @@ extern __xdata struct lldp_neighbor lldp_nb[LLDP_NB_MAX];
  #define LLDP_MGMT_IF_NUMBERING_UNKNOWN 1
  
  #define LLDP_MAX_PAYLOAD 128
-->>>>>>> e7f959e (PR #588)
+->>>>>>> 85b7637 (PR #588)
  
  void lldp_init(void) __banked;
  void lldp_tick(void) __banked;
@@ -33,7 +33,7 @@ index 49632443cad017845b1bb5e4394b7ab1d7130417..0e2d97e8e1742d2a7e03666849d489bc
  void lldp_show(void) __banked;
 -=======
  void lldp_shutdown(uint16_t ports) __banked;
-->>>>>>> e7f959e (PR #588)
+->>>>>>> 85b7637 (PR #588)
  void lldp_set_addresses(void) __banked;
  void lldp_set_rtl_wrapper(void) __banked;
  uint8_t lldp_sysname(__xdata uint8_t *p) __banked;

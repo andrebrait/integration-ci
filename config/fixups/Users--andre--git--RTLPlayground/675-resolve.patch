@@ -1,8 +1,8 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 9ffdd7696fc09cde3eeef12967466651eb70cd21..f38d56ac419615a23e789187b302b757c72cc751 100644
+index a36838d39b40ae5eb6b4b2226202a2fbc537efba..cf65789c86e91df6990363f6e0835b4d244ad280 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -36,17 +36,14 @@
+@@ -37,17 +37,14 @@
  
  ## Changed
  

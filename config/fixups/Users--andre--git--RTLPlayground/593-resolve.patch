@@ -1,5 +1,5 @@
 diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
-index fcb186dd3232e64e9944a40a6b0298128195021b..58419e2b18d28bb4c2cdec5c3657cf176a6c7ef0 100644
+index 61ce26a3682b15b4a81538cb3cab0f1e629da322..58419e2b18d28bb4c2cdec5c3657cf176a6c7ef0 100644
 --- a/rtl837x_lldp.h
 +++ b/rtl837x_lldp.h
 @@ -27,7 +27,6 @@
@@ -15,7 +15,7 @@ index fcb186dd3232e64e9944a40a6b0298128195021b..58419e2b18d28bb4c2cdec5c3657cf17
  #define LLDP_AGG_CAPABLE 0x01
  #define LLDP_AGG_ACTIVE 0x02
 -=======
-->>>>>>> 251b92a (PR #593)
+->>>>>>> f93457e (PR #593)
  #define LLDP_SYSNAME_TLV_TYPE 5
  #define LLDP_SYSDESC_TLV_TYPE 6
  #define LLDP_CAPABILITIES_TLV_TYPE 7
@@ -28,7 +28,7 @@ index fcb186dd3232e64e9944a40a6b0298128195021b..58419e2b18d28bb4c2cdec5c3657cf17
 -=======
  #define LLDP_NB_PORT_DESC_LENGTH 16
 -#define LLDP_NB_JSON_LENGTH 179	/* separator + worst-case neighbour entry in /lldp.json */
-->>>>>>> 251b92a (PR #593)
+->>>>>>> f93457e (PR #593)
 +#define LLDP_NB_JSON_LENGTH 184	/* separator + worst-case neighbour entry in /lldp.json */
  
  struct lldp_neighbor {

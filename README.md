@@ -115,6 +115,9 @@ preimage hash must match before anything is staged. Resolution uses strict
 stop for review. Capture marker blobs with `git hash-object -w` before resolving,
 then generate the full-index diff between those blobs and the resolved files.
 Ordinary `N-name.patch` fixups still run afterward with `git apply --3way`.
+The warning-details draft's ordinary fixup also adapts the carries to upstream's
+compile-time port bounds, preserves the host fixture profiles, and keeps the
+SNMP-enabled integration within the internal RAM and code-bank limits.
 
 There are deliberately no RTL build/test/deploy hooks or workflow. Do not use
 `all`; build and validate firmware manually before publishing. Driver regression

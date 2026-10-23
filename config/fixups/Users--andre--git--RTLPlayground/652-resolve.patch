@@ -1,5 +1,5 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 9450539a597d5f911a060556cc46eb9444f339ad..130d2323b6fc62934bd0e76d202156e2bad6345f 100644
+index 02e0ba374988c0de229112ca5020bc13d1374cd0..65bd07b245fca6501b212b063c068a2de3e0b06b 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
 @@ -20,13 +20,6 @@
@@ -16,7 +16,7 @@ index 9450539a597d5f911a060556cc46eb9444f339ad..130d2323b6fc62934bd0e76d202156e2
    - Ports page: flow control and EEE sit next to the other port settings, each as a switch with its
      state (TX/RX, Active, Inactive or Off); ⓘ buttons show what the port and its link partner
      advertise, and the link speed is shown in the colour of the port strip. One Apply button sends
-@@ -35,7 +28,11 @@
+@@ -36,7 +29,11 @@
  - Commands
    - `port <port> fc on|off` advertises 802.3x pause on a copper port, or not.
      The choice survives later speed and duplex changes.
@@ -29,15 +29,15 @@ index 9450539a597d5f911a060556cc46eb9444f339ad..130d2323b6fc62934bd0e76d202156e2
  
  ## Changed
  
-@@ -46,7 +43,6 @@
- 
- ## Fixed
- 
+@@ -54,7 +51,6 @@
+ - Health
+   - `HEALTH=1` builds no longer write past the phase timing arrays at the LLDP checkpoint, which
+     corrupted the `link` slow counter and the DHCP client state. #658
 -<<<<<<< HEAD
  - Networking
    - Wildcard UDP listeners reply to the current sender without retaining its
      address or transmitting stale replies during periodic polls.
-@@ -56,11 +52,9 @@
+@@ -64,12 +60,10 @@
      reads resume once the SFR engine and statistics selector are idle.
    - Align SNMP status labels and values with the existing settings-row spacing,
      typography and theme colors.
@@ -45,15 +45,16 @@ index 9450539a597d5f911a060556cc46eb9444f339ad..130d2323b6fc62934bd0e76d202156e2
  - PHY
    - Setting a port's duplex on an autonegotiated link now changes only the duplex bits of the
      advertisement. It used to clear the rest of the register, selector field and pause included.
+   - Report EEE activity on logical port 8 in both the web UI and `eee status`.
 ->>>>>>> rebuild/pr-652
  - Config
    - A startup configuration line longer than the command buffer no longer stops the replay:
      the offending line is skipped and the following lines are still applied.
 diff --git a/html/app.js b/html/app.js
-index 84d46b21155515e4f53dc90a4d238a94ded7302f..513017f8ce7fa3fca199e115ac656b98f0bcbe6f 100644
+index 4ec15ea60039e64894b7af4bfb5e4c6a88d040cd..5bdf0f7d1ff29b52ebfdc7eb5d4bcaad93fdfc20 100644
 --- a/html/app.js
 +++ b/html/app.js
-@@ -1093,15 +1093,12 @@
+@@ -1093,15 +1093,12 @@ function renderInfo(){
    if(S.info.sw_ver)$("fver").textContent="RTLPlayground "+S.info.sw_ver;
  }
  function pollInfo(){
@@ -64,18 +65,17 @@ index 84d46b21155515e4f53dc90a4d238a94ded7302f..513017f8ce7fa3fca199e115ac656b98
      S.info=j;
      (j.logPort||[]).forEach(function(l,i){S.physToLog[i]=l;S.logToPhys[l]=i+1});
      renderInfo();
--  });
-->>>>>>> rebuild/pr-652
 +    renderSnmp(j.snmp);
-+  });
+   });
+->>>>>>> rebuild/pr-652
  }
  function dashStatus(){
    var tb=$("traffic").tBodies[0];
 diff --git a/httpd/page_impl.c b/httpd/page_impl.c
-index f2b462665f6b4dc8985e1cd6c95eecd858712eef..b2c5e65d7c1aa61c725cde2160410a6d1e724808 100644
+index d061ac099d69f38b2ee1aae5914d631f49052195..bc2d038df290f851b23c86c05950e4de3c0b6458 100644
 --- a/httpd/page_impl.c
 +++ b/httpd/page_impl.c
-@@ -321,8 +321,14 @@
+@@ -321,8 +321,14 @@ void send_basic_info(void)
  			send_sfp_info(1);
  		}
  	}
@@ -83,7 +83,7 @@ index f2b462665f6b4dc8985e1cd6c95eecd858712eef..b2c5e65d7c1aa61c725cde2160410a6d
 -	char_to_html('"');
 +	// Chip (logical) port of each front-panel port, in front-panel order
 +	slen += strtox(outbuf + slen, "\",\"logPort\":[");
-+	for (__xdata uint8_t i = 0; i <= machine.max_port - machine.min_port; i++) {
++	for (__xdata uint8_t i = 0; i <= MACHINE_MAX_PORT - MACHINE_MIN_PORT; i++) {
 +		if (i)
 +			char_to_html(',');
 +		itoa_html(machine.phys_to_log_port[i]);
@@ -92,14 +92,14 @@ index f2b462665f6b4dc8985e1cd6c95eecd858712eef..b2c5e65d7c1aa61c725cde2160410a6d
  
  #ifdef SNMP
      {
-@@ -338,16 +344,6 @@
+@@ -338,16 +344,6 @@ void send_basic_info(void)
      }
  #endif
  	char_to_html('}');
 -=======
 -	// Chip (logical) port of each front-panel port, in front-panel order
 -	slen += strtox(outbuf + slen, "\",\"logPort\":[");
--	for (__xdata uint8_t i = 0; i <= machine.max_port - machine.min_port; i++) {
+-	for (__xdata uint8_t i = 0; i <= MACHINE_MAX_PORT - MACHINE_MIN_PORT; i++) {
 -		if (i)
 -			char_to_html(',');
 -		itoa_html(machine.phys_to_log_port[i]);
@@ -110,10 +110,10 @@ index f2b462665f6b4dc8985e1cd6c95eecd858712eef..b2c5e65d7c1aa61c725cde2160410a6d
  
  
 diff --git a/test/test_page_json.c b/test/test_page_json.c
-index 2347be3873f88165fc68304c0c5c5b11f180bf62..2f0b240bff54706a3272787231fba2916db33040 100644
+index 08f6a24e98d886da3dced67d26c837beca7f0d4a..29083e22fbbb0f16a21c83f33c1c4741283bc2fe 100644
 --- a/test/test_page_json.c
 +++ b/test/test_page_json.c
-@@ -323,17 +323,14 @@
+@@ -355,18 +355,15 @@ int main(void)
  	t_l2_page();
  	t_status_counters();
  	t_status_macs();
@@ -125,6 +125,7 @@ index 2347be3873f88165fc68304c0c5c5b11f180bf62..2f0b240bff54706a3272787231fba291
 -=======
  	t_status_fc();
  	t_status_eee();
+ 	t_status_eee_multigig();
  	t_info_mapping();
  	t_pause_set();
 ->>>>>>> rebuild/pr-652

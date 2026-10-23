@@ -1,8 +1,8 @@
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index d389795911b510e201d0f367b360520a94b7e112..a2874bcda892266a85056b7e20fafdef3d9a07cb 100644
+index a4646b92b88dfb4eea4ec1709fab3855396a4d36..1ab6c3a5ead32b896e151ed9fd6f2b5c2b1d4ab1 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -184,7 +184,6 @@
+@@ -184,7 +184,6 @@ uint8_t lldp_sysdesc(__xdata uint8_t *p) __banked
      return machine_name_length + 2; 
  }
  
@@ -10,7 +10,7 @@ index d389795911b510e201d0f367b360520a94b7e112..a2874bcda892266a85056b7e20fafdef
  uint8_t lldp_portdesc(__xdata uint8_t *p, uint8_t port) __banked
  {
      uint8_t name_length = strlen_x(port_names[port]);
-@@ -195,7 +194,8 @@
+@@ -195,7 +194,8 @@ uint8_t lldp_portdesc(__xdata uint8_t *p, uint8_t port) __banked
      *p++ = name_length;
      memcpy(p, port_names[port], name_length);
      return name_length + 2;
@@ -20,10 +20,18 @@ index d389795911b510e201d0f367b360520a94b7e112..a2874bcda892266a85056b7e20fafdef
  #define LLDP_RX_TAG ((__xdata struct rtl_tag *)&uip_buf[2 * MAC_ADDR_LEN])
  
  static uint8_t lldp_printable(uint8_t c) __reentrant
-@@ -408,5 +408,4 @@
+@@ -271,7 +271,7 @@ bool lldp_in(void) __banked __reentrant
+ 
+     memset(&lldp_tmp, 0, sizeof(lldp_tmp));
+     lldp_tmp.port = ((uint8_t)HTONS(LLDP_RX_TAG->pmask)) & 0x0f;
+-    if (lldp_tmp.port < machine.min_port || lldp_tmp.port > machine.max_port)
++    if (!MACHINE_PORT_VALID(lldp_tmp.port))
+         return true;
+     lldp_tmp.ttl = LLDP_TTL_TTL_SECONDS;
+ 
+@@ -408,5 +408,4 @@ void lldp_show(void) __banked __reentrant
          lldp_put_dec(lldp_nb[i].ttl, false);
          print_string("s\n");
      }
-->>>>>>> da51589 (PR #589)
--}
-+}
+->>>>>>> ab52579 (PR #589)
+ }
