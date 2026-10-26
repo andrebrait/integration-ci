@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { cli } from "./pr-watcher.mjs";
+import { cli, ompHost } from "./pr-watcher.mjs";
 import { openStore } from "./store.mjs";
 
 const script = fileURLToPath(new URL("./pr-watcher.mjs", import.meta.url));
@@ -14,7 +14,7 @@ function harness() {
   const dir = tmp();
   const store = openStore(dir, { config: join(dir, "none.json"), state: join(dir, "none-state.json") });
   const io = { out: [], err: [] };
-  const run = (...argv) => cli(argv, { store, out: (line) => io.out.push(line), err: (line) => io.err.push(line) });
+  const run = (...argv) => cli(argv, { store, out: (line) => io.out.push(line), err: (line) => io.err.push(line), host: () => io.host ?? null });
   return { dir, store, io, run };
 }
 
@@ -38,6 +38,30 @@ test("add accepts repeated --ignore-author, including bots", () => {
   const { store, run } = harness();
   assert.equal(run("add", "a/b#1", "--session", "s1", "--ignore-author", "kvn", "--ignore-author", "coderabbitai[bot]"), 0);
   assert.deepEqual(store.list()[0].ignoreAuthors, ["kvn", "coderabbitai[bot]"]);
+});
+
+test("add refuses a session run by a terminal omp and writes nothing; omp-web and plain shells are accepted", () => {
+  const { store, io, run } = harness();
+  io.host = "terminal";
+  assert.equal(run("add", "a/b#1", "--session", "s1"), 2);
+  assert.deepEqual(store.list(), []);
+  assert.match(io.err.join("\n"), /only to omp-web sessions/);
+  io.host = "omp-web";
+  assert.equal(run("add", "a/b#1", "--session", "s1"), 0);
+  io.host = null;
+  assert.equal(run("add", "a/b#2", "--session", "s1"), 0);
+  assert.equal(store.list().length, 2);
+});
+
+test("ompHost classifies the nearest omp ancestor", () => {
+  const tree = (procs) => [(pid) => procs[pid][0].join("\0"), (pid) => procs[pid][1]];
+  const host = (procs) => ompHost(10, ...tree(procs));
+  const shell = [["/bin/bash", "-c", "pr-watcher add"], 11];
+  assert.equal(host({ 10: shell, 11: [["/opt/omp/current/omp", "--mode", "rpc-ui", "--resume", "x"], 1] }), "omp-web");
+  assert.equal(host({ 10: shell, 11: [["omp", "--mode=rpc-ui"], 1] }), "omp-web");
+  assert.equal(host({ 10: shell, 11: [["omp", "--resume"], 12], 12: [["/usr/bin/zsh"], 1] }), "terminal");
+  assert.equal(host({ 10: shell, 11: [["/usr/bin/zsh"], 1] }), null);
+  assert.equal(ompHost(10, () => { throw new Error("no /proc"); }, () => 1), null);
 });
 
 test("remove reports what it removed and succeeds when nothing matches", () => {
@@ -74,7 +98,11 @@ test("run through a symlink from another directory, the CLI uses PR_WATCHER_DATA
   const link = join(tmp(), "pr-watcher");
   symlinkSync(script, link);
   const env = { ...process.env, PR_WATCHER_DATA_DIR: data, PR_WATCHER_CONFIG: join(data, "none.json") };
-  execFileSync(process.execPath, [link, "add", "a/b#7", "--session", "s7"], { env, cwd: tmpdir() });
+  // Seeded here: a CLI `add` would depend on whether the suite runs inside a terminal omp.
+  const store = openStore(data, { config: join(data, "none.json"), state: join(data, "none-state.json") });
+  store.add("a/b#7", "s7", []);
+  store.add("a/b#8", "s8", []);
+  execFileSync(process.execPath, [link, "remove", "a/b#8"], { env, cwd: tmpdir() });
   const listed = JSON.parse(execFileSync(process.execPath, [link, "list", "--json"], { env, encoding: "utf8" }));
   assert.deepEqual(listed.map((w) => w.pr), ["a/b#7"]);
 });

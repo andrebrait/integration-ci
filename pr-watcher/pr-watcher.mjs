@@ -2,7 +2,8 @@
 // Polls GitHub pull requests and notifies the omp session mapped to each one
 // through omp-web's agent API. Watches live in the store (see store.mjs).
 import { execFile } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { basename } from "node:path";
 import { promisify, parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { dataDir, isLogin, isSession, openStore, parsePr } from "./store.mjs";
@@ -164,8 +165,30 @@ const USAGE = `usage: pr-watcher [--once]
        pr-watcher remove OWNER/REPO#N [--session ID]
        pr-watcher list [--json]`;
 
+/**
+ * How the omp process running this command is hosted: "omp-web" (omp-web's
+ * `--mode rpc-ui` child), "terminal" (any other omp), or null when no omp
+ * process is among the ancestors (a plain shell) or /proc is unavailable.
+ */
+export function ompHost(
+  pid = process.ppid,
+  readCmdline = (p) => readFileSync(`/proc/${p}/cmdline`, "utf8"),
+  readParent = (p) => Number(readFileSync(`/proc/${p}/stat`, "utf8").split(") ").at(-1).split(" ")[1]),
+) {
+  try {
+    for (let depth = 0; pid > 1 && depth < 64; depth += 1, pid = readParent(pid)) {
+      const args = readCmdline(pid).split("\0");
+      if (basename(args[0]) !== "omp") continue;
+      const i = args.findIndex((arg) => arg === "--mode" || arg.startsWith("--mode="));
+      const mode = i < 0 ? undefined : args[i].startsWith("--mode=") ? args[i].slice(7) : args[i + 1];
+      return mode === "rpc-ui" ? "omp-web" : "terminal";
+    }
+  } catch {}
+  return null;
+}
+
 /** Watch management. Returns the exit status: 0 ok, 2 invalid input (nothing written). */
-export function cli(argv, { store, out, err }) {
+export function cli(argv, { store, out, err, host = () => null }) {
   let parsed;
   try {
     parsed = parseArgs({ args: argv, allowPositionals: true, options: { session: { type: "string" }, "ignore-author": { type: "string", multiple: true }, json: { type: "boolean" } } });
@@ -194,6 +217,12 @@ export function cli(argv, { store, out, err }) {
   const ignore = values["ignore-author"] ?? [];
   const badLogin = ignore.find((login) => !isLogin(login));
   if (badLogin !== undefined) return invalid(`invalid login ${badLogin}`);
+  // omp-web delivers by starting its own omp on the session, which would run
+  // beside the terminal omp that has it open.
+  if (host() === "terminal") {
+    err("pr-watcher: this omp session runs outside omp-web; updates are delivered only to omp-web sessions. Nothing was added.");
+    return 2;
+  }
   store.add(pr, values.session, ignore);
   out(`watching ${pr} for ${values.session}`);
   return 0;
@@ -202,7 +231,7 @@ export function cli(argv, { store, out, err }) {
 async function main(argv) {
   if (argv.length === 0 || (argv.length === 1 && argv[0] === "--once")) return serve(argv[0] === "--once");
   try {
-    process.exitCode = cli(argv, { store: openStore(dataDir()), out: console.log, err: console.error });
+    process.exitCode = cli(argv, { store: openStore(dataDir()), out: console.log, err: console.error, host: ompHost });
   } catch (error) {
     console.error(`pr-watcher: ${error.message}`);
     process.exitCode = 1;

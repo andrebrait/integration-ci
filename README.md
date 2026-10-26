@@ -142,6 +142,14 @@ newer, an authenticated `gh`, and a running omp-web.
   A new watch is picked up on the next cycle, which records a baseline: it
   reports only activity after that first poll (up to one interval after
   `add`). Invalid input exits with status 2 and adds or removes no watch.
+
+  Only omp-web sessions can be watched. omp-web delivers by resuming the
+  session in its own omp process, so a session open in a terminal omp would
+  end up with two agents running on it. `add` therefore refuses, with status
+  2, when it runs inside an omp process that omp-web did not start (any omp
+  ancestor without `--mode rpc-ui`). Run from a plain shell, `add` cannot tell
+  and accepts the watch. A session that omp-web started and that is later
+  reopened in a terminal is not detected: remove its watch first.
 - **What it reports:** new comments and reviews (except the `gh` user's own
   and ignored authors), edits to them (bots such as CodeRabbit post a finished
   review by editing an earlier comment), a terminal CI result (`SUCCESS`,
