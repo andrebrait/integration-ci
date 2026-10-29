@@ -1,5 +1,5 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 02e0ba374988c0de229112ca5020bc13d1374cd0..65bd07b245fca6501b212b063c068a2de3e0b06b 100644
+index c622411200fd050f0cec56adcd3e83948e97b8ba..1a8589f14f4342870fee3b201f3edc08a3c020dd 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
 @@ -20,13 +20,6 @@
@@ -16,10 +16,10 @@ index 02e0ba374988c0de229112ca5020bc13d1374cd0..65bd07b245fca6501b212b063c068a2d
    - Ports page: flow control and EEE sit next to the other port settings, each as a switch with its
      state (TX/RX, Active, Inactive or Off); ⓘ buttons show what the port and its link partner
      advertise, and the link speed is shown in the colour of the port strip. One Apply button sends
-@@ -36,7 +29,11 @@
- - Commands
-   - `port <port> fc on|off` advertises 802.3x pause on a copper port, or not.
+@@ -38,7 +31,11 @@
      The choice survives later speed and duplex changes.
+   - `port <port> fc` and `eee on|off` leave the link up when the port already has that setting.
+     `eee on <port> 100m` now also stops advertising 2.5G and 5G EEE.
 ->>>>>>> rebuild/pr-652
 +- SNMP
 +  - Bounded GETBULK walks, interface administrative state, aliases, error counters
@@ -29,7 +29,7 @@ index 02e0ba374988c0de229112ca5020bc13d1374cd0..65bd07b245fca6501b212b063c068a2d
  
  ## Changed
  
-@@ -54,7 +51,6 @@
+@@ -69,7 +66,6 @@
  - Health
    - `HEALTH=1` builds no longer write past the phase timing arrays at the LLDP checkpoint, which
      corrupted the `link` slow counter and the DHCP client state. #658
@@ -37,7 +37,7 @@ index 02e0ba374988c0de229112ca5020bc13d1374cd0..65bd07b245fca6501b212b063c068a2d
  - Networking
    - Wildcard UDP listeners reply to the current sender without retaining its
      address or transmitting stale replies during periodic polls.
-@@ -64,12 +60,10 @@
+@@ -79,12 +75,10 @@
      reads resume once the SFR engine and statistics selector are idle.
    - Align SNMP status labels and values with the existing settings-row spacing,
      typography and theme colors.
@@ -50,11 +50,44 @@ index 02e0ba374988c0de229112ca5020bc13d1374cd0..65bd07b245fca6501b212b063c068a2d
  - Config
    - A startup configuration line longer than the command buffer no longer stops the replay:
      the offending line is skipped and the following lines are still applied.
+diff --git a/Makefile b/Makefile
+index e95465ff3f568ebc5f205190662f6e85ae88f65e..704b8b789baf3da2029e083cd29eb798c65c0e08 100644
+--- a/Makefile
++++ b/Makefile
+@@ -151,11 +151,8 @@ SRCS += \
+ 	rtl837x_port.c \
+ 	rtl837x_stp.c \
+ 	rtl837x_lldp.c \
+-<<<<<<< HEAD
+ 	rtl837x_lldp_tx_strings.c \
+-=======
+ 	rtl837x_pause.c \
+->>>>>>> rebuild/pr-652
+ 	rtl837x_storm.c \
+ 	rtl837x_lacp.c \
+ 	rtl837x_trap.c \
 diff --git a/html/app.js b/html/app.js
-index 4ec15ea60039e64894b7af4bfb5e4c6a88d040cd..5bdf0f7d1ff29b52ebfdc7eb5d4bcaad93fdfc20 100644
+index c5e57169c1bbc38c90c82a3e4aadcedeef18eff5..369973dd84dfffb5fd518d2496ead59faa210856 100644
 --- a/html/app.js
 +++ b/html/app.js
-@@ -1093,15 +1093,12 @@ function renderInfo(){
+@@ -874,15 +874,9 @@ function setDirty(d){
+ function postCmd(cmd,quiet){
+   var safe=redactSnmp(cmd),secret=safe!==cmd;
+   return api("/cmd",{method:"POST",body:cmd}).then(function(r){
+-<<<<<<< HEAD
+     if(!r.ok)throw new Error(secret?t("t_rejected",{c:safe}):(((r.body||"").split("\n")[0])||t("t_rejected",{c:safe})));
+-    if(isConfCmd(cmd.trim()))setDirty(true);
+-    if(!quiet)toast(t("t_applied",{c:safe}),"ok");
+-=======
+-    if(!r.ok)throw new Error(((r.body||"").split("\n")[0])||t("t_rejected",{c:cmd}));
+     if(cmd.trim().split("\n").some(function(l){return isConfCmd(l.trim())}))setDirty(true);
+-    if(!quiet)toast(t("t_applied",{c:cmd}),"ok");
+->>>>>>> rebuild/pr-652
++    if(!quiet)toast(t("t_applied",{c:safe}),"ok");
+     return r;
+   },function(e){var message=secret?t("t_failed",{c:safe}):(e.message||t("t_failed",{c:safe}));toast(message,"err");throw secret?new Error(message):e;});
+ }
+@@ -1129,15 +1123,12 @@ function renderInfo(){
    if(S.info.sw_ver)$("fver").textContent="RTLPlayground "+S.info.sw_ver;
  }
  function pollInfo(){
@@ -72,7 +105,7 @@ index 4ec15ea60039e64894b7af4bfb5e4c6a88d040cd..5bdf0f7d1ff29b52ebfdc7eb5d4bcaad
  function dashStatus(){
    var tb=$("traffic").tBodies[0];
 diff --git a/httpd/page_impl.c b/httpd/page_impl.c
-index d061ac099d69f38b2ee1aae5914d631f49052195..bc2d038df290f851b23c86c05950e4de3c0b6458 100644
+index 9876496e200eb285a7d9114776db6e5362bb2075..ef4a7f8d1a7f4622ebcdb5ac9d4e5bcfab9766d1 100644
 --- a/httpd/page_impl.c
 +++ b/httpd/page_impl.c
 @@ -321,8 +321,14 @@ void send_basic_info(void)
@@ -110,10 +143,10 @@ index d061ac099d69f38b2ee1aae5914d631f49052195..bc2d038df290f851b23c86c05950e4de
  
  
 diff --git a/test/test_page_json.c b/test/test_page_json.c
-index 08f6a24e98d886da3dced67d26c837beca7f0d4a..29083e22fbbb0f16a21c83f33c1c4741283bc2fe 100644
+index 784e2d4e395744cee06ad1ad49c540d20f28c092..fabfb770a3207ae416b9d890f1ed0f7b5b408112 100644
 --- a/test/test_page_json.c
 +++ b/test/test_page_json.c
-@@ -355,18 +355,15 @@ int main(void)
+@@ -388,19 +388,16 @@ int main(void)
  	t_l2_page();
  	t_status_counters();
  	t_status_macs();
@@ -128,6 +161,7 @@ index 08f6a24e98d886da3dced67d26c837beca7f0d4a..29083e22fbbb0f16a21c83f33c1c4741
  	t_status_eee_multigig();
  	t_info_mapping();
  	t_pause_set();
+ 	t_eee_set();
 ->>>>>>> rebuild/pr-652
  	printf("\n%d checks, %d failed\n", tests_run, tests_failed);
  	return tests_failed ? 1 : 0;

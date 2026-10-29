@@ -1,0 +1,90 @@
+diff --git a/snmp.c b/snmp.c
+index 098a856dd1f6cee507a4a067cd0ac31dfac4f551..86581b4298b2b994782dfd514a4bd2d0f70cca4c 100644
+--- a/snmp.c
++++ b/snmp.c
+@@ -87,7 +87,6 @@ static bool integer(uint16_t end, __xdata uint8_t mode)
+ {
+ 	/* SDCC #15242 otherwise spills these XDATA temporaries into scarce DATA. */
+ 	__xdata volatile uint16_t e, n, o;
+-	__xdata volatile uint8_t i;
+ 	if (!tlv(ASN_INTEGER, end, &e))
+ 		return false;
+ 	n = e - cursor;
+@@ -98,8 +97,7 @@ static bool integer(uint16_t end, __xdata uint8_t mode)
+ 		return false;
+ 	if (mode == INT_ID) {
+ 		id_length = n;
+-		for (i = 0; i < n; ++i)
+-			request_id[i] = request[cursor + i];
++		memcpy(request_id, request + cursor, n);
+ 	} else if (mode == INT_FIELD) {
+ 		/* Negative is 0. A minimal positive value needing more than 16 bits saturates. */
+ 		field = 0;
+@@ -161,6 +159,24 @@ static bool oid(uint16_t offset, __xdata uint16_t length)
+ 	return start && !first;
+ }
+ 
++/* A leaf: SDCC keeps the temporaries of leaf functions in the shared overlay, not in scarce DATA. */
++static bool number_ok(uint8_t tag, __xdata uint16_t n)
++{
++	if (!n || n > (tag == ASN_INTEGER     ? 4
++		       : tag == ASN_COUNTER64 ? 9
++					      : 5))
++		return false;
++	if (n > 1 &&
++	    ((request[cursor] == 0 && !(request[cursor + 1] & 0x80)) ||
++	     (request[cursor] == 255 && (request[cursor + 1] & 0x80))))
++		return false;
++	if (tag != ASN_INTEGER &&
++	    ((request[cursor] & 0x80) ||
++	     (n == (tag == ASN_COUNTER64 ? 9 : 5) && request[cursor])))
++		return false;
++	return true;
++}
++
+ static bool parse(uint16_t length)
+ {
+ 	__xdata volatile uint16_t outer, comm, pend, list, bind, name, value, boff, voff;
+@@ -204,8 +220,8 @@ static bool parse(uint16_t length)
+ 		if (cursor >= bind || !tlv(request[cursor], bind, &value) || value != bind)
+ 			return false;
+ 		{
+-			__xdata uint8_t tag;
+-			__xdata uint16_t n;
++			__xdata volatile uint8_t tag;
++			__xdata volatile uint16_t n;
+ 			tag = request[voff];
+ 			n = value - cursor;
+ 			if (tag == ASN_NULL || tag == SNMP_NO_SUCH_OBJECT ||
+@@ -215,17 +231,7 @@ static bool parse(uint16_t length)
+ 			} else if (tag == ASN_INTEGER || tag == ASN_COUNTER32 ||
+ 				   tag == ASN_GAUGE32 || tag == ASN_TIMETICKS ||
+ 				   tag == ASN_COUNTER64 || tag == ASN_UNSIGNED32) {
+-				if (!n || n > (tag == ASN_INTEGER     ? 4
+-					       : tag == ASN_COUNTER64 ? 9
+-								      : 5))
+-					return false;
+-				if (n > 1 &&
+-				    ((request[cursor] == 0 && !(request[cursor + 1] & 0x80)) ||
+-				     (request[cursor] == 255 && (request[cursor + 1] & 0x80))))
+-					return false;
+-				if (tag != ASN_INTEGER &&
+-				    ((request[cursor] & 0x80) ||
+-				     (n == (tag == ASN_COUNTER64 ? 9 : 5) && request[cursor])))
++				if (!number_ok(tag, n))
+ 					return false;
+ 			} else if (tag == ASN_OBJECT_ID) {
+ 				if (!oid(cursor, n))
+diff --git a/snmp_hw.c b/snmp_hw.c
+index 5164420cc9cd2b860bd88a465a427f8eb9318849..11666c223f399a42892c82e5b2f6155ca6078905 100644
+--- a/snmp_hw.c
++++ b/snmp_hw.c
+@@ -175,7 +175,7 @@ bool snmp_hw_speed(uint8_t port, __xdata uint16_t *__xdata mbps) __banked
+ 		return false;
+ 	*mbps = 0;
+ 	/* snmp_hw_link() has already validated the MAC port range 0..8. */
+-	if (!(links & ((uint16_t)1 << port)))
++	if (!((uint16_t)links & ((uint16_t)1 << port))) /* 16 bits cover MACs 0..8, 32-bit temporaries would use scarce DATA */
+ 		return true;
+ 	if (!access(port < 8 ? RTL837X_REG_LINKS : RTL837X_REG_LINKS_89, SFR_EXEC_READ_REG))
+ 		return false;

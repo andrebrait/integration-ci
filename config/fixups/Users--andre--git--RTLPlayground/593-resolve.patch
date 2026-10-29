@@ -1,35 +1,32 @@
-diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
-index 61ce26a3682b15b4a81538cb3cab0f1e629da322..58419e2b18d28bb4c2cdec5c3657cf176a6c7ef0 100644
---- a/rtl837x_lldp.h
-+++ b/rtl837x_lldp.h
-@@ -27,7 +27,6 @@
- #define LLDP_CHASSIS_ID_TLV_SUBTYPE 4
- 
- #define LLDP_PORT_DESC_TLV_TYPE 4
+diff --git a/html/app.js b/html/app.js
+index 65e10d740a0264559d98af0006d9954f860556c2..183152f1936a3aa70f49b7b673d749d73d86c566 100644
+--- a/html/app.js
++++ b/html/app.js
+@@ -47,13 +47,9 @@ stp_bh:"BPDUs while disabled",stp_bh_flood:"Flood",stp_bh_filter:"Filter",
+ stp_r4:"Backup",stp_times:"max age / forward delay",stp_proto:"Protocol",stp_nolink:"no link",stp_lasttc:"last",
+ stp_mcheck:"Check",stp_mcheck_t:"Send RST BPDUs again to find out whether the neighbour still needs 802.1D",
+ stp_cnt:"Counters",stp_crx:"BPDUs received",stp_ctx:"BPDUs sent",stp_ctrx:"TC received",stp_cttx:"TC sent",stp_cage:"Last BPDU [s]",
 -<<<<<<< HEAD
- #define LLDP_ORG_TLV_TYPE 127
- #define LLDP_ORG_TLV_HEADER_LENGTH 4
- #define LLDP_8021_SUBTYPE_PVID 1
-@@ -65,8 +64,6 @@
- #define LLDP_8023_SUBTYPE_MAX_FRAME 4
- #define LLDP_AGG_CAPABLE 0x01
- #define LLDP_AGG_ACTIVE 0x02
+-lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_ttl:"TTL",
++lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_ttl:"TTL",
+ lldp_tlvs:"Optional TLVs",lldp_t_portdesc:"Port Description",lldp_t_syscap:"System Capabilities",lldp_t_mgmt:"Management Address",
+ lldp_t_pvid:"Port VLAN ID",lldp_t_macphy:"MAC/PHY Status",lldp_t_lag:"Link Aggregation",lldp_t_mfs:"Maximum Frame Size",
 -=======
-->>>>>>> f93457e (PR #593)
- #define LLDP_SYSNAME_TLV_TYPE 5
- #define LLDP_SYSDESC_TLV_TYPE 6
- #define LLDP_CAPABILITIES_TLV_TYPE 7
-@@ -87,12 +84,8 @@
- /* shortcut: retain 17 printable ID characters; expand only when full remote IDs are needed. */
- #define LLDP_NB_PORT_ID_LENGTH 17
- #define LLDP_NB_SYS_NAME_LENGTH 16
--<<<<<<< HEAD
--#define LLDP_NB_JSON_LENGTH 112	/* separator + worst-case neighbour entry in /lldp.json */
--=======
- #define LLDP_NB_PORT_DESC_LENGTH 16
--#define LLDP_NB_JSON_LENGTH 179	/* separator + worst-case neighbour entry in /lldp.json */
-->>>>>>> f93457e (PR #593)
-+#define LLDP_NB_JSON_LENGTH 184	/* separator + worst-case neighbour entry in /lldp.json */
+-lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_ttl:"TTL",
+->>>>>>> d3f4040 (PR #593)
+ st_title:"Port statistics",st_h:"totals since boot",st_txg:"TX good",st_txb:"TX bad",st_rxg:"RX good",
+ st_rxb:"RX bad",st_details:"Details",st_counters:"MIB counters",st_nonzero:"non-zero only",
+ st_autoref:"auto-refresh",st_counter:"Counter",st_value:"Value",st_fail:"failed to load counters",
+@@ -2273,12 +2269,9 @@ var lagPoller=new Poller(function(){return lagLoad().catch(function(){})},3000);
+ tabHooks.lag={enter:function(){needPorts(function(){buildLag();lagPoller.start()})},leave:function(){lagPoller.stop()}};
  
- struct lldp_neighbor {
-     uint8_t port;		/* logical ingress port */
+ 
+-<<<<<<< HEAD
+ var LLDP_TLVS=["portdesc","syscap","mgmt","pvid","macphy","lag","mfs"];
+-=======
+ var LLDP_CAPS=[[1,"Other"],[2,"Repeater"],[4,"Bridge"],[8,"WLAN AP"],[16,"Router"],[32,"Telephone"],[64,"DOCSIS"],[128,"Station"]];
+ function lldpCaps(c){return LLDP_CAPS.filter(function(x){return c&x[0]}).map(function(x){return x[1]}).join(", ")}
+->>>>>>> d3f4040 (PR #593)
+ function lldpLoad(){
+   return getJSON("/lldp.json").then(function(s){
+     $("lldp_en").checked=s.on;

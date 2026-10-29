@@ -1,11 +1,11 @@
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index 858fec20a05384d2fc70816b6d16be7b9f7fe8b5..fa322c18a68d77f2e038dad7028dd75751a3c6bd 100644
+index 775281780de3892657e105a5d52624f1c7221c35..300b5284e67c9b8f30b4a5eddff18ef8c718e934 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -9,25 +9,19 @@
- #include "uip.h"
+@@ -11,26 +11,19 @@
  #include "uip/uip.h"
  #include "machine.h"
+ #include "version.h"
 -<<<<<<< HEAD
  #include "rtl837x_trap.h"
  #include "page_impl.h"
@@ -14,6 +14,7 @@ index 858fec20a05384d2fc70816b6d16be7b9f7fe8b5..fa322c18a68d77f2e038dad7028dd757
 -extern __code const struct machine machine;
 -extern __xdata uint8_t outbuf[];
 -extern __xdata uint16_t slen;
+-extern __xdata uint8_t sfr_data[4];
 -=======
  #include "rtl837x_regs.h"
  #include "rtl837x_port.h"
@@ -26,11 +27,11 @@ index 858fec20a05384d2fc70816b6d16be7b9f7fe8b5..fa322c18a68d77f2e038dad7028dd757
  extern __xdata uint8_t sfr_data[4];
  static __code const uint8_t lldp_oui_8021[3] = {0x00, 0x80, 0xc2};
  static __code const uint8_t lldp_oui_8023[3] = {0x00, 0x12, 0x0f};
-->>>>>>> 27f8fe5 (PR #600)
+->>>>>>> rebuild/pr-600
  
  extern volatile __xdata uint32_t ticks;
  
-@@ -189,7 +183,6 @@ uint8_t lldp_portdesc(__xdata uint8_t *p, uint8_t port) __banked
+@@ -237,7 +230,6 @@ uint8_t lldp_portdesc(__xdata uint8_t *p, uint8_t port) __banked
      return name_length + 2;
  }
  
@@ -38,7 +39,7 @@ index 858fec20a05384d2fc70816b6d16be7b9f7fe8b5..fa322c18a68d77f2e038dad7028dd757
  #define LLDP_RX_TAG ((__xdata struct rtl_tag *)&uip_buf[2 * MAC_ADDR_LEN])
  
  static uint8_t lldp_printable(uint8_t c) __reentrant
-@@ -402,7 +395,8 @@ void lldp_show(void) __banked __reentrant
+@@ -461,7 +453,8 @@ void lldp_show(void) __banked __reentrant
          lldp_put_dec(lldp_nb[i].ttl, false);
          print_string("s\n");
      }
@@ -48,9 +49,9 @@ index 858fec20a05384d2fc70816b6d16be7b9f7fe8b5..fa322c18a68d77f2e038dad7028dd757
  static __xdata uint8_t *lldp_org_header(__xdata uint8_t *p, __code const uint8_t *oui, uint8_t subtype, uint8_t length) __reentrant
  {
      *p++ = (uint8_t)LLDP_TYPE(LLDP_ORG_TLV_TYPE);
-@@ -501,5 +495,4 @@ uint8_t lldp_port_org_tlvs(__xdata uint8_t *p, uint8_t port) __banked __reentran
+@@ -560,5 +553,4 @@ uint8_t lldp_port_org_tlvs(__xdata uint8_t *p, uint8_t port) __banked __reentran
      *p++ = v & 0xff;
  
      return p - start;
-->>>>>>> 27f8fe5 (PR #600)
+->>>>>>> rebuild/pr-600
  }

@@ -1,16 +1,36 @@
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index a4646b92b88dfb4eea4ec1709fab3855396a4d36..1ab6c3a5ead32b896e151ed9fd6f2b5c2b1d4ab1 100644
+index ef2a33e90367a08cb468f14b9b8ca99b6f397533..d7186f706400180623235d7ff815fd17c3263426 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -184,7 +184,6 @@ uint8_t lldp_sysdesc(__xdata uint8_t *p) __banked
-     return machine_name_length + 2; 
+@@ -164,27 +164,6 @@ void lldp_set_rtl_wrapper(void) __banked {
+     LLDP_O->ether_type = HTONS(LLDP_ETHERTYPE);
  }
  
+-uint8_t lldp_sysname(__xdata uint8_t *p) __banked
+-{
+-    uint8_t hostname_length = strlen_x(hostname);
+-
+-    *p++ = LLDP_TYPE(LLDP_SYSNAME_TLV_TYPE);
+-    *p++ = hostname_length;
+-    memcpy(p, hostname, hostname_length);
+-    return hostname_length + 2;
+-}
+-
+-uint8_t lldp_sysdesc(__xdata uint8_t *p) __banked
+-{
+-    uint16_t machine_name_length = strlen(machine.machine_name);
+-
+-    *p++ = LLDP_TYPE(LLDP_SYSDESC_TLV_TYPE);
+-    *p++ = machine_name_length;
+-    memcpyc(p, machine.machine_name, machine_name_length);
+-    return machine_name_length + 2; 
+-}
+-
 -<<<<<<< HEAD
  uint8_t lldp_portdesc(__xdata uint8_t *p, uint8_t port) __banked
  {
      uint8_t name_length = strlen_x(port_names[port]);
-@@ -195,7 +194,8 @@ uint8_t lldp_portdesc(__xdata uint8_t *p, uint8_t port) __banked
+@@ -195,7 +174,8 @@ uint8_t lldp_portdesc(__xdata uint8_t *p, uint8_t port) __banked
      *p++ = name_length;
      memcpy(p, port_names[port], name_length);
      return name_length + 2;
@@ -20,18 +40,9 @@ index a4646b92b88dfb4eea4ec1709fab3855396a4d36..1ab6c3a5ead32b896e151ed9fd6f2b5c
  #define LLDP_RX_TAG ((__xdata struct rtl_tag *)&uip_buf[2 * MAC_ADDR_LEN])
  
  static uint8_t lldp_printable(uint8_t c) __reentrant
-@@ -271,7 +271,7 @@ bool lldp_in(void) __banked __reentrant
- 
-     memset(&lldp_tmp, 0, sizeof(lldp_tmp));
-     lldp_tmp.port = ((uint8_t)HTONS(LLDP_RX_TAG->pmask)) & 0x0f;
--    if (lldp_tmp.port < machine.min_port || lldp_tmp.port > machine.max_port)
-+    if (!MACHINE_PORT_VALID(lldp_tmp.port))
-         return true;
-     lldp_tmp.ttl = LLDP_TTL_TTL_SECONDS;
- 
-@@ -408,5 +408,4 @@ void lldp_show(void) __banked __reentrant
+@@ -408,5 +388,4 @@ void lldp_show(void) __banked __reentrant
          lldp_put_dec(lldp_nb[i].ttl, false);
          print_string("s\n");
      }
-->>>>>>> ab52579 (PR #589)
+->>>>>>> 8c9e2ad (PR #589)
  }

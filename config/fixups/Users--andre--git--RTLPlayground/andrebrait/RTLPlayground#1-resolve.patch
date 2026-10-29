@@ -1,92 +1,8 @@
-diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 398a60f4909c6577441a932e8773377c95e4fa3c..8d29bc4d61dc9cbe89e02fa444c911a93b259ca2 100644
---- a/CHANGELOG.md
-+++ b/CHANGELOG.md
-@@ -55,7 +55,6 @@
- - Health
-   - `HEALTH=1` builds no longer write past the phase timing arrays at the LLDP checkpoint, which
-     corrupted the `link` slow counter and the DHCP client state. #658
--<<<<<<< HEAD
- - Networking
-   - Wildcard UDP listeners reply to the current sender without retaining its
-     address or transmitting stale replies during periodic polls.
-@@ -69,7 +68,6 @@
-   - Setting a port's duplex on an autonegotiated link now changes only the duplex bits of the
-     advertisement. It used to clear the rest of the register, selector field and pause included.
-   - Report EEE activity on logical port 8 in both the web UI and `eee status`.
--=======
- - LLDP
-   - Format binary MAC-address Port IDs as 17 colon-separated hexadecimal characters instead
-     of interpreting their six octets as text. Deliver LLDP before the shared STP/LACP
-@@ -84,7 +82,6 @@
-     identifiers contain 1..255 octets plus a subtype byte. Longer valid IDs are truncated.
-     This branch accepts only six-octet MAC Chassis IDs; arbitrary Chassis ID storage and
-     its separate display-capacity correction belong to the neighbor-details branch.
-->>>>>>> af4352e (PR andrebrait/RTLPlayground#1)
- - Config
-   - A startup configuration line longer than the command buffer no longer stops the replay:
-     the offending line is skipped and the following lines are still applied.
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index b77068b985a0cf7976d94a96cb619a38b7040d65..87c69dc634d79f3515e9173b2e35e59ecb89ac02 100644
+index b6044df0d639145a7dfc38ec2e9422b6198e5821..aadc70e56eaa81559a80c82fde901032fd7b426e 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -21,11 +21,8 @@ extern __code const struct machine machine;
- extern __xdata uint8_t outbuf[];
- extern __xdata uint16_t slen;
- extern __xdata uint8_t sfr_data[4];
--<<<<<<< HEAD
- static __code const uint8_t lldp_oui_8021[3] = {0x00, 0x80, 0xc2};
- static __code const uint8_t lldp_oui_8023[3] = {0x00, 0x12, 0x0f};
--=======
-->>>>>>> af4352e (PR andrebrait/RTLPlayground#1)
- 
- extern volatile __xdata uint32_t ticks;
- 
-@@ -249,9 +246,6 @@ static void lldp_copy_string(__xdata char *dst, __xdata uint8_t *src, uint16_t l
-     dst[i] = 0;
- }
- 
--<<<<<<< HEAD
--static bool lldp_bytes_eq(__xdata uint8_t *a, __xdata uint8_t *b, uint8_t n) __reentrant
--=======
- static void lldp_mac_string(__xdata char *dst, __xdata uint8_t *mac) __reentrant
- {
-     uint8_t i;
-@@ -265,8 +259,7 @@ static void lldp_mac_string(__xdata char *dst, __xdata uint8_t *mac) __reentrant
-     *dst = 0;
- }
- 
--static bool lldp_mac_eq(__xdata uint8_t *a, __xdata uint8_t *b) __reentrant
-->>>>>>> af4352e (PR andrebrait/RTLPlayground#1)
-+static bool lldp_bytes_eq(__xdata uint8_t *a, __xdata uint8_t *b, uint8_t n) __reentrant
- {
-     uint8_t i;
- 
-@@ -349,17 +342,13 @@ bool lldp_in(void) __banked __reentrant
-         }
-         switch (type) {
-         case LLDP_CHASSIS_ID_TLV_TYPE:
--<<<<<<< HEAD
--            if (len > 1) {
--                lldp_tmp.chassis_subtype = p[0];
--                lldp_tmp.chassis_len = len - 1 > LLDP_NB_CHASSIS_LENGTH ? LLDP_NB_CHASSIS_LENGTH : len - 1;
--                memcpy(lldp_tmp.chassis, p + 1, lldp_tmp.chassis_len);
--            }
--=======
--            if (len != LLDP_CHASSIS_ID_TLV_LENGTH || p[0] != LLDP_CHASSIS_ID_TLV_SUBTYPE)
-+            if (len < 2 || len > 256 || p[0] < 1 || p[0] > 7)
-+                return true;
-+            if (p[0] == LLDP_CHASSIS_ID_TLV_SUBTYPE && len != MAC_ADDR_LEN + 1)
-                 return true;
--            memcpy(lldp_tmp.chassis, p + 1, MAC_ADDR_LEN);
-->>>>>>> af4352e (PR andrebrait/RTLPlayground#1)
-+            lldp_tmp.chassis_subtype = p[0];
-+            lldp_tmp.chassis_len = len - 1 > LLDP_NB_CHASSIS_LENGTH ? LLDP_NB_CHASSIS_LENGTH : len - 1;
-+            memcpy(lldp_tmp.chassis, p + 1, lldp_tmp.chassis_len);
-             break;
-         case LLDP_PORT_ID_TLV_TYPE:
-             if (len < 2 || len > 256 || p[0] < 1 || p[0] > 7)
-@@ -383,14 +372,7 @@ bool lldp_in(void) __banked __reentrant
+@@ -362,14 +362,7 @@ bool lldp_in(void) __banked __reentrant
          p += len;
      }
  
@@ -96,44 +12,9 @@ index b77068b985a0cf7976d94a96cb619a38b7040d65..87c69dc634d79f3515e9173b2e35e59e
 -    any = 0;
 -    for (type = 0; type < MAC_ADDR_LEN; type++)
 -        any |= lldp_tmp.chassis[type];
--    if (!any || !lldp_tmp.port_id[0])
-->>>>>>> af4352e (PR andrebrait/RTLPlayground#1)
-+    if (!lldp_tmp.chassis_len || !lldp_tmp.port_id[0])
+-    if (!any || !(lldp_tmp.port_id_mac || lldp_tmp.port_id[0]))
+->>>>>>> 121521e (PR andrebrait/RTLPlayground#1)
++    if (!lldp_tmp.chassis_len || !(lldp_tmp.port_id_mac || lldp_tmp.port_id[0]))
          return true;
  
      nb = lldp_find();
-diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
-index b65382da7206e6970dc81395e6c823da8035cf6a..8983d0be57b4bac520eafe53432edd1490fc815e 100644
---- a/rtl837x_lldp.h
-+++ b/rtl837x_lldp.h
-@@ -12,16 +12,11 @@
- #define LLDP_HOLD_MULTIPLIER 4
- 
- #define LLDP_PORT_ID_TLV_TYPE 2
--<<<<<<< HEAD
- #define LLDP_PORT_ID_PREFIX "Port "
- #define LLDP_PORT_ID_PREFIX_LENGTH 5
- #define LLDP_PORT_ID_TLV_LENGTH (1 + LLDP_PORT_ID_PREFIX_LENGTH + 1)
- #define LLDP_PORT_ID_TLV_SUBTYPE 0x05
--=======
--#define LLDP_PORT_ID_TLV_LENGTH 0x02
--#define LLDP_PORT_ID_TLV_SUBTYPE 0x07
- #define LLDP_PORT_ID_SUBTYPE_MAC 3
-->>>>>>> af4352e (PR andrebrait/RTLPlayground#1)
- 
- #define LLDP_TTL_TLV_TYPE 3
- #define LLDP_TTL_TLV_LENGTH 2
-@@ -80,13 +75,9 @@
- #define LLDP_NETWORK_ADDR_IPV4_LENGTH 5
- 
- #define LLDP_NB_MAX 16
--<<<<<<< HEAD
- #define LLDP_NB_CHASSIS_LENGTH 16
--#define LLDP_NB_PORT_ID_LENGTH 12
--=======
- /* shortcut: retain 17 printable ID characters; expand only when full remote IDs are needed. */
- #define LLDP_NB_PORT_ID_LENGTH 17
-->>>>>>> af4352e (PR andrebrait/RTLPlayground#1)
- #define LLDP_NB_SYS_NAME_LENGTH 16
- #define LLDP_NB_JSON_LENGTH 112	/* separator + worst-case neighbour entry in /lldp.json */
- 

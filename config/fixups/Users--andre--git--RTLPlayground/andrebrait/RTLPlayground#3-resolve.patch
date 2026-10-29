@@ -1,63 +1,38 @@
 diff --git a/html/app.js b/html/app.js
-index be70b474fefdf0542d1f2ac0d2d7d3a4aa5af99f..e96daba4bfa9d75738f21711f22bf54f6608b4ff 100644
+index 5ddd7e7ec31a76a1650f35d58a22383d2d66913e..3a268f027d3dda2af887a8cbe8804bf124ead558 100644
 --- a/html/app.js
 +++ b/html/app.js
-@@ -42,12 +42,9 @@ stp_en_d:"Ports start blocked and take up to twice the forward delay to reach fo
- stp_dis_q:"Disable spanning tree?",stp_dis_d:"All ports go straight to forwarding; loop protection is lost.",
- stp_cost_err:"Path cost must be 0-200000000",
- lldp_enabled: "LLDP Enabled",lldp_title:"Service Status",lldp_portname:"Name",lldp_enable:"Send Frames",
+@@ -47,12 +47,9 @@ stp_bh:"BPDUs while disabled",stp_bh_flood:"Flood",stp_bh_filter:"Filter",
+ stp_r4:"Backup",stp_times:"max age / forward delay",stp_proto:"Protocol",stp_nolink:"no link",stp_lasttc:"last",
+ stp_mcheck:"Check",stp_mcheck_t:"Send RST BPDUs again to find out whether the neighbour still needs 802.1D",
+ stp_cnt:"Counters",stp_crx:"BPDUs received",stp_ctx:"BPDUs sent",stp_ctrx:"TC received",stp_cttx:"TC sent",stp_cage:"Last BPDU [s]",
 -<<<<<<< HEAD
- lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_ttl:"TTL",
+ lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_ttl:"TTL",
 -=======
  lldp_tlvs:"Optional TLVs",lldp_t_portdesc:"Port Description",lldp_t_syscap:"System Capabilities",lldp_t_mgmt:"Management Address",
  lldp_t_pvid:"Port VLAN ID",lldp_t_macphy:"MAC/PHY Status",lldp_t_lag:"Link Aggregation",lldp_t_mfs:"Maximum Frame Size",
-->>>>>>> 030c430 (PR andrebrait/RTLPlayground#3)
+->>>>>>> 7db082c (PR andrebrait/RTLPlayground#3)
  st_title:"Port statistics",st_h:"totals since boot",st_txg:"TX good",st_txb:"TX bad",st_rxg:"RX good",
  st_rxb:"RX bad",st_details:"Details",st_counters:"MIB counters",st_nonzero:"non-zero only",
  st_autoref:"auto-refresh",st_counter:"Counter",st_value:"Value",st_fail:"failed to load counters",
-@@ -2062,12 +2059,9 @@ var lagPoller=new Poller(function(){return lagLoad().catch(function(){})},3000);
- tabHooks.lag={enter:function(){needPorts(function(){buildLag();lagPoller.start()})},leave:function(){lagPoller.stop()}};
- 
- 
--<<<<<<< HEAD
- var LLDP_CAPS=[[1,"Other"],[2,"Repeater"],[4,"Bridge"],[8,"WLAN AP"],[16,"Router"],[32,"Telephone"],[64,"DOCSIS"],[128,"Station"]];
- function lldpCaps(c){return LLDP_CAPS.filter(function(x){return c&x[0]}).map(function(x){return x[1]}).join(", ")}
--=======
- var LLDP_TLVS=["portdesc","syscap","mgmt","pvid","macphy","lag","mfs"];
-->>>>>>> 030c430 (PR andrebrait/RTLPlayground#3)
- function lldpLoad(){
-   return getJSON("/lldp.json").then(function(s){
-     $("lldp_en").checked=s.on;
-@@ -2522,11 +2516,7 @@ var CONF_OVERWRITE=[
+@@ -2723,11 +2720,7 @@ var CONF_OVERWRITE=[
    /^stp\s+(port\s+\d{1,2}|lag\s+[1-4])\s+(edge|cost|prio|guard|filter|p2p)\b/,
    /^igmp\b/,/^mtu\s+\d{1,2}\b/,/^storm\s+\d{1,2}\s+(bcast|mcast|ucast|umcast)\b/,
  ];
 -<<<<<<< HEAD
--var CONF_TOGGLE=[/^(snmp)\s+(on|off)$/,/^(syslog)\s+(on|off)$/,/^(ntp)\s+(on|off)$/,/^(stp)\s+(on|off)$/,/^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
+-var CONF_TOGGLE=[/^(snmp)\s+(on|off)$/,/^(syslog)\s+(on|off)$/,/^(ntp)\s+(on|off)$/,/^(stp)\s+(on|off)$/,/^(lldp)\s+(on|off)$/,/^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
 -=======
--var CONF_TOGGLE=[/^(syslog)\s+(on|off)$/,/^(ntp)\s+(on|off)$/,/^(stp)\s+(on|off)$/,/^(lldp\s+tlv\s+\w+)\s+(on|off)$/,/^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
-->>>>>>> 030c430 (PR andrebrait/RTLPlayground#3)
-+var CONF_TOGGLE=[/^(snmp)\s+(on|off)$/,/^(syslog)\s+(on|off)$/,/^(ntp)\s+(on|off)$/,/^(stp)\s+(on|off)$/,/^(lldp\s+tlv\s+\w+)\s+(on|off)$/,/^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
+-var CONF_TOGGLE=[/^(syslog)\s+(on|off)$/,/^(ntp)\s+(on|off)$/,/^(stp)\s+(on|off)$/,/^(lldp)\s+(on|off)$/,/^(lldp\s+tlv\s+\w+)\s+(on|off)$/,/^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
+->>>>>>> 7db082c (PR andrebrait/RTLPlayground#3)
++var CONF_TOGGLE=[/^(snmp)\s+(on|off)$/,/^(syslog)\s+(on|off)$/,/^(ntp)\s+(on|off)$/,/^(stp)\s+(on|off)$/,/^(lldp)\s+(on|off)$/,/^(lldp\s+tlv\s+\w+)\s+(on|off)$/,/^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
  function mergeConf(base,texts){
    var conf=base.slice();
    function drop(rx){conf=conf.filter(function(c){return!rx.test(c)})}
 diff --git a/html/index.html b/html/index.html
-index 484392428a8f7c3692a5e0afe083f22cb8ca248e..30ed9557148fb0152c2af74a044f183905ddcbf2 100644
+index a6a64320f5ca0fe52ce8549ac168fcd7f4eeaa83..0cfd8f8ffc150930ff67c88651c91c1799b76b59 100644
 --- a/html/index.html
 +++ b/html/index.html
-@@ -93,26 +93,18 @@ table.t td{padding:6px 8px;border-bottom:1px solid var(--bd);vertical-align:midd
- table.t tr:last-child td{border-bottom:0}
- table.t tr:hover td{background:var(--sel)}
- .num{font-variant-numeric:tabular-nums;text-align:right}
--<<<<<<< HEAD
- #stable,#traffic{width:auto}
- #stable th.num,#traffic th.num{text-align:right}
--=======
- #lldp_table th:nth-child(2),#lldp_table td:nth-child(2){width:100%;overflow-wrap:anywhere}
-->>>>>>> 030c430 (PR andrebrait/RTLPlayground#3)
- .scrollx{overflow-x:auto}
- input.in,select.in,textarea.in{
-   background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:5px 8px;outline:none;
+@@ -102,14 +102,9 @@ input.in,select.in,textarea.in{
  }
  input.in:focus,select.in:focus,textarea.in:focus{border-color:var(--ac)}
  input.in.sm{width:7em}
@@ -67,33 +42,34 @@ index 484392428a8f7c3692a5e0afe083f22cb8ca248e..30ed9557148fb0152c2af74a044f1839
 -=======
 -label.row{display:flex;align-items:center;gap:10px;margin:8px 0}
 -label.row span.lb{width:110px;flex:none;color:var(--fg2);font-size:13px}
- #lldp_tlvs label.row span.lb{width:170px}
-->>>>>>> 030c430 (PR andrebrait/RTLPlayground#3)
+-#lldp_tlvs label.row span.lb{width:170px}
+->>>>>>> 7db082c (PR andrebrait/RTLPlayground#3)
++#lldp_tlvs .row span.lb{width:170px}
  .switch{position:relative;display:inline-block;width:34px;height:19px;flex:none}
  .switch input{opacity:0;width:0;height:0}
  .switch i{
-@@ -401,15 +393,13 @@ button.danger{background:var(--bad);color:#fff;border-color:transparent}
+@@ -398,15 +393,13 @@ button.danger{background:var(--bad);color:#fff;border-color:transparent}
            <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_portname">Name</th><th data-i18n="lldp_enable">Send Frames</th></tr></thead>
            <tbody></tbody></table></div>
        </div>
 -<<<<<<< HEAD
        <div class="card"><h2 data-i18n="lldp_nb_title">Neighbours</h2>
          <div class="scrollx"><table class="t" id="lldp_nb_table">
-           <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
+           <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
            <tbody></tbody></table></div>
 -=======
 +      </div>
        <div class="card"><h2 data-i18n="lldp_tlvs">Optional TLVs</h2>
          <div id="lldp_tlvs"></div>
-->>>>>>> 030c430 (PR andrebrait/RTLPlayground#3)
+->>>>>>> 7db082c (PR andrebrait/RTLPlayground#3)
        </div>
      </section>
  
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index 20eab2e1679154241dc123d58da35f906ff38a84..521ce9cfd295b7c750f184e9d915948d58517973 100644
+index 3e625a3fae15787a42cc39667eaf15dfc1f778f9..8d6838ba010c2e7709e817ef0019df6ba897623e 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -29,12 +29,9 @@ extern volatile __xdata uint32_t ticks;
+@@ -30,12 +30,9 @@ extern volatile __xdata uint32_t ticks;
  __xdata uint8_t lldp_tick_last;
  __xdata uint8_t lldp_seconds;
  __xdata uint16_t lldp_logical_port_status = 0xffff;
@@ -102,16 +78,16 @@ index 20eab2e1679154241dc123d58da35f906ff38a84..521ce9cfd295b7c750f184e9d915948d
  static __xdata struct lldp_neighbor lldp_tmp;
 -=======
  __xdata uint8_t lldp_tlv_mask = LLDP_TX_ALL;
-->>>>>>> 030c430 (PR andrebrait/RTLPlayground#3)
+->>>>>>> 7db082c (PR andrebrait/RTLPlayground#3)
  
  void lldp_init(void) __banked
  {
 diff --git a/test/Makefile b/test/Makefile
-index ff5682872b80ea26449d239a06487cf7c8d087d1..caac081d4da12d290675e226145a58542a75cec4 100644
+index a6b53c840b607683876f345d943bfe575764fcb8..f852afe136997ac7d9a44466379d2a6b9de4b416 100644
 --- a/test/Makefile
 +++ b/test/Makefile
-@@ -40,11 +40,8 @@ TESTS = $(BUILDDIR)/test_cmd_editor \
-         $(BUILDDIR)/test_tick_gate \
+@@ -43,11 +43,8 @@ TESTS = $(BUILDDIR)/test_cmd_editor \
+         $(BUILDDIR)/test_cpu_vlan_8372 \
          $(BUILDDIR)/test_nic_rx \
          $(BUILDDIR)/test_lacp \
 -<<<<<<< HEAD
@@ -119,12 +95,12 @@ index ff5682872b80ea26449d239a06487cf7c8d087d1..caac081d4da12d290675e226145a5854
 -=======
 +        $(BUILDDIR)/test_lldp \
          $(BUILDDIR)/test_lldp_tx
-->>>>>>> 030c430 (PR andrebrait/RTLPlayground#3)
+->>>>>>> 7db082c (PR andrebrait/RTLPlayground#3)
  
  # The table tests link the register mock and one environment file; stub/
  # stands in for the two headers a firmware build generates.
-@@ -100,14 +97,10 @@ endif
- $(BUILDDIR)/test_httpd_tx: test_httpd_tx.c $(SRCROOT)/httpd/httpd.c $(SRCROOT)/uip/uip.c | $(BUILDDIR)
+@@ -103,14 +100,10 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
+ $(BUILDDIR)/test_cpu_vlan_full $(BUILDDIR)/test_cpu_vlan_restricted $(BUILDDIR)/test_cpu_vlan_8372: test_cpu_vlan.c $(TABLE_ENV) | $(BUILDDIR)
  	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)
  
 -<<<<<<< HEAD
@@ -134,54 +110,55 @@ index ff5682872b80ea26449d239a06487cf7c8d087d1..caac081d4da12d290675e226145a5854
  	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
  
 -run: $(TESTS)
-->>>>>>> 030c430 (PR andrebrait/RTLPlayground#3)
+->>>>>>> 7db082c (PR andrebrait/RTLPlayground#3)
 +run: $(TESTS) snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay
  	@fail=0; for t in $(TESTS); do \
  		echo "=== $$t ==="; \
  		$$t || fail=1; \
-@@ -123,7 +116,6 @@ lldp-conf:
+@@ -126,8 +119,7 @@ lldp-conf:
  clean:
  	rm -rf $(BUILDDIR)
  
 -<<<<<<< HEAD
- .PHONY: all run clean
+-.PHONY: all run clean
++.PHONY: all run lldp-conf clean
  
  
-@@ -209,6 +201,5 @@ $(addprefix $(BUILDDIR)/,test_snmp test_snmp_nine test_snmp_horaco_profile test_
+ # SNMP host benches compile the same firmware sources; listener is opt-in here.
+@@ -216,6 +208,3 @@ $(addprefix $(BUILDDIR)/,test_snmp test_snmp_nine test_snmp_horaco_profile test_
  .PHONY: config-replay
  config-replay:
  	cd $(SRCROOT) && CC="$(CC)" python3 test/test_config_replay.py
 -=======
 -.PHONY: all run lldp-conf clean
-->>>>>>> 030c430 (PR andrebrait/RTLPlayground#3)
-+
-+.PHONY: lldp-conf
+->>>>>>> 7db082c (PR andrebrait/RTLPlayground#3)
 diff --git a/tools/httpd_sim.c b/tools/httpd_sim.c
-index 28983373a4263f0f8e63bb4518b7a6ccd79547f0..48acb0ddf6af060ae1db9bd0b566442c8efc5c95 100644
+index c15ff4ca30ad390825543c5d1d821b08d3960a04..1ff93c093262e111e9ecc9ab590d0a1834d19f0e 100644
 --- a/tools/httpd_sim.c
 +++ b/tools/httpd_sim.c
-@@ -837,11 +837,15 @@ void launch(struct Server *server)
+@@ -834,12 +834,16 @@ void launch(struct Server *server)
  					printf("CMD: %s\n", p + 4);
  					strcpy(cmd_history[cmd_ptr], p + 4);
  					cmd_ptr++;
 -<<<<<<< HEAD
- 					{
+ 					// Like the firmware, a body may carry several commands, one per line
+ 					for (char *l = p + 4; l && *l; l = strchr(l, '\n') ? strchr(l, '\n') + 1 : NULL) {
 -						char w[16];
 +						char w[16], tlv[16];
  						int n;
--						if (sscanf(p + 4, "port %d fc %3s", &n, w) == 2 && n >= 1 && n <= PORTS)
-+						if (sscanf(p + 4, "lldp tlv %15s", tlv) == 1) {
+-						if (sscanf(l, "port %d fc %3s", &n, w) == 2 && n >= 1 && n <= PORTS)
++						if (sscanf(l, "lldp tlv %15s", tlv) == 1) {
 +							const char *names[] = { "portdesc", "syscap", "mgmt", "pvid", "macphy", "lag", "mfs" };
 +							for (int n = 0; n < 7; n++)
 +								if (!strcmp(tlv, names[n]))
-+									lldp_tlv = strstr(p + 4, " on") ? lldp_tlv | 1 << n : lldp_tlv & ~(1 << n);
-+						} else if (sscanf(p + 4, "port %d fc %3s", &n, w) == 2 && n >= 1 && n <= PORTS)
++									lldp_tlv = strstr(l, " on") ? lldp_tlv | 1 << n : lldp_tlv & ~(1 << n);
++						} else if (sscanf(l, "port %d fc %3s", &n, w) == 2 && n >= 1 && n <= PORTS)
  							pause_off[n] = !strcmp(w, "off");
- 						else if (sscanf(p + 4, "eee %3s %d", w, &n) == 2 && n >= 1 && n <= PORTS)
+ 						else if (sscanf(l, "eee %3s %d", w, &n) == 2 && n >= 1 && n <= PORTS)
  							eee_off[n] = !strcmp(w, "off");
-@@ -849,14 +853,6 @@ void launch(struct Server *server)
+@@ -847,14 +851,6 @@ void launch(struct Server *server)
  							strcpy(port_name[n], w);
- 						else if (sscanf(p + 4, "port %d %15s", &n, w) == 2 && n >= 1 && n <= PORTS)
+ 						else if (sscanf(l, "port %d %15s", &n, w) == 2 && n >= 1 && n <= PORTS)
  							port_set[n] = strcmp(w, "off") ? 1 : 2;
 -=======
 -					char tlv[16];
@@ -190,7 +167,7 @@ index 28983373a4263f0f8e63bb4518b7a6ccd79547f0..48acb0ddf6af060ae1db9bd0b566442c
 -						for (int n = 0; n < 7; n++)
 -							if (!strcmp(tlv, names[n]))
 -								lldp_tlv = strstr(p + 4, " on") ? lldp_tlv | 1 << n : lldp_tlv & ~(1 << n);
-->>>>>>> 030c430 (PR andrebrait/RTLPlayground#3)
+->>>>>>> 7db082c (PR andrebrait/RTLPlayground#3)
  					}
  					print_cmd_history();
  					char *response = "HTTP/1.1 200 OK\r\n"

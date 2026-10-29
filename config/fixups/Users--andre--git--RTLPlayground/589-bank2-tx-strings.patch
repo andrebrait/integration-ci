@@ -1,25 +1,23 @@
 diff --git a/Makefile b/Makefile
-index 75faeeaf8a925f9b1b14a37fd41bfa3251ce3950..59c480d123dab7ef84bc9d41a6f7028a8825e4e7 100644
+index af14d987f6ea11dd087981d74e5ef5d3e07a5d64..20a81ef18aa97db56f8dac0b836314c0e5d5fca2 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -116,6 +116,7 @@
+@@ -148,6 +148,7 @@ SRCS += \
+ 	rtl837x_port.c \
  	rtl837x_stp.c \
  	rtl837x_lldp.c \
- 	rtl837x_pause.c \
 +	rtl837x_lldp_tx_strings.c \
  	rtl837x_storm.c \
  	rtl837x_lacp.c \
- 	rtl837x_trap.c
+ 	rtl837x_trap.c \
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index a2874bcda892266a85056b7e20fafdef3d9a07cb..2afbb069f6e5fda2fbbe2576032b5617fd95e0c3 100644
+index a5a9a2798994f4c9f30ba3f5a2163cf6166187a9..8d3a99725fbdb7d8d2d1ad1b4f56df58d6729f04 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -162,26 +162,6 @@
-     LLDP_O->rtl_tag.flags = HTONS(RTL_TAG_LEARN_DIS);
- 
+@@ -212,30 +212,6 @@ void lldp_set_rtl_wrapper(void) __banked {
      LLDP_O->ether_type = HTONS(LLDP_ETHERTYPE);
--}
--
+ }
+ 
 -uint8_t lldp_sysname(__xdata uint8_t *p) __banked
 -{
 -    uint8_t hostname_length = strlen_x(hostname);
@@ -32,21 +30,27 @@ index a2874bcda892266a85056b7e20fafdef3d9a07cb..2afbb069f6e5fda2fbbe2576032b5617
 -
 -uint8_t lldp_sysdesc(__xdata uint8_t *p) __banked
 -{
--    uint16_t machine_name_length = strlen(machine.machine_name);
+-    uint8_t machine_name_length = strlen(machine.machine_name);
+-    uint8_t version_length = strlen(VERSION_SW);
 -
 -    *p++ = LLDP_TYPE(LLDP_SYSDESC_TLV_TYPE);
--    *p++ = machine_name_length;
+-    *p++ = machine_name_length + 1 + version_length;
 -    memcpyc(p, machine.machine_name, machine_name_length);
--    return machine_name_length + 2; 
- }
- 
+-    p += machine_name_length;
+-    *p++ = ' ';
+-    memcpyc(p, VERSION_SW, version_length);
+-    return machine_name_length + 1 + version_length + 2;
+-}
+-
  uint8_t lldp_portdesc(__xdata uint8_t *p, uint8_t port) __banked
+ {
+     uint8_t name_length = strlen_x(port_names[port]);
 diff --git a/rtl837x_lldp_tx_strings.c b/rtl837x_lldp_tx_strings.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..0e2f536b75ef8fa1a012bffb51261790ce8bea79
+index 0000000000000000000000000000000000000000..f44a264ca9d9d794abd64c0fbe07ba0e4afda392
 --- /dev/null
 +++ b/rtl837x_lldp_tx_strings.c
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,37 @@
 +/* Keep the existing banked TX text helpers out of the full RX bank. */
 +#pragma codeseg BANK2
 +#pragma constseg BANK2
@@ -55,6 +59,7 @@ index 0000000000000000000000000000000000000000..0e2f536b75ef8fa1a012bffb51261790
 +#include "rtl837x_lldp.h"
 +#include "dhcp.h"
 +#include "machine.h"
++#include "version.h"
 +
 +extern __code const struct machine machine;
 +
@@ -72,10 +77,29 @@ index 0000000000000000000000000000000000000000..0e2f536b75ef8fa1a012bffb51261790
 +
 +uint8_t lldp_sysdesc(__xdata uint8_t *p) __banked
 +{
-+    uint16_t machine_name_length = strlen(machine.machine_name);
++    uint8_t machine_name_length = strlen(machine.machine_name);
++    uint8_t version_length = strlen(VERSION_SW);
 +
 +    *p++ = LLDP_TYPE(LLDP_SYSDESC_TLV_TYPE);
-+    *p++ = machine_name_length;
++    *p++ = machine_name_length + 1 + version_length;
 +    memcpyc(p, machine.machine_name, machine_name_length);
-+    return machine_name_length + 2;
++    p += machine_name_length;
++    *p++ = ' ';
++    memcpyc(p, VERSION_SW, version_length);
++    return machine_name_length + 1 + version_length + 2;
 +}
+diff --git a/test/Makefile b/test/Makefile
+index 3b6a163f28d0dd345145a63659730501d5e9b6bf..5a2624717b784f99473c277769c132d446b9296d 100644
+--- a/test/Makefile
++++ b/test/Makefile
+@@ -69,8 +69,8 @@ $(BUILDDIR)/test_page_json: test_page_json.c $(TABLE_ENV) hw_mock.h | $(BUILDDIR
+ $(BUILDDIR)/test_lacp: test_lacp.c $(SRCROOT)/rtl837x_lacp.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+ 
+-$(BUILDDIR)/test_lldp: test_lldp.c $(SRCROOT)/rtl837x_lldp.c fw_memset.h | $(BUILDDIR)
+-	$(CC) $(CFLAGS) -include fw_memset.h test_lldp.c $(SRCROOT)/rtl837x_lldp.c -o $@ $(LDFLAGS)
++$(BUILDDIR)/test_lldp: test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c fw_memset.h | $(BUILDDIR)
++	$(CC) $(CFLAGS) -include fw_memset.h test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c -o $@ $(LDFLAGS)
+ 
+ # httpd/httpd.c and uip/uip.c are compiled UNMODIFIED from the firmware tree;
+ # this test carries the environment below them itself.

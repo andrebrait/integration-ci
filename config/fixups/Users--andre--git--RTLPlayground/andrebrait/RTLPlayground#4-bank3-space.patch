@@ -1,0 +1,16 @@
+diff --git a/rtl837x_storm.c b/rtl837x_storm.c
+index 23cfc83a500f084c5ae48999bcfb2b8a8e3b9b2d..75d7f8bd855c91693b12cb9ade112d3739e0c863 100644
+--- a/rtl837x_storm.c
++++ b/rtl837x_storm.c
+@@ -5,8 +5,9 @@
+ #include "rtl837x_storm.h"
+ #include "machine.h"
+ 
+-#pragma codeseg BANK3
+-#pragma constseg BANK3
++// Integration only: BANK3 overflows with all carried PRs combined.
++#pragma codeseg BANK2
++#pragma constseg BANK2
+ 
+ extern __code const struct machine machine;
+ extern __xdata uint8_t sfr_data[4];

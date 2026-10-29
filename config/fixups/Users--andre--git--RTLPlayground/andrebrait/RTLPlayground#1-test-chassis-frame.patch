@@ -1,0 +1,45 @@
+diff --git a/test/test_lldp.c b/test/test_lldp.c
+index 63b54f88152ef3aed984433bfee827bfd695a2aa..77048bf2e55765f155df06e62e55f392f09a3d9d 100644
+--- a/test/test_lldp.c
++++ b/test/test_lldp.c
+@@ -70,6 +70,7 @@ static void put(uint8_t slot, uint8_t port, uint16_t ttl)
+ }
+ 
+ static const uint8_t ap_mac[] = {0x94, 0x2a, 0x6f, 0xd2, 0x25, 0x6e};
++#define AP_CHASSIS LLDP_CHASSIS_ID_TLV_SUBTYPE, (const char *)ap_mac, MAC_ADDR_LEN
+ 
+ static bool frame(uint8_t port, uint8_t chassis_subtype, const char *chassis, uint8_t chassis_len,
+ 		  uint8_t subtype, const char *id, uint8_t id_len)
+@@ -186,15 +187,15 @@ int main(void)
+ 	      "L12 a MAC address sent as text is kept whole as the chassis ID");
+ 
+ 	reset(true, 0x01ff);
+-	frame(1, LLDP_PORT_ID_TLV_SUBTYPE, "", 0);
+-	frame(2, 0, "abc", 3);
+-	frame(3, 8, "abc", 3);
+-	frame(4, LLDP_PORT_ID_SUBTYPE_MAC, (const char *)ap_mac, MAC_ADDR_LEN - 1);
+-	frame(5, LLDP_PORT_ID_SUBTYPE_MAC, "\x94\x2a\x6f\xd2\x25\x6e\x00", MAC_ADDR_LEN + 1);
++	frame(1, AP_CHASSIS, LLDP_PORT_ID_TLV_SUBTYPE, "", 0);
++	frame(2, AP_CHASSIS, 0, "abc", 3);
++	frame(3, AP_CHASSIS, 8, "abc", 3);
++	frame(4, AP_CHASSIS, LLDP_PORT_ID_SUBTYPE_MAC, (const char *)ap_mac, MAC_ADDR_LEN - 1);
++	frame(5, AP_CHASSIS, LLDP_PORT_ID_SUBTYPE_MAC, "\x94\x2a\x6f\xd2\x25\x6e\x00", MAC_ADDR_LEN + 1);
+ 	CHECK(nb_count() == 0,
+-	      "L12 a Port ID with no octets, a reserved subtype or a MAC address of another length is ignored");
+-	frame(1, LLDP_PORT_ID_TLV_SUBTYPE, "ge1", 3);
+-	CHECK(nb_count() == 1, "L13 the same frame with a valid Port ID is kept");
++	      "L13 a Port ID with no octets, a reserved subtype or a MAC address of another length is ignored");
++	frame(1, AP_CHASSIS, LLDP_PORT_ID_TLV_SUBTYPE, "ge1", 3);
++	CHECK(nb_count() == 1, "L14 the same frame with a valid Port ID is kept");
+ 
+ 	/* The only cuts that may leave a neighbour are the TLV boundaries after the Port ID and the TTL. */
+ 	full = uip_len;
+@@ -205,7 +206,7 @@ int main(void)
+ 		if (nb_count() && cut != full - 6 && cut != full - 2)
+ 			bad++;
+ 	}
+-	CHECK(!bad, "L14 a frame cut inside a TLV or inside the header publishes no neighbour");
++	CHECK(!bad, "L15 a frame cut inside a TLV or inside the header publishes no neighbour");
+ 
+ 	printf("\n%s (%d failure%s)\n", failures ? "SANDBOX: FAILURES" : "SANDBOX: ALL PASS",
+ 	       failures, failures == 1 ? "" : "s");

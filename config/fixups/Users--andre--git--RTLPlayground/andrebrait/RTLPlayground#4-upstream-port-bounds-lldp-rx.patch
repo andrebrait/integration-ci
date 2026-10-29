@@ -1,0 +1,13 @@
+diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
+index f813c181f44c5f6ef5cc35a3f44f5f30310c6830..1fd73d07d341b208480ab5c25e8b65a9de5c3174 100644
+--- a/rtl837x_lldp.c
++++ b/rtl837x_lldp.c
+@@ -377,7 +377,7 @@ bool lldp_in(void) __banked __reentrant
+ 
+     memset(&lldp_tmp, 0, sizeof(lldp_tmp));
+     lldp_tmp.port = ((uint8_t)HTONS(LLDP_RX_TAG->pmask)) & 0x0f;
+-    if (lldp_tmp.port < machine.min_port || lldp_tmp.port > machine.max_port)
++    if (!MACHINE_PORT_VALID(lldp_tmp.port))
+         return true;
+     lldp_tmp.ttl = LLDP_TTL_TTL_SECONDS;
+ 

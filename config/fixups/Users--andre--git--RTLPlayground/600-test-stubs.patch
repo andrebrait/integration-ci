@@ -1,0 +1,16 @@
+diff --git a/test/test_lldp.c b/test/test_lldp.c
+index 214128606b49193d64501d3d4ddfa5f85f6131d3..512c5d42e3df886cc65ab7f5c3dc8eec5e931873 100644
+--- a/test/test_lldp.c
++++ b/test/test_lldp.c
+@@ -43,6 +43,11 @@ void memcpyc(uint8_t *dst, const uint8_t *src, uint16_t len) { memcpy(dst, src,
+ uint16_t strlen_x(const char *s) { return strlen(s); }
+ char port_names[9][PORT_NAME_SIZE];	/* read by lldp_portdesc() from #590 */
+ uint16_t strtox(uint8_t *dst, const char *s) { uint16_t n = strlen(s); memcpy(dst, s, n); return n; }
++/* Read by the 802.1/802.3 organisational TLVs from #600 */
++volatile uint16_t SFR_DATA_U16;
++void phy_read(uint8_t phy_id, uint8_t dev_id, uint16_t reg) { (void)phy_id; (void)dev_id; (void)reg; SFR_DATA_U16 = 0; }
++uint16_t port_pvid_get(uint8_t port) { (void)port; return 1; }
++uint8_t port_lag_of(uint8_t port) { (void)port; return 0xff; }
+ 
+ static int failures;
+ #define CHECK(cond, name) do { \

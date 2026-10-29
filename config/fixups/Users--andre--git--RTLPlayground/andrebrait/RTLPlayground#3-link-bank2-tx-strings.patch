@@ -1,14 +1,15 @@
 diff --git a/test/Makefile b/test/Makefile
-index d0f9a6a5dd207e1332d2347618cacd2943439227..10cd7e54f7843ba1995c3502a535de9dead73788 100644
+index fbb825cba55b767af9728a3af5e88227ec240ad2..37c364b961e36fa090de0b7259187fc5df5b00f8 100644
 --- a/test/Makefile
 +++ b/test/Makefile
-@@ -97,7 +97,7 @@ endif
- $(BUILDDIR)/test_httpd_tx: test_httpd_tx.c $(SRCROOT)/httpd/httpd.c $(SRCROOT)/uip/uip.c | $(BUILDDIR)
+@@ -108,8 +108,8 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
+ $(BUILDDIR)/test_cpu_vlan_full $(BUILDDIR)/test_cpu_vlan_restricted $(BUILDDIR)/test_cpu_vlan_8372: test_cpu_vlan.c $(TABLE_ENV) | $(BUILDDIR)
  	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)
  
 -$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c | $(BUILDDIR)
-+$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c | $(BUILDDIR)
 -	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
++$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c | $(BUILDDIR)
 +	$(CC) $(CFLAGS) $(GC_CFLAGS) $^ -o $@ $(LDFLAGS) $(GC_LDFLAGS)
  
  run: $(TESTS) snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay
+ 	@fail=0; for t in $(TESTS); do \
