@@ -1,0 +1,13 @@
+diff --git a/crates/pi-natives/src/file_lock/unix.rs b/crates/pi-natives/src/file_lock/unix.rs
+index 2a58f9cec5b4ec3b7e1e76be0b08b9e97d22047c..a31d8c177ed2d0106daf7dc82b417befacc6b07e 100644
+--- a/crates/pi-natives/src/file_lock/unix.rs
++++ b/crates/pi-natives/src/file_lock/unix.rs
+@@ -50,7 +50,7 @@ pub fn is_held(path: &str) -> io::Result<bool> {
+ 	if unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETLK, &raw mut query) } == -1 {
+ 		return Err(io::Error::last_os_error());
+ 	}
+-	Ok(query.l_type != libc::F_UNLCK as _)
++	Ok(query.l_type != libc::F_UNLCK as libc::c_short)
+ }
+ 
+ /// Android runs a Linux kernel, which keeps `flock` locks apart from `fcntl`
