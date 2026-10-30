@@ -1,0 +1,41 @@
+diff --git a/lib/rpc-manager.test.mjs b/lib/rpc-manager.test.mjs
+index 6354242479abd3dabe92c3cfff442c811a524082..b65f9b42a618c3555dc0a387aabfd6319955f313 100644
+--- a/lib/rpc-manager.test.mjs
++++ b/lib/rpc-manager.test.mjs
+@@ -2631,7 +2631,9 @@ test("a resumed session omp moved during startup stays routable by the requested
+   const { current, children, isolated } = startupMoveHarness(t, movedId, newId);
+   const requestedFile = join(isolatedAgentDir, `${requestedId}.jsonl`);
+   const { startRpcSession, getRpcSession } = await isolated.import("./rpc-manager.ts");
+-  const { session, realSessionId } = await startRpcSession(requestedId, requestedFile, isolatedAgentDir);
++  // This machine is reached through its daemon; spawn the scripted child directly.
++  const { localHost: stdioHost } = await isolated.import("./hosts/local-host.ts");
++  const { session, realSessionId } = await startRpcSession(requestedId, requestedFile, isolatedAgentDir, undefined, undefined, null, undefined, stdioHost);
+   t.after(() => session.destroyAndWait());
+   assert.equal(realSessionId, movedId);
+   assert.equal(getRpcSession(movedId), session);
+@@ -2652,7 +2654,8 @@ test("a tab still on the id omp moved away from during startup counts as viewing
+   const { children, isolated } = startupMoveHarness(t, "startup-move-viewed-fork", "startup-move-viewed-new");
+   const { delivered, restore } = await reachableTab();
+   const { startRpcSession } = await isolated.import("./rpc-manager.ts");
+-  const { session } = await startRpcSession(requestedId, join(isolatedAgentDir, `${requestedId}.jsonl`), isolatedAgentDir);
++  const { localHost: stdioHost } = await isolated.import("./hosts/local-host.ts");
++  const { session } = await startRpcSession(requestedId, join(isolatedAgentDir, `${requestedId}.jsonl`), isolatedAgentDir, undefined, undefined, null, undefined, stdioHost);
+   t.after(async () => {
+     await session.destroyAndWait();
+     restore();
+diff --git a/lib/rpc-manager.ts b/lib/rpc-manager.ts
+index 82e3e6d6d3d4af9cc0c3a0f664dfaf89cdab65ff..c4cb313c00ae76e097b09031a5b607ffd77005a8 100644
+--- a/lib/rpc-manager.ts
++++ b/lib/rpc-manager.ts
+@@ -2941,8 +2941,9 @@ function registerSession(created: AgentSessionWrapper): void {
+     // Drop every key (current id, original id, moved-from aliases).
+     for (const [key, wrapper] of registry) if (wrapper === created) registry.delete(key);
+   });
+-  created.onIdentityChange((oldId, newId, options) => {
+-    if (!options?.keepOldId && registry.get(oldId) === created) registry.delete(oldId);
++  created.onIdentityChange((_oldId, newId, options) => {
++    // A move keeps the old ids routable; a branch/new/switch serves another conversation, so every old key goes.
++    if (!options?.keepOldId) for (const [key, wrapper] of registry) if (wrapper === created) registry.delete(key);
+     registry.set(newId, created);
+   });
+   registry.set(created.sessionId, created);
