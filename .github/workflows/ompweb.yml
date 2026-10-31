@@ -101,20 +101,9 @@ jobs:
               path: release/ompweb-windows-x64
               retention-days: 7
               if-no-files-found: error
-   publish:
-      needs: build
-      permissions:
-         contents: write
-      uses: ./.github/workflows/publish.yml
-      with:
-         repo: ${{ inputs.repo }}
-         sha: ${{ inputs.sha }}
-         project: ompweb
-         artifact: ompweb
-         description: npm pack of @kahme247/ompweb (built with node 26.8.1) plus the package-lock.json it was built with.
-   # The npm-package publish above must stay the first `project:`/`artifact:` pair: `integration
-   # build` reads those to fetch the deployable zip. Runs after it so the two never race to create
-   # the release.
+   # This must stay the first `project:`/`artifact:` pair: `integration build` reads it (with
+   # CI_TARGET=linux-x64) to fetch what ompweb-deploy installs, the linux-x64 binary. It runs after
+   # the npm-package publish below so the two never race to create the release.
    publish-binaries:
       needs: publish
       permissions:
@@ -128,3 +117,14 @@ jobs:
          targets: linux-x64 linux-arm64 darwin-x64 darwin-arm64 windows-x64
          executables: ompweb
          description: "Standalone ompweb binary for {target}: unzip and run ./ompweb (ompweb.exe on Windows) for the web UI, ./ompweb host for the session daemon. Keep the files next to it; no Node or npm needed."
+   publish:
+      needs: build
+      permissions:
+         contents: write
+      uses: ./.github/workflows/publish.yml
+      with:
+         repo: ${{ inputs.repo }}
+         sha: ${{ inputs.sha }}
+         project: ompweb
+         artifact: ompweb
+         description: npm pack of @kahme247/ompweb (built with node 26.8.1) plus the package-lock.json it was built with.

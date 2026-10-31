@@ -4,6 +4,9 @@ UPSTREAM=kahme247/ompweb
 BRANCH=deploy/integration
 CI_REPO=andrebrait/integration-ci
 CI_WORKFLOW=ompweb.yml
+# Deploy the standalone linux-x64 binary (the bin-ompweb-linux-x64 artifact / *-linux-x64.zip),
+# not the npm package: ompweb-build installs either layout and ompweb-run starts it.
+CI_TARGET=linux-x64
 BASE=upstream/main
 UPSTREAM_MAIN_REF=upstream/main
 BUILD_CMD='npm ci --no-audit --no-fund && npm run build && npm run lint && npm test'
