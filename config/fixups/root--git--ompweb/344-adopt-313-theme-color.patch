@@ -1,0 +1,79 @@
+diff --git a/app/index.html b/app/index.html
+index cf2b0588d2bae2c82a3e4cc003f1ee54f7c8f9e6..ac07b8cd10a091cc0ed6d0f12ec715f420f740db 100644
+--- a/app/index.html
++++ b/app/index.html
+@@ -13,7 +13,7 @@
+     <link rel="icon" href="../public/icon.svg" type="image/svg+xml" sizes="any" />
+     <link rel="icon" href="../public/favicon.ico" sizes="any" />
+     <meta name="theme-color" content="#000000" />
+-    <script>(function(){try{var t;try{t=localStorage.getItem("omp-theme")}catch(e){}var d=matchMedia("(prefers-color-scheme: dark)").matches;var dt={"dark":1,"omp":1,"dracula":1,"harbor":1,"one-dark-pro":1,"rose-pine":1,"catppuccin-mocha":1,"gruvbox-dark":1,"nord":1,"tokyo-night":1};var lt={"light":1,"one-light":1,"catppuccin-latte":1,"rose-pine-dawn":1};var res=t==="system"?(d?"dark":"light"):(!t?"omp":t);if(!dt[res]&&!lt[res]&&res!=="omp")res="omp";var dark=!!dt[res]&&res!=="omp";if(dark)document.documentElement.classList.add("dark");if(res==="omp"){document.documentElement.classList.add("omp")}else{document.documentElement.classList.add("theme-"+res)}document.documentElement.setAttribute("data-theme",res);var m=document.querySelector('meta[name="theme-color"]'),c=getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();if(m&&c)m.setAttribute("content",c);}catch(e){}})();</script>
++    <script>(function(){try{var t;try{t=localStorage.getItem("omp-theme")}catch(e){}var d=matchMedia("(prefers-color-scheme: dark)").matches;var dt={"dark":1,"omp":1,"dracula":1,"harbor":1,"one-dark-pro":1,"rose-pine":1,"catppuccin-mocha":1,"gruvbox-dark":1,"nord":1,"tokyo-night":1};var lt={"light":1,"one-light":1,"catppuccin-latte":1,"rose-pine-dawn":1};var res=t==="system"?(d?"dark":"light"):(!t?"omp":t);if(!dt[res]&&!lt[res]&&res!=="omp")res="omp";var dark=!!dt[res]&&res!=="omp";if(dark)document.documentElement.classList.add("dark");if(res==="omp"){document.documentElement.classList.add("omp")}else{document.documentElement.classList.add("theme-"+res)}document.documentElement.setAttribute("data-theme",res);var m=document.querySelector('meta[name="theme-color"]'),c=getComputedStyle(document.documentElement).getPropertyValue("--bg-panel").trim();if(m&&c)m.setAttribute("content",c);}catch(e){}})();</script>
+     <script>(function(){try{var l=localStorage.getItem("omp-lang");if(l!=="en"&&l!=="zh-CN"&&l!=="ja"){var n=(navigator.language||"").toLowerCase();l=n.indexOf("zh")===0?"zh-CN":n.indexOf("ja")===0?"ja":"en"}document.documentElement.lang=l}catch(e){}})();</script>
+     <script>(function(){try{var f=localStorage.getItem("omp-font-size");if(f==="sm"||f==="md"||f==="lg"||f==="xl")document.documentElement.setAttribute("data-font-size",f)}catch(e){}})();</script>
+     <script>(function(){try{var s=localStorage.getItem("omp-ui-scale");if(s==="compact"||s==="standard"||s==="comfortable"||s==="large")document.documentElement.setAttribute("data-ui-scale",s)}catch(e){}})();</script>
+diff --git a/server/app.test.ts b/server/app.test.ts
+index 64c0771c39b28bdb788eda688d3e6ea44c537052..f7b3f05db3cc8ab944c2099675451e28e4e318e7 100644
+--- a/server/app.test.ts
++++ b/server/app.test.ts
+@@ -238,7 +238,7 @@ test("dev pages put the stylesheet before the pre-paint scripts, even when HTTP_
+   assert.equal(page.status, 200);
+   const body = await page.text();
+   assert.match(body, /<link rel="manifest" href="\/api\/manifest"/);
+-  // Bun moves the stylesheet after the inline scripts; the theme script reads --bg from it.
++  // Bun moves the stylesheet after the inline scripts; the theme script reads --bg-panel from it.
+   assert.ok(body.indexOf('<link rel="stylesheet"') < body.indexOf("<script>void 0</script>"), body);
+ });
+ 
+diff --git a/server/http.test.ts b/server/http.test.ts
+index dd8c8da60f2bb0f83ce536203a4920649e04953c..5362adc8604d60afd1fb82cf63896273dd4e03b3 100644
+--- a/server/http.test.ts
++++ b/server/http.test.ts
+@@ -200,3 +200,10 @@ test("renderIndex escapes the install name into the titles and adds the manifest
+     else process.env.OMP_WEB_NAME = previous;
+   }
+ });
++
++test("renderIndex puts the remembered theme color into the manifest link, and nothing else", () => {
++  const link = (cookie: string) => /<link rel="manifest" href="([^"]*)"/.exec(renderIndex("<head></head>", new Request("http://localhost/", { headers: { cookie } })))?.[1];
++  // Chrome refreshes an installed app's manifest without cookies, so the color has to be in the link.
++  assert.equal(link("a=1; omp-theme-color=F2F0EA"), "/api/manifest?theme=F2F0EA");
++  for (const value of ["zzzzzz", "%22%3E%3Cscript%3E", "abcdef0"]) assert.equal(link(`omp-theme-color=${value}`), "/api/manifest", value);
++});
+diff --git a/server/http.ts b/server/http.ts
+index 1267540f177eb46e28c85527835fac3ff2dfdaf6..29792c8987276ee8fedd3e85257d01b80d0f6dbb 100644
+--- a/server/http.ts
++++ b/server/http.ts
+@@ -1,6 +1,7 @@
+ import { realpathSync, statSync, type Stats } from "node:fs";
+ import path from "node:path";
+ import { getInstallName } from "@/lib/install-name";
++import { manifestHref, THEME_COLOR_COOKIE } from "@/lib/manifest-theme";
+ 
+ const SECURITY_HEADERS = {
+   "X-Content-Type-Options": "nosniff",
+@@ -126,17 +127,22 @@ export async function serveFile(request: Request, root: string, dev: boolean): P
+ 
+ const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+ 
+-/** dist/index.html with the install name as its titles and the (credentialed) manifest link. */
++/**
++ * dist/index.html with the install name as its titles and the (credentialed) manifest link, which carries the
++ * theme color the browser remembered (lib/manifest-theme.ts).
++ */
+ export function renderIndex(html: string, request: Request): string {
+   const name = getInstallName(request.headers).replace(/[&<>"']/g, (char) => ESCAPES[char]);
++  // manifestHref only lets a 6-digit hex color through, so the href needs no escaping.
++  const manifest = manifestHref(new Bun.CookieMap(request.headers.get("cookie") ?? "").get(THEME_COLOR_COOKIE));
+   return html
+     .replace("<title>omp web</title>", () => `<title>${name}</title>`)
+     .replace('<meta name="apple-mobile-web-app-title" content="omp web"', () => `<meta name="apple-mobile-web-app-title" content="${name}"`)
+-    .replace("</head>", '<link rel="manifest" href="/api/manifest" crossorigin="use-credentials"></head>');
++    .replace("</head>", () => `<link rel="manifest" href="${manifest}" crossorigin="use-credentials"></head>`);
+ }
+ 
+ /**
+- * Bun moves the entry stylesheet to the end of <head>, after the pre-paint scripts. The theme script reads --bg from
++ * Bun moves the entry stylesheet to the end of <head>, after the pre-paint scripts. The theme script reads --bg-panel from
+  * it for theme-color, and a stylesheet only blocks the scripts that follow it, so put it before them.
+  */
+ export function stylesheetFirst(html: string): string {
