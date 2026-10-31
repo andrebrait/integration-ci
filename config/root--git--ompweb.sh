@@ -18,5 +18,5 @@ BUILD_CMD='npm ci --no-audit --no-fund && npm run build && npm run lint && npm t
 # the previous release if the restarted service is unhealthy.
 DEPLOY_CMD='/opt/omp-deployment/bin/ompweb-deploy "$DEPLOY_SHA" "$BUILD_DIR"'
 # #342 (local daemon) is built on #339 (remote hosts); #344 (Bun runtime) on #342;
-# #347 (WebSocket host link) on #344.
-STACKED_PRS='347:344 344:342 342:339'
+# #347 (WebSocket host link) on #344; #350 (browser transport experiment) on #347.
+STACKED_PRS='350:347 347:344 344:342 342:339'
