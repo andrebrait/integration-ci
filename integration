@@ -516,11 +516,16 @@ cmd_build_ci() {
 			exit 1
 		fi
 		gh run download "$id" -R "$CI_REPO" ${CI_TARGET:+-n "$artifact-$CI_TARGET"} -D "$dir.dl"
-		# gh nests each artifact in a directory named after it, which may match the
-		# file inside (omp/omp); collect the files into a fresh BUILD_DIR.
-		mkdir -p "$dir"
-		find "$dir.dl" -type f -exec mv -t "$dir" {} +
-		rm -rf "$dir.dl"
+		if [ -n "${CI_TARGET:-}" ]; then
+			# One named artifact lands unnested; keep its tree (ompweb ships app/, lib/, ... beside the binary).
+			mv "$dir.dl" "$dir"
+		else
+			# gh nests each artifact in a directory named after it, which may match the
+			# file inside (omp/omp); collect the files into a fresh BUILD_DIR.
+			mkdir -p "$dir"
+			find "$dir.dl" -type f -exec mv -t "$dir" {} +
+			rm -rf "$dir.dl"
+		fi
 	fi
 	chmod +x "$dir"/*
 	echo "integration: CI build OK ($dir)"
