@@ -21,5 +21,5 @@ DEPLOY_CMD='/opt/omp-deployment/bin/ompweb-deploy "$DEPLOY_SHA" "$BUILD_DIR"'
 # #347 (WebSocket host link) on #344; #350 (browser transport experiment) on #347;
 # #357 (host-link head-of-line measurement) on #350;
 # #359 (host protocol versions, host-mode docs) on #357; #361 (delta-only message updates) on #357;
-# #360 (binary prereleases CI) on #344.
-STACKED_PRS='361:357 359:357 357:350 360:344 350:347 347:344 344:342 342:339'
+# #360 (binary prereleases CI) on #344; #362 (browser link built like the host link) on #361.
+STACKED_PRS='362:361 361:357 359:357 357:350 360:344 350:347 347:344 344:342 342:339'
