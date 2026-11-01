@@ -1,5 +1,5 @@
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index b6044df0d639145a7dfc38ec2e9422b6198e5821..aadc70e56eaa81559a80c82fde901032fd7b426e 100644
+index 8d1c386dbb5e28b4aa5f93f60ee2f7adaae8f201..aadc70e56eaa81559a80c82fde901032fd7b426e 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
 @@ -362,14 +362,7 @@ bool lldp_in(void) __banked __reentrant
@@ -13,7 +13,7 @@ index b6044df0d639145a7dfc38ec2e9422b6198e5821..aadc70e56eaa81559a80c82fde901032
 -    for (type = 0; type < MAC_ADDR_LEN; type++)
 -        any |= lldp_tmp.chassis[type];
 -    if (!any || !(lldp_tmp.port_id_mac || lldp_tmp.port_id[0]))
-->>>>>>> 121521e (PR andrebrait/RTLPlayground#1)
+->>>>>>> 2276155 (PR andrebrait/RTLPlayground#1)
 +    if (!lldp_tmp.chassis_len || !(lldp_tmp.port_id_mac || lldp_tmp.port_id[0]))
          return true;
  

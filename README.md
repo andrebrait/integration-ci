@@ -115,9 +115,20 @@ preimage hash must match before anything is staged. Resolution uses strict
 stop for review. Capture marker blobs with `git hash-object -w` before resolving,
 then generate the full-index diff between those blobs and the resolved files.
 Ordinary `N-name.patch` fixups still run afterward with `git apply --3way`.
-The warning-details draft's ordinary fixup also adapts the carries to upstream's
-compile-time port bounds, preserves the host fixture profiles, and keeps the
-SNMP-enabled integration within the internal RAM and code-bank limits.
+Some adaptations exist only because several PRs are combined: the 615 fixups
+keep the SNMP-enabled integration within internal RAM, the 600 and 605 test
+stubs and #1's test fixup let the host tests link all LLDP carries together,
+and the warning-details draft's fixups keep BANK3 within its size.
+
+Upstream reformatted `html/app.js` with `js-beautify -s 4` (#716), so PR
+branches written before it conflict on every hunk. Register the merge driver in
+`config/Users--andre--git--RTLPlayground-app-js-merge.sh` once per clone; it
+reformats any old-style side before merging, and the resolve patches assume it:
+
+```sh
+git -C /Users/andre/git/RTLPlayground config merge.appjs.driver "$HOME/.config/integration/Users--andre--git--RTLPlayground-app-js-merge.sh %O %A %B"
+echo 'html/app.js merge=appjs' >> /Users/andre/git/RTLPlayground/.git/info/attributes
+```
 
 There are deliberately no RTL build/test/deploy hooks or workflow. Do not use
 `all`; build and validate firmware manually before publishing. Driver regression

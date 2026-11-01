@@ -51,10 +51,10 @@ index c622411200fd050f0cec56adcd3e83948e97b8ba..1a8589f14f4342870fee3b201f3edc08
    - A startup configuration line longer than the command buffer no longer stops the replay:
      the offending line is skipped and the following lines are still applied.
 diff --git a/Makefile b/Makefile
-index e95465ff3f568ebc5f205190662f6e85ae88f65e..704b8b789baf3da2029e083cd29eb798c65c0e08 100644
+index de45c8ab99dfc39fcb2d6c5122cdcc0d25dc6857..2813edbd960c0989b67bd5ebbd827d852e921114 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -151,11 +151,8 @@ SRCS += \
+@@ -153,11 +153,8 @@ SRCS += \
  	rtl837x_port.c \
  	rtl837x_stp.c \
  	rtl837x_lldp.c \
@@ -67,43 +67,49 @@ index e95465ff3f568ebc5f205190662f6e85ae88f65e..704b8b789baf3da2029e083cd29eb798
  	rtl837x_lacp.c \
  	rtl837x_trap.c \
 diff --git a/html/app.js b/html/app.js
-index c5e57169c1bbc38c90c82a3e4aadcedeef18eff5..369973dd84dfffb5fd518d2496ead59faa210856 100644
+index b20c9e65930cb19f2cc9f462123a410cef084793..f5696f98b10414c7e21e1c73b6f9c51ba6be6ed2 100644
 --- a/html/app.js
 +++ b/html/app.js
-@@ -874,15 +874,9 @@ function setDirty(d){
- function postCmd(cmd,quiet){
-   var safe=redactSnmp(cmd),secret=safe!==cmd;
-   return api("/cmd",{method:"POST",body:cmd}).then(function(r){
--<<<<<<< HEAD
-     if(!r.ok)throw new Error(secret?t("t_rejected",{c:safe}):(((r.body||"").split("\n")[0])||t("t_rejected",{c:safe})));
--    if(isConfCmd(cmd.trim()))setDirty(true);
--    if(!quiet)toast(t("t_applied",{c:safe}),"ok");
+@@ -2449,21 +2449,14 @@ function postCmd(cmd, quiet) {
+         method: "POST",
+         body: cmd
+     }).then(function(r) {
+-<<<<<<< ours
+         if (!r.ok) throw new Error(secret ? t("t_rejected", {
+             c: safe
+         }) : (((r.body || "").split("\n")[0]) || t("t_rejected", {
+             c: safe
+         })));
+-        if (isConfCmd(cmd.trim())) setDirty(true);
 -=======
--    if(!r.ok)throw new Error(((r.body||"").split("\n")[0])||t("t_rejected",{c:cmd}));
-     if(cmd.trim().split("\n").some(function(l){return isConfCmd(l.trim())}))setDirty(true);
--    if(!quiet)toast(t("t_applied",{c:cmd}),"ok");
-->>>>>>> rebuild/pr-652
-+    if(!quiet)toast(t("t_applied",{c:safe}),"ok");
-     return r;
-   },function(e){var message=secret?t("t_failed",{c:safe}):(e.message||t("t_failed",{c:safe}));toast(message,"err");throw secret?new Error(message):e;});
- }
-@@ -1129,15 +1123,12 @@ function renderInfo(){
-   if(S.info.sw_ver)$("fver").textContent="RTLPlayground "+S.info.sw_ver;
- }
- function pollInfo(){
--<<<<<<< HEAD
--  return getJSON("/information.json").then(function(j){S.info=j;renderInfo();renderSnmp(j.snmp)});
+-        if (!r.ok) throw new Error(((r.body || "").split("\n")[0]) || t("t_rejected", {
+-            c: cmd
+-        }));
+         if (cmd.trim().split("\n").some(function(l) {
+                 return isConfCmd(l.trim())
+             })) setDirty(true);
+->>>>>>> theirs
+         if (!quiet) toast(t("t_applied", {
+             c: safe
+         }), "ok");
+@@ -2932,16 +2925,12 @@ function renderInfo() {
+ function pollInfo() {
+     return getJSON("/information.json").then(function(j) {
+         S.info = j;
+-<<<<<<< ours
+-        renderInfo();
+-        renderSnmp(j.snmp)
 -=======
-   return getJSON("/information.json").then(function(j){
-     S.info=j;
-     (j.logPort||[]).forEach(function(l,i){S.physToLog[i]=l;S.logToPhys[l]=i+1});
-     renderInfo();
-+    renderSnmp(j.snmp);
-   });
-->>>>>>> rebuild/pr-652
+         (j.logPort || []).forEach(function(l, i) {
+             S.physToLog[i] = l;
+             S.logToPhys[l] = i + 1
+         });
+         renderInfo();
+->>>>>>> theirs
++        renderSnmp(j.snmp)
+     });
  }
- function dashStatus(){
-   var tb=$("traffic").tBodies[0];
+ 
 diff --git a/httpd/page_impl.c b/httpd/page_impl.c
 index 9876496e200eb285a7d9114776db6e5362bb2075..ef4a7f8d1a7f4622ebcdb5ac9d4e5bcfab9766d1 100644
 --- a/httpd/page_impl.c

@@ -1,24 +1,5 @@
-diff --git a/html/app.js b/html/app.js
-index df92616b0fb4efa637c8d04cf6af0e53321a58ef..63d01f9faa075fc81f3c07e78e17fe1659ad33e4 100644
---- a/html/app.js
-+++ b/html/app.js
-@@ -47,13 +47,9 @@ stp_bh:"BPDUs while disabled",stp_bh_flood:"Flood",stp_bh_filter:"Filter",
- stp_r4:"Backup",stp_times:"max age / forward delay",stp_proto:"Protocol",stp_nolink:"no link",stp_lasttc:"last",
- stp_mcheck:"Check",stp_mcheck_t:"Send RST BPDUs again to find out whether the neighbour still needs 802.1D",
- stp_cnt:"Counters",stp_crx:"BPDUs received",stp_ctx:"BPDUs sent",stp_ctrx:"TC received",stp_cttx:"TC sent",stp_cage:"Last BPDU [s]",
--<<<<<<< HEAD
--lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_pvid:"PVID",lldp_nb_mtu:"MTU",lldp_nb_lag:"LAG",lldp_nb_warn:"Warnings",lldp_w_mtu:"MTU differs",lldp_w_lag:"LAG only on one side",lldp_w_dup:"same neighbour on another port",lldp_nb_ttl:"TTL",
-+lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_sysdesc:"System Description",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_pvid:"PVID",lldp_nb_mtu:"MTU",lldp_nb_lag:"LAG",lldp_nb_warn:"Warnings",lldp_w_mtu:"MTU differs",lldp_w_lag:"LAG only on one side",lldp_w_dup:"same neighbour on another port",lldp_nb_ttl:"TTL",
- lldp_tlvs:"Optional TLVs",lldp_t_portdesc:"Port Description",lldp_t_syscap:"System Capabilities",lldp_t_mgmt:"Management Address",
- lldp_t_pvid:"Port VLAN ID",lldp_t_macphy:"MAC/PHY Status",lldp_t_lag:"Link Aggregation",lldp_t_mfs:"Maximum Frame Size",
--=======
--lldp_nb_title:"Neighbours",lldp_nb_chassis:"Chassis ID",lldp_nb_portid:"Port ID",lldp_nb_sysname:"System Name",lldp_nb_sysdesc:"System Description",lldp_nb_portdesc:"Port Description",lldp_nb_addr:"Address",lldp_nb_caps:"Capabilities",lldp_nb_ttl:"TTL",
-->>>>>>> 301ced1 (PR andrebrait/RTLPlayground#2)
- st_title:"Port statistics",st_h:"totals since boot",st_txg:"TX good",st_txb:"TX bad",st_rxg:"RX good",
- st_rxb:"RX bad",st_details:"Details",st_counters:"MIB counters",st_nonzero:"non-zero only",
- st_autoref:"auto-refresh",st_counter:"Counter",st_value:"Value",st_fail:"failed to load counters",
 diff --git a/html/index.html b/html/index.html
-index 28dfd491ef9d0b11dde6d4476f0b60549bc5ff70..f88a2298b42a6c38bf8b6f5dba702baec0d406b8 100644
+index 95ab8de6e592396530f273da1224fa97c559a32e..6ffceccdf3f00921b414e9e2930dccda09771e7b 100644
 --- a/html/index.html
 +++ b/html/index.html
 @@ -395,11 +395,7 @@ button.danger{background:var(--bad);color:#fff;border-color:transparent}
@@ -29,13 +10,13 @@ index 28dfd491ef9d0b11dde6d4476f0b60549bc5ff70..f88a2298b42a6c38bf8b6f5dba702bae
 -          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_warn">Warnings</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
 -=======
 -          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
-->>>>>>> 301ced1 (PR andrebrait/RTLPlayground#2)
+->>>>>>> ef32faf (PR andrebrait/RTLPlayground#2)
 +          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_warn">Warnings</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
            <tbody></tbody></table></div>
        </div>
        <div class="card"><h2 data-i18n="lldp_tlvs">Optional TLVs</h2>
 diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
-index 4c77996404192e443ea90d0ae13ae48b0ef734ad..e8ed91775aaf338a92feb1ca7e3ab1fecd680241 100644
+index 265b7126634b46cfd0db0159bcd7f02f93792ad5..e8ed91775aaf338a92feb1ca7e3ab1fecd680241 100644
 --- a/rtl837x_lldp.h
 +++ b/rtl837x_lldp.h
 @@ -92,7 +92,6 @@
@@ -53,13 +34,13 @@ index 4c77996404192e443ea90d0ae13ae48b0ef734ad..e8ed91775aaf338a92feb1ca7e3ab1fe
 -#define LLDP_NB_JSON_LENGTH 226	/* separator + worst-case neighbour entry in /lldp.json */
 -=======
 -#define LLDP_NB_JSON_LENGTH 229	/* separator + worst-case neighbour entry in /lldp.json */
-->>>>>>> 301ced1 (PR andrebrait/RTLPlayground#2)
+->>>>>>> ef32faf (PR andrebrait/RTLPlayground#2)
 +#define LLDP_NB_JSON_LENGTH 271	/* separator + worst-case neighbour entry in /lldp.json */
  
  struct lldp_neighbor {
      uint8_t port;		/* logical ingress port */
 diff --git a/test/test_lldp.c b/test/test_lldp.c
-index 6c4aa8595cfaddb2c382f23aa6ae3a0185f9d532..8207057360125fa80c7cc3cf036c90389332c72f 100644
+index 61cf5aaad752cbcbe2fdad44d121b391f75f9df2..8207057360125fa80c7cc3cf036c90389332c72f 100644
 --- a/test/test_lldp.c
 +++ b/test/test_lldp.c
 @@ -341,11 +341,8 @@ int main(void)
@@ -70,7 +51,7 @@ index 6c4aa8595cfaddb2c382f23aa6ae3a0185f9d532..8207057360125fa80c7cc3cf036c9038
 -=======
  	test_neighbor_fields();
  
-->>>>>>> 301ced1 (PR andrebrait/RTLPlayground#2)
+->>>>>>> ef32faf (PR andrebrait/RTLPlayground#2)
  	printf("\n%s (%d failure%s)\n", failures ? "SANDBOX: FAILURES" : "SANDBOX: ALL PASS",
  	       failures, failures == 1 ? "" : "s");
  	return failures ? 1 : 0;

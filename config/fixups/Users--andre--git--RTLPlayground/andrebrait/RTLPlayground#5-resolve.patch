@@ -1,0 +1,85 @@
+diff --git a/html/app.js b/html/app.js
+index 49e808debabe00fac348cde3303462d9cdfd7dff..9b42d685825027d280cab6f243415b2f5f740f88 100644
+--- a/html/app.js
++++ b/html/app.js
+@@ -5641,11 +5641,7 @@ var CONF_OVERWRITE = [
+     /^stp\s+(port\s+\d{1,2}|lag\s+[1-4])\s+(edge|cost|prio|guard|filter|p2p)\b/,
+     /^igmp\b/, /^mtu\s+\d{1,2}\b/, /^storm\s+\d{1,2}\s+(bcast|mcast|ucast|umcast)\b/,
+ ];
+-<<<<<<< ours
+-var CONF_TOGGLE = [/^(snmp)\s+(on|off)$/, /^(syslog)\s+(on|off)$/, /^(ntp)\s+(on|off)$/, /^(stp)\s+(on|off)$/, /^(lldp)\s+(on|off)$/, /^(lldp\s+tlv\s+\w+)\s+(on|off)$/, /^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
+-=======
+-var CONF_TOGGLE = [/^(snmp)\s+(on|off)$/, /^(prometheus)\s+(on|off)$/, /^(syslog)\s+(on|off)$/, /^(ntp)\s+(on|off)$/, /^(stp)\s+(on|off)$/, /^(lldp)\s+(on|off)$/, /^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
+->>>>>>> theirs
++var CONF_TOGGLE = [/^(snmp)\s+(on|off)$/, /^(prometheus)\s+(on|off)$/, /^(syslog)\s+(on|off)$/, /^(ntp)\s+(on|off)$/, /^(stp)\s+(on|off)$/, /^(lldp)\s+(on|off)$/, /^(lldp\s+tlv\s+\w+)\s+(on|off)$/, /^(stp\s+(port\s+\d{1,2}|lag\s+[1-4]))\s+(on|off)$/];
+ 
+ function mergeConf(base, texts) {
+     var conf = base.slice();
+diff --git a/test/Makefile b/test/Makefile
+index 6c81feaca920c381261c6673ff2d04381cac0925..55503931cdd2aa31c250c6557e80bf5e07232ac8 100644
+--- a/test/Makefile
++++ b/test/Makefile
+@@ -56,9 +56,6 @@ TESTS += $(BUILDDIR)/test_rx_bounds
+ $(BUILDDIR)/test_rx_bounds: test_rx_bounds.c $(SRCROOT)/uip/uip_rx.h | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+ 
+-<<<<<<< HEAD
+-all: run lldp-conf
+-=======
+ # Prometheus exporter: metrics.c is included by the test, metrics_cli.c is linked.
+ TESTS += $(BUILDDIR)/test_metrics
+ $(BUILDDIR)/test_metrics: test_metrics.c $(SRCROOT)/metrics.c $(SRCROOT)/metrics_cli.c $(SRCROOT)/metrics.h | $(BUILDDIR)
+@@ -70,8 +67,7 @@ TESTS += $(BUILDDIR)/test_prometheus_status_json
+ $(BUILDDIR)/test_prometheus_status_json: test_prometheus_status_json.c test_page_json.c $(TABLE_ENV) hw_mock.h | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) -DPROMETHEUS test_prometheus_status_json.c $(filter %.c,$(TABLE_ENV)) -o $@ $(LDFLAGS)
+ 
+-all: run prometheus-gui
+->>>>>>> 983c392 (PR andrebrait/RTLPlayground#5)
++all: run lldp-conf prometheus-gui
+ 
+ $(BUILDDIR):
+ 	mkdir -p $(BUILDDIR)
+@@ -115,14 +111,10 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
+ $(BUILDDIR)/test_cpu_vlan_full $(BUILDDIR)/test_cpu_vlan_restricted $(BUILDDIR)/test_cpu_vlan_8372: test_cpu_vlan.c $(TABLE_ENV) | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)
+ 
+-<<<<<<< HEAD
+ $(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) $(GC_CFLAGS) $^ -o $@ $(LDFLAGS) $(GC_LDFLAGS)
+ 
+-run: $(TESTS) snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay
+-=======
+ run: $(TESTS) snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay prometheus-replay
+->>>>>>> 983c392 (PR andrebrait/RTLPlayground#5)
+ 	@fail=0; for t in $(TESTS); do \
+ 		echo "=== $$t ==="; \
+ 		$$t || fail=1; \
+@@ -130,26 +122,19 @@ run: $(TESTS) snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-r
+ 	done; \
+ 	if [ $$fail -ne 0 ]; then echo "TESTS FAILED"; exit 1; else echo "ALL TESTS PASSED"; fi
+ 
+-<<<<<<< HEAD
+ # Save to flash keeps one "lldp tlv" line per TLV (html/app.js mergeConf)
+ NODE ?= node
+ lldp-conf:
+ 	cd $(SRCROOT) && $(NODE) test/test_lldp_conf.cjs
+-=======
+-NODE ?= node
++
+ # Prometheus card on the System page and its saved on/off command
+ prometheus-gui:
+ 	cd $(SRCROOT) && $(NODE) test/test_prometheus_gui.cjs
+->>>>>>> 983c392 (PR andrebrait/RTLPlayground#5)
+ 
+ clean:
+ 	rm -rf $(BUILDDIR)
+ 
+-<<<<<<< HEAD
+-.PHONY: all run lldp-conf clean
+-=======
+-.PHONY: all run prometheus-gui clean
+->>>>>>> 983c392 (PR andrebrait/RTLPlayground#5)
++.PHONY: all run lldp-conf prometheus-gui clean
+ 
+ 
+ # SNMP host benches compile the same firmware sources; listener is opt-in here.
