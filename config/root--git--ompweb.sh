@@ -19,5 +19,5 @@ BUILD_CMD='npm ci --no-audit --no-fund && npm run build && npm run lint && npm t
 DEPLOY_CMD='/opt/omp-deployment/bin/ompweb-deploy "$DEPLOY_SHA" "$BUILD_DIR"'
 # #342 (local daemon) is built on #339 (remote hosts); #344 (Bun runtime) on #342;
 # #347 (WebSocket host link) on #344; #350 (browser transport experiment) on #347;
-# #357 (host-link head-of-line measurement) on #350.
-STACKED_PRS='357:350 350:347 347:344 344:342 342:339'
+# #357 (host-link head-of-line measurement) on #350; #359 (host protocol versions, host-mode docs) on #357.
+STACKED_PRS='359:357 357:350 350:347 347:344 344:342 342:339'
