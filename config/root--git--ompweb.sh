@@ -17,8 +17,5 @@ BUILD_CMD='npm ci --no-audit --no-fund && npm run build && npm run lint && npm t
 # (killing running agent sessions; they verify on resume) and rolls back to
 # the previous release if the restarted service is unhealthy.
 DEPLOY_CMD='/opt/omp-deployment/bin/ompweb-deploy "$DEPLOY_SHA" "$BUILD_DIR"'
-# #339, #342 and #344 are merged; #347 (WebSocket host link) and #360 (binary prereleases CI) are on main.
-# #350 (browser transport experiment) on #347; #357 (host-link head-of-line measurement) on #350;
-# #359 (host protocol versions, host-mode docs) on #357; #361 (delta-only message updates) on #357;
-# #362 (browser link built like the host link) on #361.
-STACKED_PRS='362:361 361:357 359:357 357:350 350:347'
+# The transport stack is merged: #347 on its own, #350, #357, #361 and #362 through #366. #359 is based on main.
+STACKED_PRS=''
