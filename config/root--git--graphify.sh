@@ -17,7 +17,7 @@ EXTRA_PRS='4484=carry/pr-4484'
 BUILD_CMD='uv sync --frozen --extra leiden --extra gdscript'
 # tests/pi.test.ts loads the real Pi guard extension (Node built-ins only) and drives the
 # graphify CLI; point it at this commit's venv, not an installed copy.
-TEST_CMD='uv run --frozen --extra leiden --extra gdscript pytest tests/test_backend_extras.py tests/test_pi_guard_install.py tests/test_hook_guard.py tests/test_hook_strict.py tests/test_semantic_origin_stamp.py tests/test_gdscript.py && GRAPHIFY_TEST_CLI="$PWD/.venv/bin/graphify" bun test tests/pi.test.ts'
+TEST_CMD='uv run --frozen --extra leiden --extra gdscript pytest tests/test_backend_extras.py tests/test_pi_guard_install.py tests/test_hook_guard.py tests/test_hook_strict.py tests/test_semantic_origin_stamp.py tests/test_dedup.py tests/test_watch.py tests/test_gdscript.py && GRAPHIFY_TEST_CLI="$PWD/.venv/bin/graphify" bun test tests/pi.test.ts'
 DEPLOY_CMD='uv tool install --force --reinstall "graphifyy[leiden,gdscript] @ git+https://github.com/pfBlockerNG/graphify@${DEPLOY_SHA}"'
 # pfBlockerNG takes no pin: its ensure-graphify.sh installs a PyPI floor only under GitHub
 # Actions and keeps a direct-URL build at or above the floor everywhere else.
