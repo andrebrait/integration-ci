@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { cycle, diffPr, formatMessage, settings } from "./pr-watcher.mjs";
+import { ciState, cycle, diffPr, formatMessage, settings } from "./pr-watcher.mjs";
 import { openStore } from "./store.mjs";
 
 const snap = (over = {}) => ({
@@ -71,6 +71,24 @@ test("a rerun of the same head does not repeat its CI result", () => {
   assert.deepEqual(diffPr(pending, snap({ ci: "SUCCESS" }), new Set()).events, []);
   // A different result from the rerun is news.
   assert.deepEqual(diffPr(pending, snap({ ci: "FAILURE" }), new Set()).events, ["- CI FAILURE on aaaaaaaaaa"]);
+});
+
+test("CI state leaves out review bots' checks: CodeRabbit and Kilo Code neither hold nor fail it", () => {
+  const run = (name, app, status, conclusion = null) => ({ __typename: "CheckRun", name, status, conclusion, checkSuite: { app: { slug: app } } });
+  const ci = (conclusion) => run("Verify", "github-actions", conclusion ? "COMPLETED" : "IN_PROGRESS", conclusion);
+  const bots = [run("Kilo Code Review", "kilo-code-bot", "IN_PROGRESS"), run("CodeRabbit", "coderabbitai", "COMPLETED", "FAILURE")];
+  assert.equal(ciState([ci("SUCCESS"), ...bots]), "SUCCESS");
+  assert.equal(ciState([ci(null), ...bots]), "PENDING");
+  assert.equal(ciState([ci("SUCCESS"), ci("FAILURE"), ...bots]), "FAILURE");
+  assert.equal(ciState([ci("SUCCESS"), run("Lint", "github-actions", "COMPLETED", "SKIPPED"), run("Docs", "github-actions", "COMPLETED", "NEUTRAL")]), "SUCCESS");
+  assert.equal(ciState([ci("SUCCESS"), run("Deploy", "github-actions", "COMPLETED", "CANCELLED")]), "FAILURE");
+  assert.equal(ciState(bots), "NONE", "only review bots: no CI");
+  assert.equal(ciState([]), "NONE");
+  // Commit statuses: pending, error, and a review bot's status by its creator.
+  const status = (context, state, login = "ci-bot") => ({ __typename: "StatusContext", context, state, creator: { login } });
+  assert.equal(ciState([ci("SUCCESS"), status("legacy", "PENDING")]), "PENDING");
+  assert.equal(ciState([ci("SUCCESS"), status("legacy", "ERROR")]), "ERROR");
+  assert.equal(ciState([ci("SUCCESS"), status("CodeRabbit", "PENDING", "coderabbitai[bot]")]), "SUCCESS");
 });
 
 test("message never starts with a slash and names the PR", () => {

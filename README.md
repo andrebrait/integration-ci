@@ -165,7 +165,9 @@ newer, an authenticated `gh`, and a running omp-web.
   and ignored authors), edits to them (bots such as CodeRabbit post a finished
   review by editing an earlier comment), a terminal CI result (`SUCCESS`,
   `FAILURE`, `ERROR`) once per head commit, and the PR being merged or closed.
-  Excerpts leave out HTML comments.
+  The CI result leaves out the checks of review bots (CodeRabbit, Kilo Code;
+  `REVIEW_BOTS`), so a review in progress neither holds nor fails it; their
+  reviews still arrive as comments. Excerpts leave out HTML comments.
 - **How long it watches:** every cycle until the PR is merged or closed, so
   bot re-reviews after a push and later maintainer or contributor comments
   are still delivered. Once the merged or closed notice is delivered, the watch

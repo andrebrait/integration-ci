@@ -11,12 +11,18 @@ import { dataDir, isLogin, isSession, openStore, parsePr } from "./store.mjs";
 const run = promisify(execFile);
 const TERMINAL_CI = new Set(["SUCCESS", "FAILURE", "ERROR"]);
 const FINISHED = new Set(["MERGED", "CLOSED"]);
+// Review bots post checks of their own; a review in progress (or a skipped one) is not CI. Their reviews still arrive
+// as comments. CheckRuns are matched by app slug, commit statuses by creator login.
+const REVIEW_BOTS = new Set(["coderabbitai", "kilo-code-bot"]);
+const PASSED = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
 
 const QUERY = `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){
   state title
   comments(last:50){nodes{id author{login} body url lastEditedAt}}
   reviews(last:50){nodes{id author{login} state body url lastEditedAt}}
-  commits(last:1){nodes{commit{oid statusCheckRollup{state}}}}}}}`;
+  commits(last:1){nodes{commit{oid statusCheckRollup{contexts(first:100){nodes{__typename
+    ... on CheckRun{name status conclusion checkSuite{app{slug}}}
+    ... on StatusContext{context state creator{login}}}}}}}}}}}`;
 
 const log = (...args) => console.log(new Date().toISOString(), ...args);
 
@@ -29,9 +35,25 @@ async function fetchPr({ owner, name, number }) {
     state: pr.state,
     title: pr.title,
     head: commit?.oid ?? "",
-    ci: commit?.statusCheckRollup?.state ?? "NONE",
+    ci: ciState(commit?.statusCheckRollup?.contexts.nodes ?? []),
     items: [...pr.comments.nodes.map(item("comment")), ...pr.reviews.nodes.filter(n => n.state !== "PENDING").map(item("review"))],
   };
+}
+
+/** The head's CI result from its checks and statuses, like GitHub's rollup but without REVIEW_BOTS: NONE, PENDING,
+ * SUCCESS, FAILURE or ERROR. */
+export function ciState(contexts) {
+  const results = contexts.flatMap((c) => {
+    if (c.__typename === "CheckRun") {
+      if (REVIEW_BOTS.has(c.checkSuite?.app?.slug)) return [];
+      return [c.status !== "COMPLETED" ? "PENDING" : PASSED.has(c.conclusion) ? "SUCCESS" : "FAILURE"];
+    }
+    if (REVIEW_BOTS.has(c.creator?.login?.replace(/\[bot\]$/, ""))) return [];
+    return [c.state === "EXPECTED" ? "PENDING" : c.state];
+  });
+  if (!results.length) return "NONE";
+  for (const state of ["PENDING", "ERROR", "FAILURE"]) if (results.includes(state)) return state;
+  return "SUCCESS";
 }
 
 const excerpt = text => {
