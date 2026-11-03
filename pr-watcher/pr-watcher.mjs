@@ -69,7 +69,8 @@ const excerpt = text => {
 export function diffPr(prev, snap, ignore) {
   // `ciReported` is the last delivered "<head>:<result>". A rerun on the same head
   // (e.g. after a base change) passes through PENDING, which must not make the
-  // same result count as news again.
+  // same success count as news again. A failure it ends in again is news: the
+  // session that asked for the rerun is waiting on it.
   const ciNow = TERMINAL_CI.has(snap.ci) ? `${snap.head}:${snap.ci}` : undefined;
   const ciReported = prev?.ciReported ?? (TERMINAL_CI.has(prev?.ci) ? `${prev.head}:${prev.ci}` : undefined);
   // `edits` maps item id -> lastEditedAt: bots such as CodeRabbit post their result by
@@ -90,6 +91,9 @@ export function diffPr(prev, snap, ignore) {
   }
   if (snap.state !== prev.state) events.push(`- PR is now ${snap.state}`);
   if (ciNow && ciNow !== ciReported) events.push(`- CI ${snap.ci} on ${snap.head.slice(0, 10)}`);
+  else if (ciNow && snap.ci !== "SUCCESS" && prev.head === snap.head && !TERMINAL_CI.has(prev.ci)) {
+    events.push(`- CI ${snap.ci} on ${snap.head.slice(0, 10)} (rerun)`);
+  }
   return { events, next };
 }
 

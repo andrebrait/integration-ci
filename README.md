@@ -165,6 +165,9 @@ newer, an authenticated `gh`, and a running omp-web.
   and ignored authors), edits to them (bots such as CodeRabbit post a finished
   review by editing an earlier comment), a terminal CI result (`SUCCESS`,
   `FAILURE`, `ERROR`) once per head commit, and the PR being merged or closed.
+  A rerun of the same head that ends in `FAILURE` or `ERROR` again is reported
+  again, marked `(rerun)`; a repeated `SUCCESS` is not (base-change reruns).
+  A rerun shorter than one poll interval is not seen as a rerun.
   The CI result leaves out the checks of review bots (CodeRabbit, Kilo Code;
   `REVIEW_BOTS`), so a review in progress neither holds nor fails it; their
   reviews still arrive as comments. Excerpts leave out HTML comments.

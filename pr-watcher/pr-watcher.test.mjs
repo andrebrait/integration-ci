@@ -73,6 +73,17 @@ test("a rerun of the same head does not repeat its CI result", () => {
   assert.deepEqual(diffPr(pending, snap({ ci: "FAILURE" }), new Set()).events, ["- CI FAILURE on aaaaaaaaaa"]);
 });
 
+test("a rerun of the same head that fails again is reported once more, as a rerun", () => {
+  const { next: red } = diffPr(diffPr(undefined, snap(), new Set()).next, snap({ ci: "FAILURE" }), new Set());
+  assert.deepEqual(diffPr(red, snap({ ci: "FAILURE" }), new Set()).events, [], "no repeat without a rerun");
+  const { next: rerunning } = diffPr(red, snap({ ci: "PENDING" }), new Set());
+  const { events, next: redAgain } = diffPr(rerunning, snap({ ci: "FAILURE" }), new Set());
+  assert.deepEqual(events, ["- CI FAILURE on aaaaaaaaaa (rerun)"]);
+  assert.deepEqual(diffPr(redAgain, snap({ ci: "FAILURE" }), new Set()).events, [], "reported once per rerun");
+  const { next: errorRerun } = diffPr(redAgain, snap({ ci: "PENDING" }), new Set());
+  assert.deepEqual(diffPr(errorRerun, snap({ ci: "FAILURE" }), new Set()).events, ["- CI FAILURE on aaaaaaaaaa (rerun)"]);
+});
+
 test("CI state leaves out review bots' checks: CodeRabbit and Kilo Code neither hold nor fail it", () => {
   const run = (name, app, status, conclusion = null) => ({ __typename: "CheckRun", name, status, conclusion, checkSuite: { app: { slug: app } } });
   const ci = (conclusion) => run("Verify", "github-actions", conclusion ? "COMPLETED" : "IN_PROGRESS", conclusion);
