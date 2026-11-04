@@ -85,6 +85,9 @@ clean, refresh PR/carry heads, recreate the integration, then publish it:
 /opt/homebrew/bin/bash ~/.local/bin/integration push /Users/andre/git/RTLPlayground
 ```
 
+To rebuild without moving to a newer upstream, set `INTEGRATION_BASE` to the
+current base commit on `rebuild` and `push`; `prs` is then not needed.
+
 For the first migration only, use `INTEGRATION_DROP_NON_PR=1` on `rebuild`
 after preserving old integration-only changes in PR branches or config fixups.
 The driver backs up the old branch. A completed rebuild starts from upstream
