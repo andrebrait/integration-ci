@@ -51,10 +51,10 @@ index c622411200fd050f0cec56adcd3e83948e97b8ba..1a8589f14f4342870fee3b201f3edc08
    - A startup configuration line longer than the command buffer no longer stops the replay:
      the offending line is skipped and the following lines are still applied.
 diff --git a/Makefile b/Makefile
-index de45c8ab99dfc39fcb2d6c5122cdcc0d25dc6857..2813edbd960c0989b67bd5ebbd827d852e921114 100644
+index 1f0d404a375cc3d11ec4959281ac0bee1c1d75e3..e731cfccec8dd413b1b562e328cb22afe8909068 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -153,11 +153,8 @@ SRCS += \
+@@ -157,11 +157,8 @@ SRCS += \
  	rtl837x_port.c \
  	rtl837x_stp.c \
  	rtl837x_lldp.c \
@@ -67,10 +67,10 @@ index de45c8ab99dfc39fcb2d6c5122cdcc0d25dc6857..2813edbd960c0989b67bd5ebbd827d85
  	rtl837x_lacp.c \
  	rtl837x_trap.c \
 diff --git a/html/app.js b/html/app.js
-index b20c9e65930cb19f2cc9f462123a410cef084793..f5696f98b10414c7e21e1c73b6f9c51ba6be6ed2 100644
+index b0f1eb98e7ad18ee5d7f6646c0a12f0b68382e9a..e3969c677ff2b4faf717b3dc605c053e18945291 100644
 --- a/html/app.js
 +++ b/html/app.js
-@@ -2449,21 +2449,14 @@ function postCmd(cmd, quiet) {
+@@ -2450,21 +2450,14 @@ function postCmd(cmd, quiet) {
          method: "POST",
          body: cmd
      }).then(function(r) {
@@ -92,7 +92,7 @@ index b20c9e65930cb19f2cc9f462123a410cef084793..f5696f98b10414c7e21e1c73b6f9c51b
          if (!quiet) toast(t("t_applied", {
              c: safe
          }), "ok");
-@@ -2932,16 +2925,12 @@ function renderInfo() {
+@@ -2957,16 +2950,12 @@ function renderInfo() {
  function pollInfo() {
      return getJSON("/information.json").then(function(j) {
          S.info = j;
@@ -111,10 +111,10 @@ index b20c9e65930cb19f2cc9f462123a410cef084793..f5696f98b10414c7e21e1c73b6f9c51b
  }
  
 diff --git a/httpd/page_impl.c b/httpd/page_impl.c
-index 9876496e200eb285a7d9114776db6e5362bb2075..ef4a7f8d1a7f4622ebcdb5ac9d4e5bcfab9766d1 100644
+index 0e4e4ccb8b3e98ede848f055b81822834ff33630..fafa32f01f75e34acacd35ee04228cdfe6179e44 100644
 --- a/httpd/page_impl.c
 +++ b/httpd/page_impl.c
-@@ -321,8 +321,14 @@ void send_basic_info(void)
+@@ -284,8 +284,14 @@ void send_basic_info(void)
  			send_sfp_info(1);
  		}
  	}
@@ -131,7 +131,7 @@ index 9876496e200eb285a7d9114776db6e5362bb2075..ef4a7f8d1a7f4622ebcdb5ac9d4e5bcf
  
  #ifdef SNMP
      {
-@@ -338,16 +344,6 @@ void send_basic_info(void)
+@@ -301,16 +307,6 @@ void send_basic_info(void)
      }
  #endif
  	char_to_html('}');
@@ -149,7 +149,7 @@ index 9876496e200eb285a7d9114776db6e5362bb2075..ef4a7f8d1a7f4622ebcdb5ac9d4e5bcf
  
  
 diff --git a/test/test_page_json.c b/test/test_page_json.c
-index 784e2d4e395744cee06ad1ad49c540d20f28c092..fabfb770a3207ae416b9d890f1ed0f7b5b408112 100644
+index 49e7748981d1b0b337d30c657c801697fd159a8b..13921b412ca5520ddf9a673d2106fab72834f935 100644
 --- a/test/test_page_json.c
 +++ b/test/test_page_json.c
 @@ -388,19 +388,16 @@ int main(void)

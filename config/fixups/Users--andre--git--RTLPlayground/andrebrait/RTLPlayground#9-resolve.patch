@@ -1,0 +1,40 @@
+diff --git a/test/Makefile b/test/Makefile
+index 1d14024710850f1a309580814a8673ba43f94c40..62a35b94d5716d16f9f100fc2b7d4a0f5cfd6735 100644
+--- a/test/Makefile
++++ b/test/Makefile
+@@ -105,17 +105,13 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
+ $(BUILDDIR)/test_cpu_vlan_full $(BUILDDIR)/test_cpu_vlan_restricted $(BUILDDIR)/test_cpu_vlan_8372: test_cpu_vlan.c $(TABLE_ENV) | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)
+ 
+-<<<<<<< HEAD
+ $(BUILDDIR)/fileadder: $(SRCROOT)/tools/fileadder.c | $(BUILDDIR)
+ 	$(CC) -g -O1 -Wall -fsanitize=address,undefined -fno-omit-frame-pointer $< -o $@ -lz
+ 
+-run: $(TESTS) $(BUILDDIR)/fileadder snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay
+-=======
+ test_mirror:
+ 	CC="$(CC)" python3 test_mirror.py
+ 
+-run: $(TESTS) test_mirror
+->>>>>>> rebuild/pr-andrebrait/RTLPlayground#9
++run: $(TESTS) $(BUILDDIR)/fileadder snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay test_mirror
+ 	@fail=0; for t in $(TESTS); do \
+ 		echo "=== $$t ==="; \
+ 		$$t || fail=1; \
+@@ -127,8 +123,7 @@ run: $(TESTS) test_mirror
+ clean:
+ 	rm -rf $(BUILDDIR)
+ 
+-<<<<<<< HEAD
+-.PHONY: all run clean
++.PHONY: all run clean test_mirror
+ 
+ 
+ # SNMP host benches compile the same firmware sources; listener is opt-in here.
+@@ -217,6 +212,3 @@ $(addprefix $(BUILDDIR)/,test_snmp test_snmp_nine test_snmp_horaco_profile test_
+ .PHONY: config-replay
+ config-replay:
+ 	cd $(SRCROOT) && CC="$(CC)" python3 test/test_config_replay.py
+-=======
+-.PHONY: all run clean test_mirror
+->>>>>>> rebuild/pr-andrebrait/RTLPlayground#9

@@ -1,0 +1,21 @@
+diff --git a/test/Makefile b/test/Makefile
+index 3c40ef2017547703edb833ac6ad0ee22f309a3f7..fbe6c277eae2b57149a7a7bea9b60d1d3198d06c 100644
+--- a/test/Makefile
++++ b/test/Makefile
+@@ -127,8 +127,7 @@ l2-delete:
+ clean:
+ 	rm -rf $(BUILDDIR)
+ 
+-<<<<<<< HEAD
+-.PHONY: all run clean test_mirror
++.PHONY: all run clean test_mirror l2-delete
+ 
+ 
+ # SNMP host benches compile the same firmware sources; listener is opt-in here.
+@@ -223,6 +222,3 @@ test_lag_tokens:
+ 	CC="$(CC)" python3 test_lag_tokens.py
+ 
+ run: test_lag_tokens
+-=======
+-.PHONY: all run clean l2-delete
+->>>>>>> rebuild/pr-andrebrait/RTLPlayground#13

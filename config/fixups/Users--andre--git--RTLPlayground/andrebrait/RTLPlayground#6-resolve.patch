@@ -1,5 +1,5 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 8f6a27e946501a4c4e263821c2de7fa88dee19ae..d59a56fd923938788c667a72aef960357ac02306 100644
+index 585863dd33b8f3904cd0aae106c9767bcdf444ca..fd79c11c0419824721476d915756b1b1cf78cc9a 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
 @@ -52,17 +52,14 @@
@@ -16,7 +16,7 @@ index 8f6a27e946501a4c4e263821c2de7fa88dee19ae..d59a56fd923938788c667a72aef96035
      Status TLV: the MAU type, such as 1000BASE-T FD, and whether
      auto-negotiation is on. `/lldp.json` has them as `mau` and `aneg`, and
      `lldp show` prints `mau <type>`, followed by `auto` when it is on.
-->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
+->>>>>>> 39dec71 (PR andrebrait/RTLPlayground#6)
 +- HTTP
 +  - `/status.json` carries the flow control (`fc`) and EEE (`eee`) state of every port; `/eee.json` is gone.
 +  - The chip port of each front-panel port moved from `logPort` in every `/status.json` entry to one
@@ -25,10 +25,10 @@ index 8f6a27e946501a4c4e263821c2de7fa88dee19ae..d59a56fd923938788c667a72aef96035
  ## Fixed
  
 diff --git a/html/index.html b/html/index.html
-index db6f139b3e63365aaa9e3760b2dc7addf79a9dc8..550c14592959050ff2cbd44fe9127f55ee903f40 100644
+index 5bbca4ec5fd86186d068caa7005da8a1724fb40d..7c118f8b6f917cd77067bd1b3e91d4184c10ac3c 100644
 --- a/html/index.html
 +++ b/html/index.html
-@@ -398,11 +398,7 @@ button.danger{background:var(--bad);color:#fff;border-color:transparent}
+@@ -403,11 +403,7 @@ button.danger{background:var(--bad);color:#fff;border-color:transparent}
        </div>
        <div class="card"><h2 data-i18n="lldp_nb_title">Neighbours</h2>
          <div class="scrollx"><table class="t" id="lldp_nb_table">
@@ -36,16 +36,16 @@ index db6f139b3e63365aaa9e3760b2dc7addf79a9dc8..550c14592959050ff2cbd44fe9127f55
 -          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
 -=======
 -          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_link">Link</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
-->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
+->>>>>>> 39dec71 (PR andrebrait/RTLPlayground#6)
 +          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_link">Link</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
            <tbody></tbody></table></div>
        </div>
        <div class="card"><h2 data-i18n="lldp_tlvs">Optional TLVs</h2>
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index 0b2cbe5ad5558dbe1f36008f468c856ac96f3fd1..565962d437636b3a3b5d1d2468c83b949c327ab1 100644
+index 782757b3a9edbd5f9e0b2e767df27d497648cd4d..ab2d060e742f9e688ae69b5596a6aa012bed84f9 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -585,15 +585,11 @@ void lldp_neighbors_to_html(void) __banked __reentrant
+@@ -584,15 +584,11 @@ void lldp_neighbors_to_html(void) __banked __reentrant
          lldp_put_dec(lldp_nb[i].mtu, true);
          string_to_html(",\"agg\":");
          lldp_put_dec((lldp_nb[i].agg & LLDP_AGG_ANNOUNCED) ? ((lldp_nb[i].agg & LLDP_AGG_ACTIVE) ? 2 : 1) : 0, true);
@@ -59,13 +59,13 @@ index 0b2cbe5ad5558dbe1f36008f468c856ac96f3fd1..565962d437636b3a3b5d1d2468c83b94
 +        string_to_html(",\"aneg\":");
          lldp_put_dec((lldp_nb[i].aneg & LLDP_ANEG_ANNOUNCED) ? ((lldp_nb[i].aneg & LLDP_AUTONEG_ENABLED) ? 2 : 1) : 0, true);
 -        slen += strtox(outbuf + slen, ",\"warn\":");
-->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
+->>>>>>> 39dec71 (PR andrebrait/RTLPlayground#6)
 +        string_to_html(",\"warn\":");
          lldp_put_dec(lldp_warnings(&lldp_nb[i]), true);
          string_to_html(",\"ttl\":");
          lldp_put_dec(lldp_nb[i].ttl, true);
 diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
-index 954f0fb07dbf9539e0a9365d7bb427aecfdc100a..001b235de953449b34c63bc898690a192dc51d4d 100644
+index b38513cd71fe75044fe88f6b170b1afc7d038aaf..001b235de953449b34c63bc898690a192dc51d4d 100644
 --- a/rtl837x_lldp.h
 +++ b/rtl837x_lldp.h
 @@ -109,11 +109,7 @@
@@ -76,13 +76,13 @@ index 954f0fb07dbf9539e0a9365d7bb427aecfdc100a..001b235de953449b34c63bc898690a19
 -#define LLDP_NB_JSON_LENGTH 271	/* separator + worst-case neighbour entry in /lldp.json */
 -=======
 -#define LLDP_NB_JSON_LENGTH 247	/* separator + worst-case neighbour entry in /lldp.json */
-->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
+->>>>>>> 39dec71 (PR andrebrait/RTLPlayground#6)
 +#define LLDP_NB_JSON_LENGTH 292	/* separator + worst-case neighbour entry in /lldp.json */
  
  struct lldp_neighbor {
      uint8_t port;		/* logical ingress port */
 diff --git a/test/test_lldp.c b/test/test_lldp.c
-index 676da3eac9ce384649acd5ffbdfdebd2c3ffc90f..6ff400428fc6461f64be13d4aa616a889e0ea203 100644
+index 9bb405edd71af184ac082ca5b791665869d25da1..da4752d25de0dd2d6d5bfe8de4bf959c35056a3e 100644
 --- a/test/test_lldp.c
 +++ b/test/test_lldp.c
 @@ -131,7 +131,6 @@ static void reset(bool enabled, uint16_t links)
@@ -106,7 +106,7 @@ index 676da3eac9ce384649acd5ffbdfdebd2c3ffc90f..6ff400428fc6461f64be13d4aa616a88
  	return lldp_in();
  }
 -
-->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
+->>>>>>> 39dec71 (PR andrebrait/RTLPlayground#6)
  int main(void)
  {
  	uint8_t i;
@@ -152,7 +152,7 @@ index 676da3eac9ce384649acd5ffbdfdebd2c3ffc90f..6ff400428fc6461f64be13d4aa616a88
  	frame(2, LLDP_CHASSIS_ID_TLV_SUBTYPE, (const char *)ap_mac, MAC_ADDR_LEN, LLDP_PORT_ID_SUBTYPE_MAC, (const char *)ap_mac, MAC_ADDR_LEN);
  	add_tlv(short_tlv, sizeof(short_tlv));
 -	CHECK(lldp_nb[0].mau == 0 && lldp_nb[0].aneg == 0, "L16 a MAC/PHY Status TLV of the wrong length is ignored");
-->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
+->>>>>>> 39dec71 (PR andrebrait/RTLPlayground#6)
 +	CHECK(lldp_nb[0].mau == 0 && lldp_nb[0].aneg == 0, "L19 a MAC/PHY Status TLV of the wrong length is ignored");
  
  	printf("\n%s (%d failure%s)\n", failures ? "SANDBOX: FAILURES" : "SANDBOX: ALL PASS",

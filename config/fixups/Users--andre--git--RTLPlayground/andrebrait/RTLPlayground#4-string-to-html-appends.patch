@@ -246,41 +246,6 @@ index 0cf4b898457a0e477f84ab012b18eb5b93144c54..1883a01dbe3e9e03b9f941ee71c86f2c
          lldp_put_dec(lldp_nb[i].ttl, true);
          lldp_put('}', true);
      }
-diff --git a/test/Makefile b/test/Makefile
-index c302349dd2517c1791a48dcaa8d5d55c0f9ee1cf..55c1fe471dbef1c7e4275df5b55b9175f1feae19 100644
---- a/test/Makefile
-+++ b/test/Makefile
-@@ -59,8 +59,8 @@ $(BUILDDIR)/test_rx_bounds: test_rx_bounds.c $(SRCROOT)/uip/uip_rx.h | $(BUILDDI
- 
- # Prometheus exporter: metrics.c is included by the test, metrics_cli.c is linked.
- TESTS += $(BUILDDIR)/test_metrics
--$(BUILDDIR)/test_metrics: test_metrics.c $(SRCROOT)/metrics.c $(SRCROOT)/metrics_cli.c $(SRCROOT)/metrics.h | $(BUILDDIR)
--	$(CC) $(CFLAGS) -DPROMETHEUS test_metrics.c $(SRCROOT)/metrics_cli.c -o $@ $(LDFLAGS)
-+$(BUILDDIR)/test_metrics: test_metrics.c $(SRCROOT)/metrics.c $(SRCROOT)/metrics_cli.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/metrics.h | $(BUILDDIR)
-+	$(CC) $(CFLAGS) -DPROMETHEUS test_metrics.c $(SRCROOT)/metrics_cli.c $(SRCROOT)/httpd/html_out.c -o $@ $(LDFLAGS)
- TESTS += $(BUILDDIR)/test_metrics_http
- $(BUILDDIR)/test_metrics_http: test_metrics_http.c test_httpd_tx.c $(SRCROOT)/httpd/httpd.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/uip/uip.c $(SRCROOT)/sessions.c | $(BUILDDIR)
- 	$(CC) $(CFLAGS) -DPROMETHEUS test_metrics_http.c $(SRCROOT)/httpd/httpd.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/uip/uip.c $(SRCROOT)/sessions.c -o $@ $(LDFLAGS)
-@@ -96,8 +96,8 @@ $(BUILDDIR)/test_page_json: test_page_json.c $(TABLE_ENV) hw_mock.h | $(BUILDDIR
- $(BUILDDIR)/test_lacp: test_lacp.c $(SRCROOT)/rtl837x_lacp.c | $(BUILDDIR)
- 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
- 
--$(BUILDDIR)/test_lldp: test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c fw_memset.h | $(BUILDDIR)
--	$(CC) $(CFLAGS) -include fw_memset.h test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c -o $@ $(LDFLAGS)
-+$(BUILDDIR)/test_lldp: test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/httpd/html_out.c fw_memset.h | $(BUILDDIR)
-+	$(CC) $(CFLAGS) -include fw_memset.h test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/httpd/html_out.c -o $@ $(LDFLAGS)
- 
- # httpd/httpd.c, httpd/html_out.c and uip/uip.c are compiled UNMODIFIED from the firmware tree;
- # this test carries the environment below them itself.
-@@ -115,7 +115,7 @@ $(BUILDDIR)/test_cpu_vlan_full $(BUILDDIR)/test_cpu_vlan_restricted $(BUILDDIR)/
- $(BUILDDIR)/fileadder: $(SRCROOT)/tools/fileadder.c | $(BUILDDIR)
- 	$(CC) -g -O1 -Wall -fsanitize=address,undefined -fno-omit-frame-pointer $< -o $@ -lz
- 
--$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c | $(BUILDDIR)
-+$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/httpd/html_out.c | $(BUILDDIR)
- 	$(CC) $(CFLAGS) $(GC_CFLAGS) $^ -o $@ $(LDFLAGS) $(GC_LDFLAGS)
- 
- run: $(TESTS) $(BUILDDIR)/fileadder snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay prometheus-replay
 diff --git a/test/test_metrics.c b/test/test_metrics.c
 index 158d1e2328751b08952cdb531efcf99bef850662..df52cc239d10129af2e2c0d4102b8c31f427f678 100644
 --- a/test/test_metrics.c
@@ -302,3 +267,29 @@ index 158d1e2328751b08952cdb531efcf99bef850662..df52cc239d10129af2e2c0d4102b8c31
  #include "../metrics.c"
  
  /* Switch fixture: lan1 up at 1 Gbit/s named "uplink", lan2 link down,
+diff --git a/test/Makefile b/test/Makefile
+index 2f14af5cb90bdeb8f93943e88571450aaf97ace1..c20c6f23488548ee5a6920256669315306757b7b 100644
+--- a/test/Makefile
++++ b/test/Makefile
+@@ -60,8 +60,8 @@ $(BUILDDIR)/test_rx_bounds: test_rx_bounds.c $(SRCROOT)/uip/uip_rx.h | $(BUILDDI
+ 
+ # Prometheus exporter: metrics.c is included by the test, metrics_cli.c is linked.
+ TESTS += $(BUILDDIR)/test_metrics
+-$(BUILDDIR)/test_metrics: test_metrics.c $(SRCROOT)/metrics.c $(SRCROOT)/metrics_cli.c $(SRCROOT)/metrics.h | $(BUILDDIR)
+-	$(CC) $(CFLAGS) -DPROMETHEUS test_metrics.c $(SRCROOT)/metrics_cli.c -o $@ $(LDFLAGS)
++$(BUILDDIR)/test_metrics: test_metrics.c $(SRCROOT)/metrics.c $(SRCROOT)/metrics_cli.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/metrics.h | $(BUILDDIR)
++	$(CC) $(CFLAGS) -DPROMETHEUS test_metrics.c $(SRCROOT)/metrics_cli.c $(SRCROOT)/httpd/html_out.c -o $@ $(LDFLAGS)
+ TESTS += $(BUILDDIR)/test_metrics_http
+ $(BUILDDIR)/test_metrics_http: test_metrics_http.c test_httpd_tx.c $(SRCROOT)/httpd/httpd.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/uip/uip.c $(SRCROOT)/sessions.c $(SRCROOT)/timer.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) -DPROMETHEUS test_metrics_http.c $(SRCROOT)/httpd/httpd.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/uip/uip.c $(SRCROOT)/sessions.c $(SRCROOT)/timer.c -o $@ $(LDFLAGS)
+@@ -101,8 +101,8 @@ $(BUILDDIR)/test_page_json: test_page_json.c $(TABLE_ENV) hw_mock.h | $(BUILDDIR
+ $(BUILDDIR)/test_lacp: test_lacp.c $(SRCROOT)/rtl837x_lacp.c $(SRCROOT)/timer.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+ 
+-$(BUILDDIR)/test_lldp: test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/timer.c fw_memset.h | $(BUILDDIR)
+-	$(CC) $(CFLAGS) -include fw_memset.h test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/timer.c -o $@ $(LDFLAGS)
++$(BUILDDIR)/test_lldp: test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/timer.c fw_memset.h | $(BUILDDIR)
++	$(CC) $(CFLAGS) -include fw_memset.h test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/timer.c -o $@ $(LDFLAGS)
+ 
+ # httpd/httpd.c, httpd/html_out.c and uip/uip.c are compiled UNMODIFIED from the firmware tree;
+ # this test carries the environment below them itself.

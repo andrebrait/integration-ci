@@ -1,11 +1,11 @@
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index 775281780de3892657e105a5d52624f1c7221c35..300b5284e67c9b8f30b4a5eddff18ef8c718e934 100644
+index ff4e303bf48cf816905e9900c45dfe5fb3b3c9e6..c77673e581b87c09bac6942e04738473d8517f0d 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -11,26 +11,19 @@
- #include "uip/uip.h"
+@@ -12,26 +12,19 @@
  #include "machine.h"
  #include "version.h"
+ #include "timer.h"
 -<<<<<<< HEAD
  #include "rtl837x_trap.h"
  #include "page_impl.h"
@@ -29,9 +29,9 @@ index 775281780de3892657e105a5d52624f1c7221c35..300b5284e67c9b8f30b4a5eddff18ef8
  static __code const uint8_t lldp_oui_8023[3] = {0x00, 0x12, 0x0f};
 ->>>>>>> rebuild/pr-600
  
- extern volatile __xdata uint32_t ticks;
- 
-@@ -237,7 +230,6 @@ uint8_t lldp_portdesc(__xdata uint8_t *p, uint8_t port) __banked
+ static __xdata struct timer lldp_timer;
+ __xdata uint8_t lldp_seconds;
+@@ -236,7 +229,6 @@ uint8_t lldp_portdesc(__xdata uint8_t *p, uint8_t port) __banked
      return name_length + 2;
  }
  
@@ -39,7 +39,7 @@ index 775281780de3892657e105a5d52624f1c7221c35..300b5284e67c9b8f30b4a5eddff18ef8
  #define LLDP_RX_TAG ((__xdata struct rtl_tag *)&uip_buf[2 * MAC_ADDR_LEN])
  
  static uint8_t lldp_printable(uint8_t c) __reentrant
-@@ -461,7 +453,8 @@ void lldp_show(void) __banked __reentrant
+@@ -460,7 +452,8 @@ void lldp_show(void) __banked __reentrant
          lldp_put_dec(lldp_nb[i].ttl, false);
          print_string("s\n");
      }
@@ -49,7 +49,7 @@ index 775281780de3892657e105a5d52624f1c7221c35..300b5284e67c9b8f30b4a5eddff18ef8
  static __xdata uint8_t *lldp_org_header(__xdata uint8_t *p, __code const uint8_t *oui, uint8_t subtype, uint8_t length) __reentrant
  {
      *p++ = (uint8_t)LLDP_TYPE(LLDP_ORG_TLV_TYPE);
-@@ -560,5 +553,4 @@ uint8_t lldp_port_org_tlvs(__xdata uint8_t *p, uint8_t port) __banked __reentran
+@@ -559,5 +552,4 @@ uint8_t lldp_port_org_tlvs(__xdata uint8_t *p, uint8_t port) __banked __reentran
      *p++ = v & 0xff;
  
      return p - start;

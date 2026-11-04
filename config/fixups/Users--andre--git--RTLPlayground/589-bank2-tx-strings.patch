@@ -1,8 +1,8 @@
 diff --git a/Makefile b/Makefile
-index af14d987f6ea11dd087981d74e5ef5d3e07a5d64..20a81ef18aa97db56f8dac0b836314c0e5d5fca2 100644
+index 3f330f305e7f45e30f4bfc4e7050da7f1f788f59..d0e59f06303076a8d5cd6d2bd2a0b51d4f9d8fb3 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -148,6 +148,7 @@ SRCS += \
+@@ -154,6 +154,7 @@ SRCS += \
  	rtl837x_port.c \
  	rtl837x_stp.c \
  	rtl837x_lldp.c \
@@ -11,10 +11,10 @@ index af14d987f6ea11dd087981d74e5ef5d3e07a5d64..20a81ef18aa97db56f8dac0b836314c0
  	rtl837x_lacp.c \
  	rtl837x_trap.c \
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index a5a9a2798994f4c9f30ba3f5a2163cf6166187a9..8d3a99725fbdb7d8d2d1ad1b4f56df58d6729f04 100644
+index 7ef6106e266fe5b4a7cfe0e84457e379cd9b93ab..be7255d3c80d42f6b12f8e051e29e28f39e37ce8 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -212,30 +212,6 @@ void lldp_set_rtl_wrapper(void) __banked {
+@@ -211,30 +211,6 @@ void lldp_set_rtl_wrapper(void) __banked {
      LLDP_O->ether_type = HTONS(LLDP_ETHERTYPE);
  }
  
@@ -89,17 +89,17 @@ index 0000000000000000000000000000000000000000..f44a264ca9d9d794abd64c0fbe07ba0e
 +    return machine_name_length + 1 + version_length + 2;
 +}
 diff --git a/test/Makefile b/test/Makefile
-index 3b6a163f28d0dd345145a63659730501d5e9b6bf..5a2624717b784f99473c277769c132d446b9296d 100644
+index 439cf81fe13857ae9e7812982ea77082ba6cd7f6..5d90bbb3915205cd15f35ee4157f221b899385d3 100644
 --- a/test/Makefile
 +++ b/test/Makefile
-@@ -69,8 +69,8 @@ $(BUILDDIR)/test_page_json: test_page_json.c $(TABLE_ENV) hw_mock.h | $(BUILDDIR
- $(BUILDDIR)/test_lacp: test_lacp.c $(SRCROOT)/rtl837x_lacp.c | $(BUILDDIR)
+@@ -75,8 +75,8 @@ $(BUILDDIR)/test_page_json: test_page_json.c $(TABLE_ENV) hw_mock.h | $(BUILDDIR
+ $(BUILDDIR)/test_lacp: test_lacp.c $(SRCROOT)/rtl837x_lacp.c $(SRCROOT)/timer.c | $(BUILDDIR)
  	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
  
--$(BUILDDIR)/test_lldp: test_lldp.c $(SRCROOT)/rtl837x_lldp.c fw_memset.h | $(BUILDDIR)
--	$(CC) $(CFLAGS) -include fw_memset.h test_lldp.c $(SRCROOT)/rtl837x_lldp.c -o $@ $(LDFLAGS)
-+$(BUILDDIR)/test_lldp: test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c fw_memset.h | $(BUILDDIR)
-+	$(CC) $(CFLAGS) -include fw_memset.h test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c -o $@ $(LDFLAGS)
+-$(BUILDDIR)/test_lldp: test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/timer.c fw_memset.h | $(BUILDDIR)
+-	$(CC) $(CFLAGS) -include fw_memset.h test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/timer.c -o $@ $(LDFLAGS)
++$(BUILDDIR)/test_lldp: test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/timer.c fw_memset.h | $(BUILDDIR)
++	$(CC) $(CFLAGS) -include fw_memset.h test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/timer.c -o $@ $(LDFLAGS)
  
  # httpd/httpd.c and uip/uip.c are compiled UNMODIFIED from the firmware tree;
  # this test carries the environment below them itself.

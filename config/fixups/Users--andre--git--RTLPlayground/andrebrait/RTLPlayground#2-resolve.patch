@@ -1,8 +1,8 @@
 diff --git a/html/index.html b/html/index.html
-index 95ab8de6e592396530f273da1224fa97c559a32e..6ffceccdf3f00921b414e9e2930dccda09771e7b 100644
+index 039a11abf8893755f2509ce4117ef632640f128b..88455d45caf3691ddcca96edc7c0a9b1c6a4cf83 100644
 --- a/html/index.html
 +++ b/html/index.html
-@@ -395,11 +395,7 @@ button.danger{background:var(--bad);color:#fff;border-color:transparent}
+@@ -403,11 +403,7 @@ button.danger{background:var(--bad);color:#fff;border-color:transparent}
        </div>
        <div class="card"><h2 data-i18n="lldp_nb_title">Neighbours</h2>
          <div class="scrollx"><table class="t" id="lldp_nb_table">
@@ -10,13 +10,13 @@ index 95ab8de6e592396530f273da1224fa97c559a32e..6ffceccdf3f00921b414e9e2930dccda
 -          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_warn">Warnings</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
 -=======
 -          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
-->>>>>>> ef32faf (PR andrebrait/RTLPlayground#2)
+->>>>>>> dd94cc1 (PR andrebrait/RTLPlayground#2)
 +          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_warn">Warnings</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
            <tbody></tbody></table></div>
        </div>
        <div class="card"><h2 data-i18n="lldp_tlvs">Optional TLVs</h2>
 diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
-index 265b7126634b46cfd0db0159bcd7f02f93792ad5..e8ed91775aaf338a92feb1ca7e3ab1fecd680241 100644
+index 58964be5922111271cd46bb9e9b2d0111f9ebfdb..e8ed91775aaf338a92feb1ca7e3ab1fecd680241 100644
 --- a/rtl837x_lldp.h
 +++ b/rtl837x_lldp.h
 @@ -92,7 +92,6 @@
@@ -34,24 +34,8 @@ index 265b7126634b46cfd0db0159bcd7f02f93792ad5..e8ed91775aaf338a92feb1ca7e3ab1fe
 -#define LLDP_NB_JSON_LENGTH 226	/* separator + worst-case neighbour entry in /lldp.json */
 -=======
 -#define LLDP_NB_JSON_LENGTH 229	/* separator + worst-case neighbour entry in /lldp.json */
-->>>>>>> ef32faf (PR andrebrait/RTLPlayground#2)
+->>>>>>> dd94cc1 (PR andrebrait/RTLPlayground#2)
 +#define LLDP_NB_JSON_LENGTH 271	/* separator + worst-case neighbour entry in /lldp.json */
  
  struct lldp_neighbor {
      uint8_t port;		/* logical ingress port */
-diff --git a/test/test_lldp.c b/test/test_lldp.c
-index 61cf5aaad752cbcbe2fdad44d121b391f75f9df2..8207057360125fa80c7cc3cf036c90389332c72f 100644
---- a/test/test_lldp.c
-+++ b/test/test_lldp.c
-@@ -341,11 +341,8 @@ int main(void)
- 	}
- 	CHECK(!bad, "L15 a frame cut inside a TLV or inside the header publishes no neighbour");
- 
--<<<<<<< HEAD
--=======
- 	test_neighbor_fields();
- 
-->>>>>>> ef32faf (PR andrebrait/RTLPlayground#2)
- 	printf("\n%s (%d failure%s)\n", failures ? "SANDBOX: FAILURES" : "SANDBOX: ALL PASS",
- 	       failures, failures == 1 ? "" : "s");
- 	return failures ? 1 : 0;

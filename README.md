@@ -68,8 +68,9 @@ ln -sfn /root/git/integration-ci/integration ~/.local/bin/integration
 
 `config/Users--andre--git--RTLPlayground.sh` integrates all this account's open
 upstream PRs, plus the listed third-party carries and fork-only drafts.
-Install the symlinks above using `/Users/andre/git/integration-ci` on this host;
-macOS needs Homebrew Bash and `brew install flock`. Keep `origin` and add the
+Keep configuration edits in a maintained linked worktree and point
+`~/.config/integration` at that worktree's `config` directory. macOS needs
+Homebrew Bash and `brew install flock`. Keep `origin` and add the
 upstream alias if absent:
 
 ```sh
@@ -120,8 +121,10 @@ then generate the full-index diff between those blobs and the resolved files.
 Ordinary `N-name.patch` fixups still run afterward with `git apply --3way`.
 Some adaptations exist only because several PRs are combined: the 615 fixups
 keep the SNMP-enabled integration within internal RAM, the 600 and 605 test
-stubs and #1's test fixup let the host tests link all LLDP carries together,
-and the warning-details draft's fixups keep BANK3 within its size.
+stubs let the host tests link the LLDP carries together, and the warning-details
+draft's fixups keep BANK3 within its size. The former
+`andrebrait/RTLPlayground#1` behavior is now part of `logicog/RTLPlayground#589`;
+its patches stay archived outside the active fixup directory.
 
 Upstream reformatted `html/app.js` with `js-beautify -s 4` (#716), so PR
 branches written before it conflict on every hunk. Register the merge driver in

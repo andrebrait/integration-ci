@@ -1,0 +1,20 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3b1f8b3aa02f51051996112609a2cb8bf022e619..e1cf4461e403e5fd7d773bd141a116b579e2362f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -54,15 +54,12 @@
+ ## Fixed
+ 
+ - Commands
+-<<<<<<< HEAD
+   - Reject malformed mirror port tokens, invalid source suffixes, and extra arguments
+     after `mirror status` or `mirror off` without changing the mirroring configuration.
+   - Reject incomplete LAG group numbers and extra arguments after `lag show`,
+     `lag <group> d` or `lag <group> lacp off` without changing configuration.
+-=======
+   - Reject extra arguments to `lacp off` and `lacp show`. A malformed
+     `lacp off 1` no longer silently disables every LACP group.
+->>>>>>> rebuild/pr-andrebrait/RTLPlayground#11
+ 
+ - Time
+   - `rtl8372_init()` sets SDS 0 to SGMII as the stock firmware does. The masks were 0, so on RTL8372

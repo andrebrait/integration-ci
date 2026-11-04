@@ -1,19 +1,19 @@
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index 64b1d051c26986143b14c494097cebcd1f6ecfcf..36c56ef111b09772b707e1e014fb010458a48a4c 100644
+index 1cb1a798d5435559f86781279348b6e7bafd3593..984aba2387a3e064f314f11a2976867a1a50e203 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -15,10 +15,7 @@
+@@ -16,10 +16,7 @@
  #include "page_impl.h"
  #include "rtl837x_regs.h"
  #include "rtl837x_port.h"
 -<<<<<<< HEAD
  #include "phy.h"
 -=======
-->>>>>>> aea40aa (PR #605)
+->>>>>>> 8b66564 (PR #605)
  
  extern __xdata bool lldp_enabled;
  extern __code const struct machine machine;
-@@ -35,11 +32,7 @@ __xdata uint8_t lldp_seconds;
+@@ -34,11 +31,7 @@ __xdata uint8_t lldp_seconds;
  __xdata uint16_t lldp_logical_port_status = 0xffff;
  __xdata struct lldp_neighbor lldp_nb[LLDP_NB_MAX];
  static __xdata struct lldp_neighbor lldp_tmp;
@@ -25,11 +25,11 @@ index 64b1d051c26986143b14c494097cebcd1f6ecfcf..36c56ef111b09772b707e1e014fb0104
  
  static void lldp_put_dec(uint16_t v, bool html) __reentrant;
  static bool lldp_bytes_eq(__xdata uint8_t *a, __xdata uint8_t *b, uint8_t n) __reentrant;
-@@ -91,7 +84,6 @@ static void lldp_log_warnings(__xdata struct lldp_neighbor *nb) __reentrant
+@@ -90,7 +83,6 @@ static void lldp_log_warnings(__xdata struct lldp_neighbor *nb) __reentrant
          print_string(" same-neighbour-twice");
      write_char('\n');
  }
-->>>>>>> aea40aa (PR #605)
+->>>>>>> 8b66564 (PR #605)
  
  void lldp_init(void) __banked
  {

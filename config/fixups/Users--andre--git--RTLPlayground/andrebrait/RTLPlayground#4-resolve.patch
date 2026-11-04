@@ -1,12 +1,16 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index c999060e5a294c4af2d3d04cddaf7a437b8261a7..98366f5bfe1184b950d828430cd9815fd7e7b40d 100644
+index e961554ace8e081ed491de0eb6cf0a5c1021d0c3..d57f88e3aa5d2ce5ef009e36d39a85f91f9222d0 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -43,18 +43,16 @@
+@@ -43,22 +43,19 @@
    - The web session expires after one hour without a request (was 200 seconds). The UI stops
      polling while its tab is hidden, so with 200 seconds switching tabs for a few minutes logged
      you out. `session <seconds>` still sets it.
 -<<<<<<< HEAD
+   - Reuse the JSON string appender to reduce BANK1 code usage without changing responses.
+     The appender is shared in the common area, so the STP pages in BANK4 and the HTTP
+     responses in `httpd.c` use it too.
+   - Rename the Prometheus section to Metrics, keeping the toggle labelled Prometheus exporter.
 -- HTTP
 -  - `/status.json` carries the flow control (`fc`) and EEE (`eee`) state of every port; `/eee.json` is gone.
 -  - The chip port of each front-panel port moved from `logPort` in every `/status.json` entry to one
@@ -17,8 +21,7 @@ index c999060e5a294c4af2d3d04cddaf7a437b8261a7..98366f5bfe1184b950d828430cd9815f
      existing MTU and LAG endpoints on demand without changing firmware defaults.
      Closing a warning restores keyboard focus to the correct neighbour even when
      multiple neighbours share a physical port and the table refreshes.
-->>>>>>> bdfcdd4 (PR andrebrait/RTLPlayground#4)
-+
+->>>>>>> 67cbff9 (PR andrebrait/RTLPlayground#4)
 +- HTTP
 +  - `/status.json` carries the flow control (`fc`) and EEE (`eee`) state of every port; `/eee.json` is gone.
 +  - The chip port of each front-panel port moved from `logPort` in every `/status.json` entry to one
@@ -27,7 +30,7 @@ index c999060e5a294c4af2d3d04cddaf7a437b8261a7..98366f5bfe1184b950d828430cd9815f
  ## Fixed
  
 diff --git a/html/app.js b/html/app.js
-index 07d5f1a7d4b0bc9fa076d71b7af193a22cafeaf6..39e002f4a35f7ab3fafc44121675b74ed1ef69b2 100644
+index 6a9aa5d05330e53ef8358b467d2b26bd7d3a4ea2..dcc459b2d35320c71c0b008a2ca3e20fe5d196e1 100644
 --- a/html/app.js
 +++ b/html/app.js
 @@ -187,7 +187,6 @@ var LANG = {
@@ -45,7 +48,7 @@ index 07d5f1a7d4b0bc9fa076d71b7af193a22cafeaf6..39e002f4a35f7ab3fafc44121675b74e
 -=======
          lldp_w_local: "Local switch: {name}; physical port: {port}",
          lldp_w_unavailable: "Unavailable",
-         lldp_w_size: "The advertised maximum Ethernet frame size differs from the local limit. This is not the IP MTU.",
+         lldp_w_size: "The neighbour advertises a larger maximum Ethernet frame size than the local limit, so this port would drop such frames. This is not the IP MTU.",
 @@ -209,7 +207,6 @@ var LANG = {
          lldp_w_group: "Yes (LAG {group})",
          lldp_w_duplicate: "The same chassis appears on different ports that do not belong to the same LAG.",
@@ -54,10 +57,10 @@ index 07d5f1a7d4b0bc9fa076d71b7af193a22cafeaf6..39e002f4a35f7ab3fafc44121675b74e
          st_title: "Port statistics",
          st_h: "totals since boot",
          st_txg: "TX good",
-@@ -2538,11 +2535,8 @@ function toast(msg, cls) {
- 
+@@ -2540,11 +2537,8 @@ function toast(msg, cls) {
  function modal(title, bodyEl, buttons) {
      S.detail = null;
+     portTip(); // Hide if open
 -<<<<<<< ours
      $("modal").classList.remove("narrow");
 -=======
@@ -67,10 +70,10 @@ index 07d5f1a7d4b0bc9fa076d71b7af193a22cafeaf6..39e002f4a35f7ab3fafc44121675b74e
      var b = $("mbody");
      b.innerHTML = "";
 diff --git a/html/index.html b/html/index.html
-index 089115673732611fb004a92911ada12b788cd64b..d0a08bc4606ede35cb53e0f0c19d54b3880ffa3d 100644
+index a87bb94ef116a4d17bfc95b0d7f7eb347eee714d..d51d2fe989ac7cc4aa1555a3be8ea7494a567443 100644
 --- a/html/index.html
 +++ b/html/index.html
-@@ -395,11 +395,7 @@ button.danger{background:var(--bad);color:#fff;border-color:transparent}
+@@ -403,11 +403,7 @@ button.danger{background:var(--bad);color:#fff;border-color:transparent}
        </div>
        <div class="card"><h2 data-i18n="lldp_nb_title">Neighbours</h2>
          <div class="scrollx"><table class="t" id="lldp_nb_table">
@@ -78,13 +81,13 @@ index 089115673732611fb004a92911ada12b788cd64b..d0a08bc4606ede35cb53e0f0c19d54b3
 -          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_warn">Warnings</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
 -=======
 -          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
-->>>>>>> bdfcdd4 (PR andrebrait/RTLPlayground#4)
+->>>>>>> 67cbff9 (PR andrebrait/RTLPlayground#4)
 +          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
            <tbody></tbody></table></div>
        </div>
        <div class="card"><h2 data-i18n="lldp_tlvs">Optional TLVs</h2>
 diff --git a/tools/httpd_sim.c b/tools/httpd_sim.c
-index 4dec8dd9f11c9514a725f47e42897e13f1a3574a..0f0295f04c3bfed9cc08c78a56d15c342cd95c7b 100644
+index 67d7a5e96638bb8ea6883e2903b9d87c9d608537..0f0295f04c3bfed9cc08c78a56d15c342cd95c7b 100644
 --- a/tools/httpd_sim.c
 +++ b/tools/httpd_sim.c
 @@ -129,13 +129,9 @@ void send_basic_info(int socket)
@@ -98,7 +101,7 @@ index 4dec8dd9f11c9514a725f47e42897e13f1a3574a..0f0295f04c3bfed9cc08c78a56d15c34
  		sprintf(map + strlen(map), "%s%d", i ? "," : "", physToLogPort[i]);
 -=======
 -			"{\"hostname\":\"RTLPlayground simulator\",\"ip_address\":\"192.168.10.247\",\"ip_gateway\":\"192.168.2.22\",\"ip_netmask\":\"255.255.255.0\",\"mac_address\":\"1c:2a:a3:23:00:02\",\"sw_ver\":\"" VERSION_SW "\",\"hw_ver\":\"SWGT024-V2.0\"}";
-->>>>>>> bdfcdd4 (PR andrebrait/RTLPlayground#4)
+->>>>>>> 67cbff9 (PR andrebrait/RTLPlayground#4)
  	write(socket, response, strlen(response));
  	write(socket, map, strlen(map));
  	write(socket, "]}", 2);

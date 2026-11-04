@@ -1,8 +1,8 @@
 diff --git a/html/app.js b/html/app.js
-index 6e358d4891959755fbfefc5e60a56aa8b017a51b..f15da09b7bb6764a33c92066efa898f1e7040337 100644
+index 09bdb8edacade6fda941e5988ba2ccc498b85bb8..b09b2f47f786b231899bab01b504c7f2bb64ecbc 100644
 --- a/html/app.js
 +++ b/html/app.js
-@@ -4863,11 +4863,9 @@ tabHooks.lag = {
+@@ -4898,11 +4898,9 @@ tabHooks.lag = {
      }
  };
  
@@ -11,13 +11,14 @@ index 6e358d4891959755fbfefc5e60a56aa8b017a51b..f15da09b7bb6764a33c92066efa898f1
  var LLDP_TLVS = ["portdesc", "syscap", "mgmt", "pvid", "macphy", "lag", "mfs"];
  
 -=======
- 
  var LLDP_CAPS = [
      [1, "Other"],
-@@ -4888,7 +4886,6 @@ function lldpCaps(c) {
+     [2, "Repeater"],
+@@ -4921,8 +4919,6 @@ function lldpCaps(c) {
+         return x[1]
      }).join(", ")
  }
- 
+-
 ->>>>>>> theirs
  function lldpLoad() {
      return getJSON("/lldp.json").then(function(s) {
