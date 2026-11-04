@@ -1,0 +1,159 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 8f6a27e946501a4c4e263821c2de7fa88dee19ae..d59a56fd923938788c667a72aef960357ac02306 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -52,17 +52,14 @@
+     existing MTU and LAG endpoints on demand without changing firmware defaults.
+     Closing a warning restores keyboard focus to the correct neighbour even when
+     multiple neighbours share a physical port and the table refreshes.
+-<<<<<<< HEAD
+-- HTTP
+-  - `/status.json` carries the flow control (`fc`) and EEE (`eee`) state of every port; `/eee.json` is gone.
+-  - The chip port of each front-panel port moved from `logPort` in every `/status.json` entry to one
+-    `logPort` array in `/information.json`.
+-=======
+   - The LLDP neighbour table shows each neighbour's link from its 802.3 MAC/PHY
+     Status TLV: the MAU type, such as 1000BASE-T FD, and whether
+     auto-negotiation is on. `/lldp.json` has them as `mau` and `aneg`, and
+     `lldp show` prints `mau <type>`, followed by `auto` when it is on.
+->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
++- HTTP
++  - `/status.json` carries the flow control (`fc`) and EEE (`eee`) state of every port; `/eee.json` is gone.
++  - The chip port of each front-panel port moved from `logPort` in every `/status.json` entry to one
++    `logPort` array in `/information.json`.
+ 
+ ## Fixed
+ 
+diff --git a/html/index.html b/html/index.html
+index db6f139b3e63365aaa9e3760b2dc7addf79a9dc8..550c14592959050ff2cbd44fe9127f55ee903f40 100644
+--- a/html/index.html
++++ b/html/index.html
+@@ -398,11 +398,7 @@ button.danger{background:var(--bad);color:#fff;border-color:transparent}
+       </div>
+       <div class="card"><h2 data-i18n="lldp_nb_title">Neighbours</h2>
+         <div class="scrollx"><table class="t" id="lldp_nb_table">
+-<<<<<<< HEAD
+-          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
+-=======
+-          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_link">Link</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
+->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
++          <thead><tr><th data-i18n="c_port">Port Number</th><th data-i18n="lldp_nb_chassis">Chassis ID</th><th data-i18n="lldp_nb_portid">Port ID</th><th data-i18n="lldp_nb_sysname">System Name</th><th data-i18n="lldp_nb_sysdesc">System Description</th><th data-i18n="lldp_nb_portdesc">Port Description</th><th data-i18n="lldp_nb_addr">Address</th><th data-i18n="lldp_nb_caps">Capabilities</th><th data-i18n="lldp_nb_pvid">PVID</th><th data-i18n="lldp_nb_mtu">MTU</th><th data-i18n="lldp_nb_lag">LAG</th><th data-i18n="lldp_nb_link">Link</th><th data-i18n="lldp_nb_ttl">TTL</th></tr></thead>
+           <tbody></tbody></table></div>
+       </div>
+       <div class="card"><h2 data-i18n="lldp_tlvs">Optional TLVs</h2>
+diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
+index 0b2cbe5ad5558dbe1f36008f468c856ac96f3fd1..565962d437636b3a3b5d1d2468c83b949c327ab1 100644
+--- a/rtl837x_lldp.c
++++ b/rtl837x_lldp.c
+@@ -585,15 +585,11 @@ void lldp_neighbors_to_html(void) __banked __reentrant
+         lldp_put_dec(lldp_nb[i].mtu, true);
+         string_to_html(",\"agg\":");
+         lldp_put_dec((lldp_nb[i].agg & LLDP_AGG_ANNOUNCED) ? ((lldp_nb[i].agg & LLDP_AGG_ACTIVE) ? 2 : 1) : 0, true);
+-<<<<<<< HEAD
+-        string_to_html(",\"warn\":");
+-=======
+-        slen += strtox(outbuf + slen, ",\"mau\":");
++        string_to_html(",\"mau\":");
+         lldp_put_dec(lldp_nb[i].mau, true);
+-        slen += strtox(outbuf + slen, ",\"aneg\":");
++        string_to_html(",\"aneg\":");
+         lldp_put_dec((lldp_nb[i].aneg & LLDP_ANEG_ANNOUNCED) ? ((lldp_nb[i].aneg & LLDP_AUTONEG_ENABLED) ? 2 : 1) : 0, true);
+-        slen += strtox(outbuf + slen, ",\"warn\":");
+->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
++        string_to_html(",\"warn\":");
+         lldp_put_dec(lldp_warnings(&lldp_nb[i]), true);
+         string_to_html(",\"ttl\":");
+         lldp_put_dec(lldp_nb[i].ttl, true);
+diff --git a/rtl837x_lldp.h b/rtl837x_lldp.h
+index 954f0fb07dbf9539e0a9365d7bb427aecfdc100a..001b235de953449b34c63bc898690a192dc51d4d 100644
+--- a/rtl837x_lldp.h
++++ b/rtl837x_lldp.h
+@@ -109,11 +109,7 @@
+ #define LLDP_WARN_AGG 0x02
+ #define LLDP_WARN_DUPLICATE 0x04
+ #define PORT_MAX_LEN_MASK 0x3fff
+-<<<<<<< HEAD
+-#define LLDP_NB_JSON_LENGTH 271	/* separator + worst-case neighbour entry in /lldp.json */
+-=======
+-#define LLDP_NB_JSON_LENGTH 247	/* separator + worst-case neighbour entry in /lldp.json */
+->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
++#define LLDP_NB_JSON_LENGTH 292	/* separator + worst-case neighbour entry in /lldp.json */
+ 
+ struct lldp_neighbor {
+     uint8_t port;		/* logical ingress port */
+diff --git a/test/test_lldp.c b/test/test_lldp.c
+index 676da3eac9ce384649acd5ffbdfdebd2c3ffc90f..6ff400428fc6461f64be13d4aa616a889e0ea203 100644
+--- a/test/test_lldp.c
++++ b/test/test_lldp.c
+@@ -131,7 +131,6 @@ static void reset(bool enabled, uint16_t links)
+ 	reg_reads = tx_frames = 0;
+ }
+ 
+-<<<<<<< HEAD
+ /* An LLDPDU in the receive buffer: start it, append TLVs, end it. */
+ static void rx_start(uint8_t port, bool vlan)
+ {
+@@ -256,7 +255,6 @@ static void test_neighbor_fields(void)
+ 	      "N6 LLDP_NB_JSON_LENGTH holds a worst-case entry and its separator");
+ }
+ 
+-=======
+ /* Send the frame in uip_buf again with tlv before its End TLV */
+ static bool add_tlv(const uint8_t *tlv, uint8_t n)
+ {
+@@ -269,8 +267,6 @@ static bool add_tlv(const uint8_t *tlv, uint8_t n)
+ 	uip_len = p - uip_buf;
+ 	return lldp_in();
+ }
+-
+->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
+ int main(void)
+ {
+ 	uint8_t i;
+@@ -335,7 +331,6 @@ int main(void)
+ 	      && lldp_nb[3].chassis_len == 17 && !memcmp(lldp_nb[3].chassis, "94:2a:6f:d2:25:6e", 17),
+ 	      "L12 a MAC address sent as text is kept whole as the chassis ID");
+ 
+-<<<<<<< HEAD
+ 	reset(true, 0x01ff);
+ 	frame(1, AP_CHASSIS, LLDP_PORT_ID_TLV_SUBTYPE, "", 0);
+ 	frame(2, AP_CHASSIS, 0, "abc", 3);
+@@ -359,7 +354,7 @@ int main(void)
+ 	CHECK(!bad, "L15 a frame cut inside a TLV or inside the header publishes no neighbour");
+ 
+ 	test_neighbor_fields();
+-=======
++
+ 	/* 802.3 MAC/PHY Status: auto-negotiation supported and on, 1000BASE-T FD (MAU 30) */
+ 	static const uint8_t macphy[] = {LLDP_ORG_TLV_TYPE << 1, 9, 0x00, 0x12, 0x0f, 1, 0x03, 0x6c, 0x01, 0x00, 30};
+ 	reset(true, 0x01ff);
+@@ -367,25 +362,24 @@ int main(void)
+ 	slen = 0;
+ 	lldp_neighbors_to_html();
+ 	outbuf[slen] = 0;
+-	CHECK(strstr((char *)outbuf, "\"mau\":0,\"aneg\":0"), "L13 no MAC/PHY Status TLV: mau 0, aneg 0");
++	CHECK(strstr((char *)outbuf, "\"mau\":0,\"aneg\":0"), "L16 no MAC/PHY Status TLV: mau 0, aneg 0");
+ 	add_tlv(macphy, sizeof(macphy));
+ 	slen = 0;
+ 	lldp_neighbors_to_html();
+ 	outbuf[slen] = 0;
+ 	CHECK(lldp_nb[0].mau == 30 && strstr((char *)outbuf, "\"mau\":30,\"aneg\":2"),
+-	      "L14 MAC/PHY Status TLV: MAU type 30, auto-negotiation on");
++	      "L17 MAC/PHY Status TLV: MAU type 30, auto-negotiation on");
+ 	static const uint8_t forced[] = {LLDP_ORG_TLV_TYPE << 1, 9, 0x00, 0x12, 0x0f, 1, 0x01, 0x00, 0x00, 0x00, 16};
+ 	frame(2, LLDP_CHASSIS_ID_TLV_SUBTYPE, (const char *)ap_mac, MAC_ADDR_LEN, LLDP_PORT_ID_SUBTYPE_MAC, (const char *)ap_mac, MAC_ADDR_LEN);
+ 	add_tlv(forced, sizeof(forced));
+ 	slen = 0;
+ 	lldp_neighbors_to_html();
+ 	outbuf[slen] = 0;
+-	CHECK(strstr((char *)outbuf, "\"mau\":16,\"aneg\":1"), "L15 auto-negotiation supported but off: aneg 1");
++	CHECK(strstr((char *)outbuf, "\"mau\":16,\"aneg\":1"), "L18 auto-negotiation supported but off: aneg 1");
+ 	static const uint8_t short_tlv[] = {LLDP_ORG_TLV_TYPE << 1, 8, 0x00, 0x12, 0x0f, 1, 0x03, 0x6c, 0x01, 0x00};
+ 	frame(2, LLDP_CHASSIS_ID_TLV_SUBTYPE, (const char *)ap_mac, MAC_ADDR_LEN, LLDP_PORT_ID_SUBTYPE_MAC, (const char *)ap_mac, MAC_ADDR_LEN);
+ 	add_tlv(short_tlv, sizeof(short_tlv));
+-	CHECK(lldp_nb[0].mau == 0 && lldp_nb[0].aneg == 0, "L16 a MAC/PHY Status TLV of the wrong length is ignored");
+->>>>>>> 1fc9cf3 (PR andrebrait/RTLPlayground#6)
++	CHECK(lldp_nb[0].mau == 0 && lldp_nb[0].aneg == 0, "L19 a MAC/PHY Status TLV of the wrong length is ignored");
+ 
+ 	printf("\n%s (%d failure%s)\n", failures ? "SANDBOX: FAILURES" : "SANDBOX: ALL PASS",
+ 	       failures, failures == 1 ? "" : "s");
