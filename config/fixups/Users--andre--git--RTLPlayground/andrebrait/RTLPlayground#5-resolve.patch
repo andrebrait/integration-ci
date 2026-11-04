@@ -1,5 +1,5 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 8cefda0096ebbdc8f68aab0932492161f0919a67..17c2ace976d1061ebe0bf7d2538bde4ad5ee6fcf 100644
+index 38a498a78b9c504621694da6dab6c333364da588..e19ea9ece528823d488d7272a6e118e01ff0e054 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
 @@ -43,17 +43,14 @@
@@ -22,10 +22,10 @@ index 8cefda0096ebbdc8f68aab0932492161f0919a67..17c2ace976d1061ebe0bf7d2538bde4a
  ## Fixed
  
 diff --git a/html/app.js b/html/app.js
-index 2da1bcc7200408a10bb848d5cbeb0d236efa4e3c..27bd0fa24f53edfce272b9d4563edb1a29427ae5 100644
+index d143488889981060639627fa1d7a62ebaa1c6ad3..9d975bab2b602a8fef97b4b662bb57d2ce9d782b 100644
 --- a/html/app.js
 +++ b/html/app.js
-@@ -5669,11 +5669,7 @@ var CONF_OVERWRITE = [
+@@ -5668,11 +5668,7 @@ var CONF_OVERWRITE = [
      /^stp\s+(port\s+\d{1,2}|lag\s+[1-4])\s+(edge|cost|prio|guard|filter|p2p)\b/,
      /^igmp\b/, /^mtu\s+\d{1,2}\b/, /^storm\s+\d{1,2}\s+(bcast|mcast|ucast|umcast)\b/,
  ];
@@ -39,7 +39,7 @@ index 2da1bcc7200408a10bb848d5cbeb0d236efa4e3c..27bd0fa24f53edfce272b9d4563edb1a
  function mergeConf(base, texts) {
      var conf = base.slice();
 diff --git a/test/Makefile b/test/Makefile
-index b39a9c5842d5b459fc4ad003a8a14cfda35734ff..3823748b1043cd231757c55e38ed9cd1811b88f0 100644
+index 21cca465f09b66bcf60e93500c053b7b910aba44..331c98e5079ec9359dbec7afe6e7eb10fc114305 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -58,9 +58,6 @@ TESTS += $(BUILDDIR)/test_rx_bounds
@@ -87,7 +87,7 @@ index b39a9c5842d5b459fc4ad003a8a14cfda35734ff..3823748b1043cd231757c55e38ed9cd1
  	@fail=0; for t in $(TESTS); do \
  		echo "=== $$t ==="; \
  		$$t || fail=1; \
-@@ -160,11 +152,7 @@ prometheus-gui:
+@@ -163,11 +155,7 @@ prometheus-gui:
  clean:
  	rm -rf $(BUILDDIR)
  
@@ -96,11 +96,11 @@ index b39a9c5842d5b459fc4ad003a8a14cfda35734ff..3823748b1043cd231757c55e38ed9cd1
 -=======
 -.PHONY: all run prometheus-gui clean
 ->>>>>>> 073b27d (PR andrebrait/RTLPlayground#5)
-+.PHONY: all run lldp-conf prometheus-gui clean test_mirror l2-delete
++.PHONY: all run lldp-conf prometheus-gui clean test_mirror l2-delete l2-load
  
  
  # SNMP host benches compile the same firmware sources; listener is opt-in here.
-@@ -254,15 +242,11 @@ $(addprefix $(BUILDDIR)/,test_snmp test_snmp_nine test_snmp_horaco_profile test_
+@@ -257,16 +245,11 @@ $(addprefix $(BUILDDIR)/,test_snmp test_snmp_nine test_snmp_horaco_profile test_
  config-replay:
  	cd $(SRCROOT) && CC="$(CC)" python3 test/test_config_replay.py
  
@@ -110,6 +110,7 @@ index b39a9c5842d5b459fc4ad003a8a14cfda35734ff..3823748b1043cd231757c55e38ed9cd1
  	CC="$(CC)" python3 test_lag_tokens.py
  
  run: test_lag_tokens
+-.PHONY: l2-load
 -.PHONY: lldp-conf
 -=======
  .PHONY: prometheus-replay

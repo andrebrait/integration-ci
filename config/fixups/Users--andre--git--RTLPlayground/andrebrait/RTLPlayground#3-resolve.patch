@@ -1,8 +1,8 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 50b51c0045d59ae396d70ccb3a064cc2e13ddbea..d87d76295535e2096529994d4d763abdedb35555 100644
+index 7e13adf38f5a7abb493cb423f0828dc50d5d8cb7..aad50bb0264193099af478a3dfc6cadec98e6541 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -77,14 +77,11 @@
+@@ -77,16 +77,13 @@
      defaults (NTP off, no server, UTC-12:00) instead of the switch's settings.
    - Accept firmware uploads regardless of the file part's MIME type, including
      `application/macbinary` sent by Chrome on macOS for `.bin` files.
@@ -11,6 +11,8 @@ index 50b51c0045d59ae396d70ccb3a064cc2e13ddbea..d87d76295535e2096529994d4d763abd
      compression flag set separately for each file. Empty files no longer hide later assets.
    - Refuse MAC-table deletion when the requested index has aged out or is out of
      range, instead of using the next entry's data for a write.
+   - Load the complete MAC table even when responses contain fewer than 30 rows.
+     Stop at an empty page or a repeated entry, not an assumed page count.
 -=======
    - Give the LLDP Name column the remaining table width and wrap long names.
 ->>>>>>> efbdae6 (PR andrebrait/RTLPlayground#3)
@@ -18,7 +20,7 @@ index 50b51c0045d59ae396d70ccb3a064cc2e13ddbea..d87d76295535e2096529994d4d763abd
  - Health
    - `HEALTH=1` builds no longer write past the phase timing arrays at the LLDP checkpoint, which
 diff --git a/html/app.js b/html/app.js
-index 8732628070e0f9226fd50d26832556e94e9c1b17..abd060b240501b4bf1b538aa692371ecae33d8ac 100644
+index b9eebf14f8490ca54d3ec5efb7c36b8f5869ae4f..29e5225ffe68766526bebc56175c62d3eb709de1 100644
 --- a/html/app.js
 +++ b/html/app.js
 @@ -172,13 +172,11 @@ var LANG = {
@@ -43,7 +45,7 @@ index 8732628070e0f9226fd50d26832556e94e9c1b17..abd060b240501b4bf1b538aa692371ec
          st_title: "Port statistics",
          st_h: "totals since boot",
          st_txg: "TX good",
-@@ -5650,11 +5647,7 @@ var CONF_OVERWRITE = [
+@@ -5649,11 +5646,7 @@ var CONF_OVERWRITE = [
      /^stp\s+(port\s+\d{1,2}|lag\s+[1-4])\s+(edge|cost|prio|guard|filter|p2p)\b/,
      /^igmp\b/, /^mtu\s+\d{1,2}\b/, /^storm\s+\d{1,2}\s+(bcast|mcast|ucast|umcast)\b/,
  ];
@@ -131,7 +133,7 @@ index e501c9e4577e22b1baa2e5af2c43924efb0f64c3..f6b7b400dfa502d0f6c0fe158cfaf320
  void lldp_init(void) __banked
  {
 diff --git a/test/Makefile b/test/Makefile
-index 7544145d984c3edee570665f9eb7dd334d951e3a..1fb782e18198ae401f9ab5e302201eb63af1fe97 100644
+index cff1db08f58159d5da310be1cf308043f9f3d168..bcacc006c7228f4bbe353ba4f38de716b4252e57 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -44,11 +44,8 @@ TESTS = $(BUILDDIR)/test_cmd_editor \
@@ -188,7 +190,7 @@ index 7544145d984c3edee570665f9eb7dd334d951e3a..1fb782e18198ae401f9ab5e302201eb6
  	@fail=0; for t in $(TESTS); do \
  		echo "=== $$t ==="; \
  		$$t || fail=1; \
-@@ -147,7 +136,6 @@ lldp-conf:
+@@ -150,7 +139,6 @@ lldp-conf:
  clean:
  	rm -rf $(BUILDDIR)
  
@@ -196,19 +198,19 @@ index 7544145d984c3edee570665f9eb7dd334d951e3a..1fb782e18198ae401f9ab5e302201eb6
  .PHONY: all run clean test_mirror l2-delete
  
  
-@@ -243,6 +231,4 @@ test_lag_tokens:
- 	CC="$(CC)" python3 test_lag_tokens.py
+@@ -247,6 +235,4 @@ test_lag_tokens:
  
  run: test_lag_tokens
+ .PHONY: l2-load
 -=======
 -.PHONY: all run lldp-conf clean
 ->>>>>>> efbdae6 (PR andrebrait/RTLPlayground#3)
 +.PHONY: lldp-conf
 diff --git a/test/README.md b/test/README.md
-index 0b32d7f997793bb99456ace4f214127d07eb62bd..b31c33e0ad5e97c5ca07bd6eaaff1178f3d3527c 100644
+index f200638e6516b217de7a8e4e1dfaa663e8d9acf7..ecee6ccf784614eabc3f2fe2c769cfbf869ac369 100644
 --- a/test/README.md
 +++ b/test/README.md
-@@ -53,15 +53,12 @@ It runs the real `fileadder` executable against mixed raw and compressed files.
+@@ -53,7 +53,7 @@ It runs the real `fileadder` executable against mixed raw and compressed files.
  | `test_page_json` | `httpd/page_impl.c` + `rtl837x_port.c` + `rtl837x_pause.c` | `/vlan.json`, `/vlanlist`, `/l2.json` (walk, wrap marker, paging inside `outbuf`), 64-bit counters, pause flags (`fc`) and EEE flags (`eee`) in `/status.json` (including 5G/10G abilities and logical port 8 activity in JSON and CLI), `/counters.json`, the port mapping in `/information.json`, what `port <n> fc on|off` writes (not how `rtl837x_phy.c` keeps it across speed and duplex changes) |
  | `test_httpd_tx` | `httpd/httpd.c` + `uip/uip.c` | a GET of a static file against a client that moves its receive window: ACK accounting, continuation chunks out of flash, retransmission |
  | `test_lacp` | `rtl837x_lacp.c` | state machines against a simulated 802.3ad partner: convergence, mis-cabling, expiry, re-election, two groups, delivery by trap |
@@ -217,8 +219,10 @@ index 0b32d7f997793bb99456ace4f214127d07eb62bd..b31c33e0ad5e97c5ca07bd6eaaff1178
  | `test_fileadder.py` | `tools/fileadder.c` | Mixed compressed/raw assets, empty files, equal-size compression, already-compressed files and the root alias |
  
  The L2 frontend deletion regression runs separately with `make -C test l2-delete`.
- It requires Node.js, without additional packages, and checks rejected, successful
- and failed deletion requests against the production renderer.
+@@ -63,9 +63,6 @@ and failed deletion requests against the production renderer.
+ The MAC-table loader regression runs separately with `make -C test l2-load`.
+ It requires Node.js without extra packages and checks full 4096/4160-entry
+ tables, short pages, wrap termination and an empty table.
 -=======
 -| `test_lldp_tx` | `rtl837x_lldp.c` | emitted Port ID subtype and physical mapping, TTL 120/0, selected-port/all-port shutdown, bridge capabilities, management IPv4 bytes and omission at 0.0.0.0, optional capabilities switch |
 ->>>>>>> efbdae6 (PR andrebrait/RTLPlayground#3)

@@ -1,5 +1,5 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index d1ca0d57c9d27cdf16cb279304738663a250e713..818e78ab0a0240fd6849a286be818505e3585b37 100644
+index 7432c6d22b8b37322dd05107019add12103343cf..54bebab8e099f0698491fc52ff1765a146368001 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
 @@ -43,22 +43,19 @@
@@ -30,7 +30,7 @@ index d1ca0d57c9d27cdf16cb279304738663a250e713..818e78ab0a0240fd6849a286be818505
  ## Fixed
  
 diff --git a/html/app.js b/html/app.js
-index 6a9aa5d05330e53ef8358b467d2b26bd7d3a4ea2..dcc459b2d35320c71c0b008a2ca3e20fe5d196e1 100644
+index 72a88921dd0d7faf8624a0b3540fb706cfef1bcd..c54b071df054aeab06cd69c10ac6d4f5abf900fa 100644
 --- a/html/app.js
 +++ b/html/app.js
 @@ -187,7 +187,6 @@ var LANG = {

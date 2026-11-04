@@ -1,8 +1,8 @@
 diff --git a/html/app.js b/html/app.js
-index 09bdb8edacade6fda941e5988ba2ccc498b85bb8..b09b2f47f786b231899bab01b504c7f2bb64ecbc 100644
+index c53f9f7b3fd3404187374ebdbf068da6dc8504c3..e418bcd18da10983ce5ac5cad9ab209c30c7f4ef 100644
 --- a/html/app.js
 +++ b/html/app.js
-@@ -4898,11 +4898,9 @@ tabHooks.lag = {
+@@ -4897,11 +4897,9 @@ tabHooks.lag = {
      }
  };
  
@@ -14,7 +14,7 @@ index 09bdb8edacade6fda941e5988ba2ccc498b85bb8..b09b2f47f786b231899bab01b504c7f2
  var LLDP_CAPS = [
      [1, "Other"],
      [2, "Repeater"],
-@@ -4921,8 +4919,6 @@ function lldpCaps(c) {
+@@ -4920,8 +4918,6 @@ function lldpCaps(c) {
          return x[1]
      }).join(", ")
  }
