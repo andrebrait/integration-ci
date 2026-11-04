@@ -1,0 +1,18 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index dc0100fc57e91085415711c18ad9ff85f2e1e2e8..3caaf6168ebacf8c828e33ceb37df687b5fd7d21 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -77,13 +77,10 @@
+     defaults (NTP off, no server, UTC-12:00) instead of the switch's settings.
+   - Accept firmware uploads regardless of the file part's MIME type, including
+     `application/macbinary` sent by Chrome on macOS for `.bin` files.
+-<<<<<<< HEAD
+   - Store embedded assets uncompressed when gzip would not make them smaller, with the
+     compression flag set separately for each file. Empty files no longer hide later assets.
+-=======
+   - Refuse MAC-table deletion when the requested index has aged out or is out of
+     range, instead of using the next entry's data for a write.
+->>>>>>> rebuild/pr-andrebrait/RTLPlayground#14
+ 
+ - Health
+   - `HEALTH=1` builds no longer write past the phase timing arrays at the LLDP checkpoint, which

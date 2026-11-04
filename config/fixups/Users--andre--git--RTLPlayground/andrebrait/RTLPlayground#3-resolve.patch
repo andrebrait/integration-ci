@@ -1,14 +1,16 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 65a52aa581e3a56097f92dfaec3b2938c7b135d5..2ecf5d4e87690c4d02000d559feaab8298e60bc4 100644
+index 50b51c0045d59ae396d70ccb3a064cc2e13ddbea..d87d76295535e2096529994d4d763abdedb35555 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -77,12 +77,9 @@
+@@ -77,14 +77,11 @@
      defaults (NTP off, no server, UTC-12:00) instead of the switch's settings.
    - Accept firmware uploads regardless of the file part's MIME type, including
      `application/macbinary` sent by Chrome on macOS for `.bin` files.
 -<<<<<<< HEAD
    - Store embedded assets uncompressed when gzip would not make them smaller, with the
      compression flag set separately for each file. Empty files no longer hide later assets.
+   - Refuse MAC-table deletion when the requested index has aged out or is out of
+     range, instead of using the next entry's data for a write.
 -=======
    - Give the LLDP Name column the remaining table width and wrap long names.
 ->>>>>>> efbdae6 (PR andrebrait/RTLPlayground#3)
@@ -92,10 +94,10 @@ index cf1b17a4be6adb82a86dc6622a8f4c1621a13b47..3d819c69af71b053302b2a8a37b103df
      </section>
  
 diff --git a/httpd/page_impl.c b/httpd/page_impl.c
-index 1b59840d4c3e748e00e5c1486cb7c7dbc9214dca..0b539c458e6eedeae9b1295dae43f78e0c5deec3 100644
+index 1eea060ff84603de27f6a000e53ab1c203988231..85970ea7a89ef7117e7841e4987ef65a97d621b1 100644
 --- a/httpd/page_impl.c
 +++ b/httpd/page_impl.c
-@@ -636,13 +636,9 @@ void send_lldp(void)
+@@ -642,13 +642,9 @@ void send_lldp(void)
  
  	string_to_html("{\"on\":");
  	bool_to_html(lldp_enabled);
@@ -129,7 +131,7 @@ index e501c9e4577e22b1baa2e5af2c43924efb0f64c3..f6b7b400dfa502d0f6c0fe158cfaf320
  void lldp_init(void) __banked
  {
 diff --git a/test/Makefile b/test/Makefile
-index 7544145d984c3edee570665f9eb7dd334d951e3a..a767daeb677ad946432ea13186559c3fc7c55a8e 100644
+index 7544145d984c3edee570665f9eb7dd334d951e3a..1fb782e18198ae401f9ab5e302201eb63af1fe97 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -44,11 +44,8 @@ TESTS = $(BUILDDIR)/test_cmd_editor \
@@ -162,49 +164,48 @@ index 7544145d984c3edee570665f9eb7dd334d951e3a..a767daeb677ad946432ea13186559c3f
  
  $(BUILDDIR):
  	mkdir -p $(BUILDDIR)
-@@ -113,20 +106,16 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
+@@ -113,7 +106,9 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
  $(BUILDDIR)/test_cpu_vlan_full $(BUILDDIR)/test_cpu_vlan_restricted $(BUILDDIR)/test_cpu_vlan_8372: test_cpu_vlan.c $(TABLE_ENV) | $(BUILDDIR)
  	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)
  
 -<<<<<<< HEAD
++$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/timer.c | $(BUILDDIR)
++	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
++
  $(BUILDDIR)/fileadder: $(SRCROOT)/tools/fileadder.c | $(BUILDDIR)
  	$(CC) -g -O1 -Wall -fsanitize=address,undefined -fno-omit-frame-pointer $< -o $@ -lz
  
- test_mirror:
+@@ -121,12 +116,6 @@ test_mirror:
  	CC="$(CC)" python3 test_mirror.py
  
--run: $(TESTS) $(BUILDDIR)/fileadder snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay test_mirror
+ run: $(TESTS) $(BUILDDIR)/fileadder snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay test_mirror
 -=======
 -$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/timer.c | $(BUILDDIR)
 -	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
-+$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/timer.c | $(BUILDDIR)
-+	$(CC) $(CFLAGS) $(GC_CFLAGS) $^ -o $@ $(LDFLAGS) $(GC_LDFLAGS)
- 
+-
 -run: $(TESTS)
 ->>>>>>> efbdae6 (PR andrebrait/RTLPlayground#3)
-+run: $(TESTS) $(BUILDDIR)/fileadder snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay test_mirror
  	@fail=0; for t in $(TESTS); do \
  		echo "=== $$t ==="; \
  		$$t || fail=1; \
-@@ -147,8 +136,7 @@ lldp-conf:
+@@ -147,7 +136,6 @@ lldp-conf:
  clean:
  	rm -rf $(BUILDDIR)
  
 -<<<<<<< HEAD
--.PHONY: all run clean test_mirror l2-delete
-+.PHONY: all run lldp-conf clean test_mirror l2-delete
+ .PHONY: all run clean test_mirror l2-delete
  
  
- # SNMP host benches compile the same firmware sources; listener is opt-in here.
-@@ -243,6 +231,3 @@ test_lag_tokens:
+@@ -243,6 +231,4 @@ test_lag_tokens:
  	CC="$(CC)" python3 test_lag_tokens.py
  
  run: test_lag_tokens
 -=======
 -.PHONY: all run lldp-conf clean
 ->>>>>>> efbdae6 (PR andrebrait/RTLPlayground#3)
++.PHONY: lldp-conf
 diff --git a/test/README.md b/test/README.md
-index 0b32d7f997793bb99456ace4f214127d07eb62bd..2480abb90a893c1a8e91dc66c6207af3e0f7e7ae 100644
+index 0b32d7f997793bb99456ace4f214127d07eb62bd..b31c33e0ad5e97c5ca07bd6eaaff1178f3d3527c 100644
 --- a/test/README.md
 +++ b/test/README.md
 @@ -53,15 +53,12 @@ It runs the real `fileadder` executable against mixed raw and compressed files.
@@ -212,8 +213,8 @@ index 0b32d7f997793bb99456ace4f214127d07eb62bd..2480abb90a893c1a8e91dc66c6207af3
  | `test_httpd_tx` | `httpd/httpd.c` + `uip/uip.c` | a GET of a static file against a client that moves its receive window: ACK accounting, continuation chunks out of flash, retransmission |
  | `test_lacp` | `rtl837x_lacp.c` | state machines against a simulated 802.3ad partner: convergence, mis-cabling, expiry, re-election, two groups, delivery by trap |
 -<<<<<<< HEAD
- | `test_fileadder.py` | `tools/fileadder.c` | Mixed compressed/raw assets, empty files, equal-size compression, already-compressed files and the root alias |
 +| `test_lldp_tx` | `rtl837x_lldp.c` | emitted Port ID subtype and physical mapping, TTL 120/0, selected-port/all-port shutdown, bridge capabilities, management IPv4 bytes and omission at 0.0.0.0, optional capabilities switch |
+ | `test_fileadder.py` | `tools/fileadder.c` | Mixed compressed/raw assets, empty files, equal-size compression, already-compressed files and the root alias |
  
  The L2 frontend deletion regression runs separately with `make -C test l2-delete`.
  It requires Node.js, without additional packages, and checks rejected, successful
