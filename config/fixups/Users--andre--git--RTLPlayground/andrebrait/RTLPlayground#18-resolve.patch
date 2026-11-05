@@ -1,0 +1,49 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index b71af1d447a4e63838e0b251b963d5bd9a91a5a6..047cbf7d39c253764b4ffd7bd3551b8c299323d9 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -60,7 +60,6 @@
+ 
+ ## Fixed
+ 
+-<<<<<<< HEAD
+ - Commands
+   - Reject malformed mirror port tokens, invalid source suffixes, and extra arguments
+     after `mirror status` or `mirror off` without changing the mirroring configuration.
+@@ -75,12 +74,10 @@
+     limits or flow-control mode.
+   - Report invalid storm-control commands as errors instead of returning success
+     after printing usage.
+-=======
+ - IGMP
+   - Validate received frame and IPv4 lengths, fragments, and every IGMPv3 record
+     before accessing the ASIC. Truncated reports no longer use stale buffer
+     bytes to change multicast membership.
+->>>>>>> rebuild/pr-andrebrait/RTLPlayground#18
+ 
+ - Time
+   - `rtl8372_init()` sets SDS 0 to SGMII as the stock firmware does. The masks were 0, so on RTL8372
+diff --git a/test/Makefile b/test/Makefile
+index 1cd9754dc8b212143eea7ff5f0517e6e91616a9e..87276a05b6d7df0e025087c382ce9f0f81f76065 100644
+--- a/test/Makefile
++++ b/test/Makefile
+@@ -98,18 +98,14 @@ $(BUILDDIR)/test_page_json_mixed: test_page_json.c $(TABLE_ENV) hw_mock.h | $(BU
+ $(BUILDDIR)/test_lacp: test_lacp.c $(SRCROOT)/rtl837x_lacp.c $(SRCROOT)/timer.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+ 
+-<<<<<<< HEAD
+ $(BUILDDIR)/test_lldp: test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/timer.c fw_memset.h | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) -include fw_memset.h test_lldp.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/timer.c -o $@ $(LDFLAGS)
+ 
+-# httpd/httpd.c, httpd/html_out.c and uip/uip.c are compiled UNMODIFIED from the firmware tree;
+-=======
+ TESTS += $(BUILDDIR)/test_igmp_rx
+ $(BUILDDIR)/test_igmp_rx: test_igmp_rx.c hw_mock.c $(SRCROOT)/rtl837x_igmp.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) -ffunction-sections -fdata-sections $^ -o $@ $(LDFLAGS) -Wl,--gc-sections
+ 
+-# httpd/httpd.c and uip/uip.c are compiled UNMODIFIED from the firmware tree;
+->>>>>>> rebuild/pr-andrebrait/RTLPlayground#18
++# httpd/httpd.c, httpd/html_out.c and uip/uip.c are compiled UNMODIFIED from the firmware tree;
+ # this test carries the environment below them itself.
+ $(BUILDDIR)/test_httpd_tx: test_httpd_tx.c $(SRCROOT)/httpd/httpd.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/uip/uip.c $(SRCROOT)/timer.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)

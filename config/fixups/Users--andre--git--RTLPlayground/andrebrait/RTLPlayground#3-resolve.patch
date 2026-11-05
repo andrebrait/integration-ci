@@ -1,8 +1,8 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 91e78ae73d80e65c4b0c8b1f1b479cb3771ba34f..a6eeae516f20ba70cc30d9c21d1c10e1d01d0f60 100644
+index b99ab3a55e723b7684abfde7c3d48132a8161103..0964bbbec28ec4ac311b2414569aec18acbd2ae1 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -88,16 +88,13 @@
+@@ -92,16 +92,13 @@
      defaults (NTP off, no server, UTC-12:00) instead of the switch's settings.
    - Accept firmware uploads regardless of the file part's MIME type, including
      `application/macbinary` sent by Chrome on macOS for `.bin` files.
@@ -136,7 +136,7 @@ index 687b6d9bc11f23a2f88158de9d58221f62106013..9eba8ba133653843d83036e140494f22
  void lldp_init(void) __banked
  {
 diff --git a/test/Makefile b/test/Makefile
-index 9ce552baa4c9d19b5fb723dd70987926fba54f1a..fc9225c27a9b80e58c373d8e9f56b25e96b1f1c8 100644
+index 3c9ee23d5fd695ebd07cfa53ee68bf86098e4f19..d3b1eff6c424ebdc49802421e6249c2c0eb8ef40 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -44,11 +44,8 @@ TESTS = $(BUILDDIR)/test_cmd_editor \
@@ -172,7 +172,7 @@ index 9ce552baa4c9d19b5fb723dd70987926fba54f1a..fc9225c27a9b80e58c373d8e9f56b25e
  
  $(BUILDDIR):
  	mkdir -p $(BUILDDIR)
-@@ -122,20 +115,16 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
+@@ -126,20 +119,16 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
  $(BUILDDIR)/test_cpu_vlan_full $(BUILDDIR)/test_cpu_vlan_restricted $(BUILDDIR)/test_cpu_vlan_8372: test_cpu_vlan.c $(TABLE_ENV) | $(BUILDDIR)
  	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)
  
@@ -196,7 +196,7 @@ index 9ce552baa4c9d19b5fb723dd70987926fba54f1a..fc9225c27a9b80e58c373d8e9f56b25e
  	@fail=0; for t in $(TESTS); do \
  		echo "=== $$t ==="; \
  		$$t || fail=1; \
-@@ -163,7 +152,6 @@ lldp-conf:
+@@ -167,7 +156,6 @@ lldp-conf:
  clean:
  	rm -rf $(BUILDDIR)
  
@@ -204,7 +204,7 @@ index 9ce552baa4c9d19b5fb723dd70987926fba54f1a..fc9225c27a9b80e58c373d8e9f56b25e
  .PHONY: all run clean test_mirror l2-delete
  
  
-@@ -267,6 +255,4 @@ test_bw_cli:
+@@ -271,6 +259,4 @@ test_bw_cli:
  
  run: test_bw_cli
  .PHONY: prune-defaults

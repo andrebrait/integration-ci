@@ -1,5 +1,5 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 231c107318d88650e9ab049336a5174366c3357e..463be15abe674f6e47f73c4640049e24a4762253 100644
+index c8b6ad5c650fc4a6adfccaa8429bc8ab3500a68e..5f7c201293ca6ee4b0f802070bdc4e8f02918be3 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
 @@ -43,7 +43,7 @@
@@ -39,7 +39,7 @@ index 498738d3526f82acb8a54fa011b200540bb369cb..94f3254c45479de3afacf2c727b08c93
  function mergeConf(base, texts) {
      var conf = base.slice();
 diff --git a/test/Makefile b/test/Makefile
-index 590950c288ae298f14286cc2eb10fe11c5111b39..d974ee163b67d738d54492be9226d517383ac4dc 100644
+index 3711c2f5d1859500ff1ba367520432dfcfddf819..51c9dd533f2b9966ddb21e56a06f5ed8c982c6f4 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -58,14 +58,11 @@ TESTS += $(BUILDDIR)/test_rx_bounds
@@ -67,7 +67,7 @@ index 590950c288ae298f14286cc2eb10fe11c5111b39..d974ee163b67d738d54492be9226d517
  
  $(BUILDDIR):
  	mkdir -p $(BUILDDIR)
-@@ -130,7 +126,6 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
+@@ -134,7 +130,6 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
  $(BUILDDIR)/test_cpu_vlan_full $(BUILDDIR)/test_cpu_vlan_restricted $(BUILDDIR)/test_cpu_vlan_8372: test_cpu_vlan.c $(TABLE_ENV) | $(BUILDDIR)
  	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)
  
@@ -75,7 +75,7 @@ index 590950c288ae298f14286cc2eb10fe11c5111b39..d974ee163b67d738d54492be9226d517
  $(BUILDDIR)/fileadder: $(SRCROOT)/tools/fileadder.c | $(BUILDDIR)
  	$(CC) -g -O1 -Wall -fsanitize=address,undefined -fno-omit-frame-pointer $< -o $@ -lz
  
-@@ -140,10 +135,7 @@ test_mirror:
+@@ -144,10 +139,7 @@ test_mirror:
  $(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/timer.c | $(BUILDDIR)
  	$(CC) $(CFLAGS) $(GC_CFLAGS) $^ -o $@ $(LDFLAGS) $(GC_LDFLAGS)
  
@@ -87,7 +87,7 @@ index 590950c288ae298f14286cc2eb10fe11c5111b39..d974ee163b67d738d54492be9226d517
  	@fail=0; for t in $(TESTS); do \
  		echo "=== $$t ==="; \
  		$$t || fail=1; \
-@@ -176,11 +168,7 @@ prometheus-gui:
+@@ -180,11 +172,7 @@ prometheus-gui:
  clean:
  	rm -rf $(BUILDDIR)
  
@@ -100,7 +100,7 @@ index 590950c288ae298f14286cc2eb10fe11c5111b39..d974ee163b67d738d54492be9226d517
  
  
  # SNMP host benches compile the same firmware sources; listener is opt-in here.
-@@ -270,7 +258,6 @@ $(addprefix $(BUILDDIR)/,test_snmp test_snmp_nine test_snmp_horaco_profile test_
+@@ -274,7 +262,6 @@ $(addprefix $(BUILDDIR)/,test_snmp test_snmp_nine test_snmp_horaco_profile test_
  config-replay:
  	cd $(SRCROOT) && CC="$(CC)" python3 test/test_config_replay.py
  
@@ -108,7 +108,7 @@ index 590950c288ae298f14286cc2eb10fe11c5111b39..d974ee163b67d738d54492be9226d517
  .PHONY: test_lag_tokens
  test_lag_tokens:
  	CC="$(CC)" python3 test_lag_tokens.py
-@@ -285,8 +272,6 @@ test_bw_cli:
+@@ -289,8 +276,6 @@ test_bw_cli:
  run: test_bw_cli
  .PHONY: prune-defaults
  .PHONY: lldp-conf
