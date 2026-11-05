@@ -1,5 +1,5 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index b71af1d447a4e63838e0b251b963d5bd9a91a5a6..047cbf7d39c253764b4ffd7bd3551b8c299323d9 100644
+index 55b8ca0c6063825d793b5f69b4603f34e362acff..920ce8e676dea06c359300e5b2a185aea39d7c39 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
 @@ -60,7 +60,6 @@
@@ -10,7 +10,7 @@ index b71af1d447a4e63838e0b251b963d5bd9a91a5a6..047cbf7d39c253764b4ffd7bd3551b8c
  - Commands
    - Reject malformed mirror port tokens, invalid source suffixes, and extra arguments
      after `mirror status` or `mirror off` without changing the mirroring configuration.
-@@ -75,12 +74,10 @@
+@@ -75,14 +74,12 @@
      limits or flow-control mode.
    - Report invalid storm-control commands as errors instead of returning success
      after printing usage.
@@ -19,12 +19,14 @@ index b71af1d447a4e63838e0b251b963d5bd9a91a5a6..047cbf7d39c253764b4ffd7bd3551b8c
    - Validate received frame and IPv4 lengths, fragments, and every IGMPv3 record
      before accessing the ASIC. Truncated reports no longer use stale buffer
      bytes to change multicast membership.
+   - Reject extra arguments to `igmp on`, `igmp off` and `igmp show` before
+     changing state or accessing the ASIC.
 ->>>>>>> rebuild/pr-andrebrait/RTLPlayground#18
  
  - Time
    - `rtl8372_init()` sets SDS 0 to SGMII as the stock firmware does. The masks were 0, so on RTL8372
 diff --git a/test/Makefile b/test/Makefile
-index 1cd9754dc8b212143eea7ff5f0517e6e91616a9e..87276a05b6d7df0e025087c382ce9f0f81f76065 100644
+index 7d493462dfa5c627c1f576b0fa3d3da59ed18ea1..262dacb575900d98af1963439c407cdad4af2569 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -98,18 +98,14 @@ $(BUILDDIR)/test_page_json_mixed: test_page_json.c $(TABLE_ENV) hw_mock.h | $(BU
@@ -47,3 +49,24 @@ index 1cd9754dc8b212143eea7ff5f0517e6e91616a9e..87276a05b6d7df0e025087c382ce9f0f
  # this test carries the environment below them itself.
  $(BUILDDIR)/test_httpd_tx: test_httpd_tx.c $(SRCROOT)/httpd/httpd.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/uip/uip.c $(SRCROOT)/timer.c | $(BUILDDIR)
  	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)
+@@ -151,7 +147,6 @@ prune-defaults:
+ clean:
+ 	rm -rf $(BUILDDIR)
+ 
+-<<<<<<< HEAD
+ .PHONY: all run clean test_mirror l2-delete
+ 
+ 
+@@ -255,12 +250,8 @@ test_bw_cli:
+ 
+ run: test_bw_cli
+ .PHONY: prune-defaults
+-=======
+-.PHONY: all run clean
+-
+ .PHONY: test_igmp_cli
+ test_igmp_cli:
+ 	CC="$(CC)" python3 test_igmp_cli.py
+ 
+ run: test_igmp_cli
+->>>>>>> rebuild/pr-andrebrait/RTLPlayground#18

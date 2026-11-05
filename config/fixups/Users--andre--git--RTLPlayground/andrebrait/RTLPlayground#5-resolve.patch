@@ -1,5 +1,5 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index c8b6ad5c650fc4a6adfccaa8429bc8ab3500a68e..5f7c201293ca6ee4b0f802070bdc4e8f02918be3 100644
+index fd87b05a315ce666d5a26c14cedf930eb55cec1c..eecb45b14442ad890584fc195eb731db0178599d 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
 @@ -43,7 +43,7 @@
@@ -39,7 +39,7 @@ index 498738d3526f82acb8a54fa011b200540bb369cb..94f3254c45479de3afacf2c727b08c93
  function mergeConf(base, texts) {
      var conf = base.slice();
 diff --git a/test/Makefile b/test/Makefile
-index 3711c2f5d1859500ff1ba367520432dfcfddf819..51c9dd533f2b9966ddb21e56a06f5ed8c982c6f4 100644
+index abe7438166b1ac7b7a3bbc359199919635d7d541..9e61e9b4fcc80a01b2cd2f695cbf4249326b42ab 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -58,14 +58,11 @@ TESTS += $(BUILDDIR)/test_rx_bounds
@@ -108,9 +108,9 @@ index 3711c2f5d1859500ff1ba367520432dfcfddf819..51c9dd533f2b9966ddb21e56a06f5ed8
  .PHONY: test_lag_tokens
  test_lag_tokens:
  	CC="$(CC)" python3 test_lag_tokens.py
-@@ -289,8 +276,6 @@ test_bw_cli:
- run: test_bw_cli
- .PHONY: prune-defaults
+@@ -294,8 +281,6 @@ test_igmp_cli:
+ 
+ run: test_igmp_cli
  .PHONY: lldp-conf
 -=======
  .PHONY: prometheus-replay
