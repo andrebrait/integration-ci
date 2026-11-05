@@ -1,0 +1,56 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 9b91f333f532bddfdc5533302650a575d9d6e6b0..bfbff2adca418b9683ba9c6c52761a2a2b7ae82a 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -61,7 +61,6 @@
+ ## Fixed
+ 
+ - Commands
+-<<<<<<< HEAD
+   - Reject malformed mirror port tokens, invalid source suffixes, and extra arguments
+     after `mirror status` or `mirror off` without changing the mirroring configuration.
+   - Reject incomplete LAG group numbers and extra arguments after `lag show`,
+@@ -75,16 +74,14 @@
+     limits or flow-control mode.
+   - Report invalid storm-control commands as errors instead of returning success
+     after printing usage.
++  - Reject unknown or extra cable-test arguments on copper ports before
++    accessing the PHY or starting a link-interrupting diagnostic.
+ - IGMP
+   - Validate received frame and IPv4 lengths, fragments, and every IGMPv3 record
+     before accessing the ASIC. Truncated reports no longer use stale buffer
+     bytes to change multicast membership.
+   - Reject extra arguments to `igmp on`, `igmp off` and `igmp show` before
+     changing state or accessing the ASIC.
+-=======
+-  - Reject unknown or extra cable-test arguments on copper ports before
+-    accessing the PHY or starting a link-interrupting diagnostic.
+->>>>>>> rebuild/pr-andrebrait/RTLPlayground#19
+ 
+ - Time
+   - `rtl8372_init()` sets SDS 0 to SGMII as the stock firmware does. The masks were 0, so on RTL8372
+diff --git a/test/Makefile b/test/Makefile
+index 3d9588c0394a14b9653b78e334aa4fbf20e424f8..9bad54847346ae71f2eca1d6474364cd32292357 100644
+--- a/test/Makefile
++++ b/test/Makefile
+@@ -147,7 +147,6 @@ prune-defaults:
+ clean:
+ 	rm -rf $(BUILDDIR)
+ 
+-<<<<<<< HEAD
+ .PHONY: all run clean test_mirror l2-delete
+ 
+ 
+@@ -256,12 +255,8 @@ test_igmp_cli:
+ 	CC="$(CC)" python3 test_igmp_cli.py
+ 
+ run: test_igmp_cli
+-=======
+-.PHONY: all run clean
+-
+ .PHONY: test_cable_cli
+ test_cable_cli:
+ 	CC="$(CC)" python3 test_cable_cli.py
+ 
+ run: test_cable_cli
+->>>>>>> rebuild/pr-andrebrait/RTLPlayground#19

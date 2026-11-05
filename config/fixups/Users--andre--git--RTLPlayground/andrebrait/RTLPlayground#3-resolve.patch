@@ -1,8 +1,8 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 954568a4ef6fd1f6f141374ff9a47fd4fada2ee9..7b28a660d1a2a02ba359ed095b590cd96223e342 100644
+index 9e17722a221283a6a2f22dee86a8913322d19e20..aadbb8e5f401107295a0b7617d3f1e685a9dbeda 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -94,16 +94,13 @@
+@@ -96,16 +96,13 @@
      defaults (NTP off, no server, UTC-12:00) instead of the switch's settings.
    - Accept firmware uploads regardless of the file part's MIME type, including
      `application/macbinary` sent by Chrome on macOS for `.bin` files.
@@ -136,7 +136,7 @@ index 687b6d9bc11f23a2f88158de9d58221f62106013..9eba8ba133653843d83036e140494f22
  void lldp_init(void) __banked
  {
 diff --git a/test/Makefile b/test/Makefile
-index 3edd92aa13eebaa1c0ed6975500d9d98239572f5..a7f005c40a89f07d00a2cd84a0f54e11875bf1d0 100644
+index 572f63ed295f4a95e33bcabcd9d3416f403eda6a..3647343ac133ed057b1d24d2ddff026e02834f7f 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -44,11 +44,8 @@ TESTS = $(BUILDDIR)/test_cmd_editor \
@@ -204,10 +204,10 @@ index 3edd92aa13eebaa1c0ed6975500d9d98239572f5..a7f005c40a89f07d00a2cd84a0f54e11
  .PHONY: all run clean test_mirror l2-delete
  
  
-@@ -276,6 +264,4 @@ test_igmp_cli:
- 	CC="$(CC)" python3 test_igmp_cli.py
+@@ -281,6 +269,4 @@ test_cable_cli:
+ 	CC="$(CC)" python3 test_cable_cli.py
  
- run: test_igmp_cli
+ run: test_cable_cli
 -=======
 -.PHONY: all run lldp-conf clean
 ->>>>>>> efbdae6 (PR andrebrait/RTLPlayground#3)
