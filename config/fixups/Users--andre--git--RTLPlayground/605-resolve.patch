@@ -1,5 +1,5 @@
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index 1cb1a798d5435559f86781279348b6e7bafd3593..984aba2387a3e064f314f11a2976867a1a50e203 100644
+index 495076bc102dabaea9cc676b8b4ad3c90399f1d2..ef1eb1246683dfbfffa6d71ad42a5727e8c02a96 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
 @@ -16,10 +16,7 @@
@@ -14,7 +14,7 @@ index 1cb1a798d5435559f86781279348b6e7bafd3593..984aba2387a3e064f314f11a2976867a
  extern __xdata bool lldp_enabled;
  extern __code const struct machine machine;
 @@ -34,11 +31,7 @@ __xdata uint8_t lldp_seconds;
- __xdata uint16_t lldp_logical_port_status = 0xffff;
+ __xdata uint16_t lldp_logical_port_status = MACHINE_DEFAULT_LLDP_PORTS;
  __xdata struct lldp_neighbor lldp_nb[LLDP_NB_MAX];
  static __xdata struct lldp_neighbor lldp_tmp;
 -<<<<<<< HEAD

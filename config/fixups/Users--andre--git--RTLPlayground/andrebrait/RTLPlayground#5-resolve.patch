@@ -1,17 +1,17 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 38a498a78b9c504621694da6dab6c333364da588..e19ea9ece528823d488d7272a6e118e01ff0e054 100644
+index 231c107318d88650e9ab049336a5174366c3357e..463be15abe674f6e47f73c4640049e24a4762253 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -43,17 +43,14 @@
+@@ -43,7 +43,7 @@
    - The web session expires after one hour without a request (was 200 seconds). The UI stops
      polling while its tab is hidden, so with 200 seconds switching tabs for a few minutes logged
      you out. `session <seconds>` still sets it.
 -<<<<<<< HEAD
-   - Reuse the JSON string appender to reduce BANK1 code usage without changing responses.
-     The appender is shared in the common area, so the STP pages in BANK4 and the HTTP
-     responses in `httpd.c` use it too.
 +  - Rename the Prometheus section to Metrics, keeping the toggle labelled Prometheus exporter.
- - HTTP
+   - Saving to flash leaves out `port <n> on|off`, `eee on|off <n>`, `port <n> lldp permit|block`
+     and `lldp on|off` when their last line sets what the switch starts with, together with every
+     earlier line for that setting, so switching a setting back lets the default apply again. The
+@@ -58,9 +58,6 @@
    - `/status.json` carries the flow control (`fc`) and EEE (`eee`) state of every port; `/eee.json` is gone.
    - The chip port of each front-panel port moved from `logPort` in every `/status.json` entry to one
      `logPort` array in `/information.json`.
@@ -22,7 +22,7 @@ index 38a498a78b9c504621694da6dab6c333364da588..e19ea9ece528823d488d7272a6e118e0
  ## Fixed
  
 diff --git a/html/app.js b/html/app.js
-index d143488889981060639627fa1d7a62ebaa1c6ad3..9d975bab2b602a8fef97b4b662bb57d2ce9d782b 100644
+index 498738d3526f82acb8a54fa011b200540bb369cb..94f3254c45479de3afacf2c727b08c93e3db1723 100644
 --- a/html/app.js
 +++ b/html/app.js
 @@ -5668,11 +5668,7 @@ var CONF_OVERWRITE = [
@@ -39,55 +39,55 @@ index d143488889981060639627fa1d7a62ebaa1c6ad3..9d975bab2b602a8fef97b4b662bb57d2
  function mergeConf(base, texts) {
      var conf = base.slice();
 diff --git a/test/Makefile b/test/Makefile
-index 21cca465f09b66bcf60e93500c053b7b910aba44..331c98e5079ec9359dbec7afe6e7eb10fc114305 100644
+index 590950c288ae298f14286cc2eb10fe11c5111b39..d974ee163b67d738d54492be9226d517383ac4dc 100644
 --- a/test/Makefile
 +++ b/test/Makefile
-@@ -58,9 +58,6 @@ TESTS += $(BUILDDIR)/test_rx_bounds
+@@ -58,14 +58,11 @@ TESTS += $(BUILDDIR)/test_rx_bounds
  $(BUILDDIR)/test_rx_bounds: test_rx_bounds.c $(SRCROOT)/uip/uip_rx.h | $(BUILDDIR)
  	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
  
 -<<<<<<< HEAD
--all: run lldp-conf
+ # trap_init() with LLDP off and on by default
+ TESTS += $(BUILDDIR)/test_trap_lldp0 $(BUILDDIR)/test_trap_lldp1
+ $(BUILDDIR)/test_trap_lldp%: test_trap_defaults.c $(SRCROOT)/rtl837x_trap.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) -DMACHINE_DEFAULT_LLDP=$* $< -o $@ $(LDFLAGS)
+ 
+-all: run prune-defaults lldp-conf
 -=======
  # Prometheus exporter: metrics.c is included by the test, metrics_cli.c is linked.
  TESTS += $(BUILDDIR)/test_metrics
  $(BUILDDIR)/test_metrics: test_metrics.c $(SRCROOT)/metrics.c $(SRCROOT)/metrics_cli.c $(SRCROOT)/metrics.h | $(BUILDDIR)
-@@ -72,8 +69,7 @@ TESTS += $(BUILDDIR)/test_prometheus_status_json
+@@ -77,8 +74,7 @@ TESTS += $(BUILDDIR)/test_prometheus_status_json
  $(BUILDDIR)/test_prometheus_status_json: test_prometheus_status_json.c test_page_json.c $(TABLE_ENV) hw_mock.h | $(BUILDDIR)
  	$(CC) $(CFLAGS) -DPROMETHEUS test_prometheus_status_json.c $(filter %.c,$(TABLE_ENV)) -o $@ $(LDFLAGS)
  
 -all: run prometheus-gui
 ->>>>>>> 073b27d (PR andrebrait/RTLPlayground#5)
-+all: run lldp-conf prometheus-gui
++all: run prune-defaults lldp-conf prometheus-gui
  
  $(BUILDDIR):
  	mkdir -p $(BUILDDIR)
-@@ -121,20 +117,16 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
+@@ -130,7 +126,6 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
  $(BUILDDIR)/test_cpu_vlan_full $(BUILDDIR)/test_cpu_vlan_restricted $(BUILDDIR)/test_cpu_vlan_8372: test_cpu_vlan.c $(TABLE_ENV) | $(BUILDDIR)
  	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)
  
 -<<<<<<< HEAD
--$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/timer.c | $(BUILDDIR)
--	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
--
  $(BUILDDIR)/fileadder: $(SRCROOT)/tools/fileadder.c | $(BUILDDIR)
  	$(CC) -g -O1 -Wall -fsanitize=address,undefined -fno-omit-frame-pointer $< -o $@ -lz
  
- test_mirror:
- 	CC="$(CC)" python3 test_mirror.py
+@@ -140,10 +135,7 @@ test_mirror:
+ $(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/timer.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) $(GC_CFLAGS) $^ -o $@ $(LDFLAGS) $(GC_LDFLAGS)
  
 -run: $(TESTS) $(BUILDDIR)/fileadder snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay test_mirror
 -=======
 -run: $(TESTS) snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay prometheus-replay
 ->>>>>>> 073b27d (PR andrebrait/RTLPlayground#5)
-+$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/timer.c | $(BUILDDIR)
-+	$(CC) $(CFLAGS) $(GC_CFLAGS) $^ -o $@ $(LDFLAGS) $(GC_LDFLAGS)
-+
 +run: $(TESTS) $(BUILDDIR)/fileadder snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay prometheus-replay test_mirror
  	@fail=0; for t in $(TESTS); do \
  		echo "=== $$t ==="; \
  		$$t || fail=1; \
-@@ -163,11 +155,7 @@ prometheus-gui:
+@@ -176,11 +168,7 @@ prometheus-gui:
  clean:
  	rm -rf $(BUILDDIR)
  
@@ -96,11 +96,11 @@ index 21cca465f09b66bcf60e93500c053b7b910aba44..331c98e5079ec9359dbec7afe6e7eb10
 -=======
 -.PHONY: all run prometheus-gui clean
 ->>>>>>> 073b27d (PR andrebrait/RTLPlayground#5)
-+.PHONY: all run lldp-conf prometheus-gui clean test_mirror l2-delete l2-load
++.PHONY: all run prometheus-gui clean test_mirror l2-delete
  
  
  # SNMP host benches compile the same firmware sources; listener is opt-in here.
-@@ -257,16 +245,11 @@ $(addprefix $(BUILDDIR)/,test_snmp test_snmp_nine test_snmp_horaco_profile test_
+@@ -270,7 +258,6 @@ $(addprefix $(BUILDDIR)/,test_snmp test_snmp_nine test_snmp_horaco_profile test_
  config-replay:
  	cd $(SRCROOT) && CC="$(CC)" python3 test/test_config_replay.py
  
@@ -108,10 +108,10 @@ index 21cca465f09b66bcf60e93500c053b7b910aba44..331c98e5079ec9359dbec7afe6e7eb10
  .PHONY: test_lag_tokens
  test_lag_tokens:
  	CC="$(CC)" python3 test_lag_tokens.py
- 
- run: test_lag_tokens
--.PHONY: l2-load
--.PHONY: lldp-conf
+@@ -285,8 +272,6 @@ test_bw_cli:
+ run: test_bw_cli
+ .PHONY: prune-defaults
+ .PHONY: lldp-conf
 -=======
  .PHONY: prometheus-replay
  prometheus-replay:

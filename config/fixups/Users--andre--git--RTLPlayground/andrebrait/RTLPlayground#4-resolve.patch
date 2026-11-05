@@ -1,16 +1,19 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 7432c6d22b8b37322dd05107019add12103343cf..54bebab8e099f0698491fc52ff1765a146368001 100644
+index 97b73558ef487febdad41944568746e6ffbc703a..f35801a51e9a7661cb3ed7c61dc02721bd61c170 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -43,22 +43,19 @@
+@@ -43,7 +43,6 @@
    - The web session expires after one hour without a request (was 200 seconds). The UI stops
      polling while its tab is hidden, so with 200 seconds switching tabs for a few minutes logged
      you out. `session <seconds>` still sets it.
 -<<<<<<< HEAD
+   - Rename the Prometheus section to Metrics, keeping the toggle labelled Prometheus exporter.
+   - Saving to flash leaves out `port <n> on|off`, `eee on|off <n>`, `port <n> lldp permit|block`
+     and `lldp on|off` when their last line sets what the switch starts with, together with every
+@@ -55,17 +54,15 @@
    - Reuse the JSON string appender to reduce BANK1 code usage without changing responses.
      The appender is shared in the common area, so the STP pages in BANK4 and the HTTP
      responses in `httpd.c` use it too.
-   - Rename the Prometheus section to Metrics, keeping the toggle labelled Prometheus exporter.
 -- HTTP
 -  - `/status.json` carries the flow control (`fc`) and EEE (`eee`) state of every port; `/eee.json` is gone.
 -  - The chip port of each front-panel port moved from `logPort` in every `/status.json` entry to one
@@ -30,7 +33,7 @@ index 7432c6d22b8b37322dd05107019add12103343cf..54bebab8e099f0698491fc52ff1765a1
  ## Fixed
  
 diff --git a/html/app.js b/html/app.js
-index 72a88921dd0d7faf8624a0b3540fb706cfef1bcd..c54b071df054aeab06cd69c10ac6d4f5abf900fa 100644
+index 38fb99aa41376c70e1a7c14296330a949bd6cac2..4f3e21cf0967f515e7159140e8e031fefebaa61d 100644
 --- a/html/app.js
 +++ b/html/app.js
 @@ -187,7 +187,6 @@ var LANG = {

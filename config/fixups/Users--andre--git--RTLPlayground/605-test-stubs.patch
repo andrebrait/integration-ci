@@ -1,10 +1,10 @@
 diff --git a/test/test_lldp.c b/test/test_lldp.c
-index d663215c462b909ab40f31faef87d4c216645b60..e9e38a6af3cdce82a9fda4f90c7077bc03e51453 100644
+index 609ae106663b8051e1dec881b7e97e60a65555ae..2f9f727c5b7a409de08cd81a4250df70874d373f 100644
 --- a/test/test_lldp.c
 +++ b/test/test_lldp.c
-@@ -46,11 +46,9 @@ void memcpyc(uint8_t *dst, const uint8_t *src, uint16_t len) { memcpy(dst, src,
+@@ -46,11 +46,9 @@ void reg_read_m(uint16_t reg_addr)
+ void memcpyc(uint8_t *dst, const uint8_t *src, uint16_t len) { memcpy(dst, src, len); }
  uint16_t strlen_x(const char *s) { return strlen(s); }
- char port_names[9][PORT_NAME_SIZE];	/* read by lldp_portdesc() from #590 */
  uint16_t strtox(uint8_t *dst, const char *s) { uint16_t n = strlen(s); memcpy(dst, s, n); return n; }
 -/* Read by the 802.1/802.3 organisational TLVs from #600 */
 -volatile uint16_t SFR_DATA_U16;

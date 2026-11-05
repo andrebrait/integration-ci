@@ -1,5 +1,5 @@
 diff --git a/html/app.js b/html/app.js
-index c53f9f7b3fd3404187374ebdbf068da6dc8504c3..e418bcd18da10983ce5ac5cad9ab209c30c7f4ef 100644
+index 9f3e3c6fad577417c7e16c1083f7059c8073e3e8..dc293dfb89707a7097f7aabd56e186c677574add 100644
 --- a/html/app.js
 +++ b/html/app.js
 @@ -4897,11 +4897,9 @@ tabHooks.lag = {

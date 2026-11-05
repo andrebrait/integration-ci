@@ -1,8 +1,8 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index b96f37f5cb81cb9c78484726c25632f5a0a9ee17..93e5e6033950a0e4acf0853669d205ec78a7e4be 100644
+index e614b14f6f515b2920744c62245f939a4149cba4..2662b26330ae098d9ef5875c25824a0d6ebd4640 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -52,17 +52,14 @@
+@@ -59,17 +59,14 @@
      existing MTU and LAG endpoints on demand without changing firmware defaults.
      Closing a warning restores keyboard focus to the correct neighbour even when
      multiple neighbours share a physical port and the table refreshes.
@@ -42,7 +42,7 @@ index 5bbca4ec5fd86186d068caa7005da8a1724fb40d..7c118f8b6f917cd77067bd1b3e91d418
        </div>
        <div class="card"><h2 data-i18n="lldp_tlvs">Optional TLVs</h2>
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index 782757b3a9edbd5f9e0b2e767df27d497648cd4d..ab2d060e742f9e688ae69b5596a6aa012bed84f9 100644
+index 0a02fe1b1632b7892525331477b591fed009df35..4e4b5ba6f807ff132175aee63fb988b54215e1de 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
 @@ -584,15 +584,11 @@ void lldp_neighbors_to_html(void) __banked __reentrant

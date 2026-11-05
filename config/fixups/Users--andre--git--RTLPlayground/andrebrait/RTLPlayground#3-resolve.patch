@@ -1,8 +1,8 @@
 diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 7e13adf38f5a7abb493cb423f0828dc50d5d8cb7..aad50bb0264193099af478a3dfc6cadec98e6541 100644
+index 91e78ae73d80e65c4b0c8b1f1b479cb3771ba34f..a6eeae516f20ba70cc30d9c21d1c10e1d01d0f60 100644
 --- a/CHANGELOG.md
 +++ b/CHANGELOG.md
-@@ -77,16 +77,13 @@
+@@ -88,16 +88,13 @@
      defaults (NTP off, no server, UTC-12:00) instead of the switch's settings.
    - Accept firmware uploads regardless of the file part's MIME type, including
      `application/macbinary` sent by Chrome on macOS for `.bin` files.
@@ -20,7 +20,7 @@ index 7e13adf38f5a7abb493cb423f0828dc50d5d8cb7..aad50bb0264193099af478a3dfc6cade
  - Health
    - `HEALTH=1` builds no longer write past the phase timing arrays at the LLDP checkpoint, which
 diff --git a/html/app.js b/html/app.js
-index b9eebf14f8490ca54d3ec5efb7c36b8f5869ae4f..29e5225ffe68766526bebc56175c62d3eb709de1 100644
+index 82af7d60fa899fd16eb226dee1297e72b6001bc9..c4040ffa881c4ac3f1c508710bb93db028ad66ca 100644
 --- a/html/app.js
 +++ b/html/app.js
 @@ -172,13 +172,11 @@ var LANG = {
@@ -96,7 +96,7 @@ index cf1b17a4be6adb82a86dc6622a8f4c1621a13b47..3d819c69af71b053302b2a8a37b103df
      </section>
  
 diff --git a/httpd/page_impl.c b/httpd/page_impl.c
-index 1eea060ff84603de27f6a000e53ab1c203988231..85970ea7a89ef7117e7841e4987ef65a97d621b1 100644
+index 7d1a00a53bb8958b9805b7d5bfad576c7300178d..061eb813a8e3b6505b1d2138abee4dd7a919c362 100644
 --- a/httpd/page_impl.c
 +++ b/httpd/page_impl.c
 @@ -642,13 +642,9 @@ void send_lldp(void)
@@ -116,24 +116,27 @@ index 1eea060ff84603de27f6a000e53ab1c203988231..85970ea7a89ef7117e7841e4987ef65a
  	for (uint8_t i = MACHINE_MIN_PORT; i <= MACHINE_MAX_PORT; i++) {
  		string_to_html("{\"portNum\":");
 diff --git a/rtl837x_lldp.c b/rtl837x_lldp.c
-index e501c9e4577e22b1baa2e5af2c43924efb0f64c3..f6b7b400dfa502d0f6c0fe158cfaf320ec3069ca 100644
+index 687b6d9bc11f23a2f88158de9d58221f62106013..9eba8ba133653843d83036e140494f227b690724 100644
 --- a/rtl837x_lldp.c
 +++ b/rtl837x_lldp.c
-@@ -29,12 +29,9 @@ static __code const uint8_t lldp_oui_8023[3] = {0x00, 0x12, 0x0f};
+@@ -27,15 +27,11 @@ static __code const uint8_t lldp_oui_8021[3] = {0x00, 0x80, 0xc2};
+ static __code const uint8_t lldp_oui_8023[3] = {0x00, 0x12, 0x0f};
+ 
  static __xdata struct timer lldp_timer;
- __xdata uint8_t lldp_seconds;
- __xdata uint16_t lldp_logical_port_status = 0xffff;
 -<<<<<<< HEAD
+ __xdata uint8_t lldp_seconds;
+ __xdata uint16_t lldp_logical_port_status = MACHINE_DEFAULT_LLDP_PORTS;
  __xdata struct lldp_neighbor lldp_nb[LLDP_NB_MAX];
  static __xdata struct lldp_neighbor lldp_tmp;
 -=======
+-__xdata uint16_t lldp_logical_port_status = 0xffff;
  __xdata uint8_t lldp_tlv_mask = LLDP_TX_ALL;
 ->>>>>>> efbdae6 (PR andrebrait/RTLPlayground#3)
  
  void lldp_init(void) __banked
  {
 diff --git a/test/Makefile b/test/Makefile
-index cff1db08f58159d5da310be1cf308043f9f3d168..bcacc006c7228f4bbe353ba4f38de716b4252e57 100644
+index 9ce552baa4c9d19b5fb723dd70987926fba54f1a..fc9225c27a9b80e58c373d8e9f56b25e96b1f1c8 100644
 --- a/test/Makefile
 +++ b/test/Makefile
 @@ -44,11 +44,8 @@ TESTS = $(BUILDDIR)/test_cmd_editor \
@@ -149,7 +152,7 @@ index cff1db08f58159d5da310be1cf308043f9f3d168..bcacc006c7228f4bbe353ba4f38de716
  
  # The table tests link the register mock and one environment file; stub/
  # stands in for the two headers a firmware build generates.
-@@ -56,16 +53,12 @@ TABLE_ENV = support.c hw_mock.c env_tables.c $(SRCROOT)/cmd_editor.c \
+@@ -56,7 +53,6 @@ TABLE_ENV = support.c hw_mock.c env_tables.c $(SRCROOT)/cmd_editor.c \
              $(SRCROOT)/rtl837x_port.c $(SRCROOT)/rtl837x_pause.c $(SRCROOT)/httpd/page_impl.c \
              $(SRCROOT)/httpd/html_out.c
  
@@ -157,40 +160,43 @@ index cff1db08f58159d5da310be1cf308043f9f3d168..bcacc006c7228f4bbe353ba4f38de716
  TESTS += $(BUILDDIR)/test_rx_bounds
  
  $(BUILDDIR)/test_rx_bounds: test_rx_bounds.c $(SRCROOT)/uip/uip_rx.h | $(BUILDDIR)
- 	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+@@ -67,10 +63,7 @@ TESTS += $(BUILDDIR)/test_trap_lldp0 $(BUILDDIR)/test_trap_lldp1
+ $(BUILDDIR)/test_trap_lldp%: test_trap_defaults.c $(SRCROOT)/rtl837x_trap.c | $(BUILDDIR)
+ 	$(CC) $(CFLAGS) -DMACHINE_DEFAULT_LLDP=$* $< -o $@ $(LDFLAGS)
  
--all: run
+-all: run prune-defaults
 -=======
- all: run lldp-conf
+-all: run lldp-conf
 ->>>>>>> efbdae6 (PR andrebrait/RTLPlayground#3)
++all: run prune-defaults lldp-conf
  
  $(BUILDDIR):
  	mkdir -p $(BUILDDIR)
-@@ -113,7 +106,9 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
+@@ -122,20 +115,16 @@ $(BUILDDIR)/test_cpu_vlan_8372: CFLAGS += -DMACHINE_MAX_PORT=7 -DMACHINE_MIN_POR
  $(BUILDDIR)/test_cpu_vlan_full $(BUILDDIR)/test_cpu_vlan_restricted $(BUILDDIR)/test_cpu_vlan_8372: test_cpu_vlan.c $(TABLE_ENV) | $(BUILDDIR)
  	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@ $(LDFLAGS)
  
 -<<<<<<< HEAD
-+$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/timer.c | $(BUILDDIR)
-+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
-+
  $(BUILDDIR)/fileadder: $(SRCROOT)/tools/fileadder.c | $(BUILDDIR)
  	$(CC) -g -O1 -Wall -fsanitize=address,undefined -fno-omit-frame-pointer $< -o $@ -lz
  
-@@ -121,12 +116,6 @@ test_mirror:
+ test_mirror:
  	CC="$(CC)" python3 test_mirror.py
  
- run: $(TESTS) $(BUILDDIR)/fileadder snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay test_mirror
+-run: $(TESTS) $(BUILDDIR)/fileadder snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay test_mirror
 -=======
 -$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/timer.c | $(BUILDDIR)
 -	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
--
++$(BUILDDIR)/test_lldp_tx: test_lldp_tx.c $(SRCROOT)/rtl837x_lldp.c $(SRCROOT)/rtl837x_lldp_tx_strings.c $(SRCROOT)/httpd/html_out.c $(SRCROOT)/timer.c | $(BUILDDIR)
++	$(CC) $(CFLAGS) $(GC_CFLAGS) $^ -o $@ $(LDFLAGS) $(GC_LDFLAGS)
+ 
 -run: $(TESTS)
 ->>>>>>> efbdae6 (PR andrebrait/RTLPlayground#3)
++run: $(TESTS) $(BUILDDIR)/fileadder snmp snmp-horaco-profile snmp-status snmp-cli snmp-replay config-replay test_mirror
  	@fail=0; for t in $(TESTS); do \
  		echo "=== $$t ==="; \
  		$$t || fail=1; \
-@@ -150,7 +139,6 @@ lldp-conf:
+@@ -163,7 +152,6 @@ lldp-conf:
  clean:
  	rm -rf $(BUILDDIR)
  
@@ -198,10 +204,10 @@ index cff1db08f58159d5da310be1cf308043f9f3d168..bcacc006c7228f4bbe353ba4f38de716
  .PHONY: all run clean test_mirror l2-delete
  
  
-@@ -247,6 +235,4 @@ test_lag_tokens:
+@@ -267,6 +255,4 @@ test_bw_cli:
  
- run: test_lag_tokens
- .PHONY: l2-load
+ run: test_bw_cli
+ .PHONY: prune-defaults
 -=======
 -.PHONY: all run lldp-conf clean
 ->>>>>>> efbdae6 (PR andrebrait/RTLPlayground#3)
