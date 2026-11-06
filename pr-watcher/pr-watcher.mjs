@@ -3,7 +3,8 @@
 // through omp-web's agent API. Watches live in the store (see store.mjs).
 import { execFile } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
-import { basename } from "node:path";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
 import { promisify, parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { dataDir, isLogin, isSession, openStore, parsePr } from "./store.mjs";
@@ -105,15 +106,16 @@ export function formatMessage(ref, title, events) {
 
 class OmpWeb {
   #url;
+  /** `url` is read before every request: the server holding this machine's daemon can change. */
   constructor(url) {
-    this.#url = url.replace(/\/$/, "");
+    this.#url = url;
   }
   async #request(path, body) {
     const headers = { "content-type": "application/json" };
     // omp-web only holds this secret's SHA-256 (OMP_WEB_TRUSTED_HEADER_SHA256).
     const secret = process.env.OMP_WEB_TRUSTED_HEADER_SECRET;
     if (secret) headers["x-omp-web-auth"] = secret;
-    const res = await fetch(`${this.#url}${path}`, {
+    const res = await fetch(`${this.#url().replace(/\/$/, "")}${path}`, {
       method: body ? "POST" : "GET",
       headers,
       body: body && JSON.stringify(body),
@@ -135,11 +137,28 @@ class OmpWeb {
   }
 }
 
-/** Service settings, read once at start. */
+const DEFAULT_OMPWEB_URL = "http://127.0.0.1:30185";
+const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+/**
+ * The omp-web server this machine's `ompweb host` daemon links to: the url in its host.json, which every local
+ * omp-web (production or staging) writes at startup and `ompweb-stage` repoints. Sessions are reachable only through
+ * that server. Loopback only, so the trusted-header secret never goes to another machine.
+ */
+export function linkedUrl(hostJson) {
+  try {
+    const url = new URL(JSON.parse(readFileSync(hostJson, "utf8")).url);
+    if ((url.protocol === "http:" || url.protocol === "https:") && LOOPBACK.has(url.hostname)) return url.origin;
+  } catch {}
+  return DEFAULT_OMPWEB_URL;
+}
+
+/** Service settings, read once at start. `ompwebUrl` null: follow the daemon's host.json. */
 export function settings(env = process.env) {
   const interval = Number(env.PR_WATCHER_INTERVAL_SECONDS);
   return {
-    ompwebUrl: env.PR_WATCHER_OMPWEB_URL || "http://127.0.0.1:30185",
+    ompwebUrl: env.PR_WATCHER_OMPWEB_URL || null,
+    hostJson: join(env.PI_CODING_AGENT_DIR || join(homedir(), ".omp/agent"), "omp-web/host.json"),
     // At most a day: a longer setTimeout delay overflows and fires at once.
     intervalSeconds: Number.isInteger(interval) && interval > 0 && interval <= 86400 ? interval : 60,
     ignoreAuthors: (env.PR_WATCHER_IGNORE_AUTHORS ?? "").split(",").map((login) => login.trim()).filter(Boolean),
@@ -175,7 +194,7 @@ export async function cycle(store, { fetchPr, notify, self, ignoreAuthors }) {
 async function serve(once) {
   const config = settings();
   const store = openStore(dataDir());
-  const ompweb = new OmpWeb(config.ompwebUrl);
+  const ompweb = new OmpWeb(() => config.ompwebUrl ?? linkedUrl(config.hostJson));
   const self = (await run("gh", ["api", "user", "-q", ".login"])).stdout.trim();
   const deps = { fetchPr, notify: (session, message) => ompweb.notify(session, message), self, ignoreAuthors: config.ignoreAuthors };
   if (once) return void (await cycle(store, deps));

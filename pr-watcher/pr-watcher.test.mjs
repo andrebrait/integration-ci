@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { ciState, cycle, diffPr, formatMessage, settings } from "./pr-watcher.mjs";
+import { ciState, cycle, diffPr, formatMessage, linkedUrl, settings } from "./pr-watcher.mjs";
 import { openStore } from "./store.mjs";
 
 const snap = (over = {}) => ({
@@ -116,8 +116,21 @@ const deps = (fetchPr, notify = async () => true) => ({ fetchPr, notify, self: "
 const comment = (id, author = "kvn") => ({ kind: "comment", id, author, body: id, url: `u-${id}` });
 
 test("settings apply defaults and parse the ignore list", () => {
-  assert.deepEqual(settings({}), { ompwebUrl: "http://127.0.0.1:30185", intervalSeconds: 60, ignoreAuthors: [] });
-  assert.deepEqual(settings({ PR_WATCHER_OMPWEB_URL: "http://h:1", PR_WATCHER_INTERVAL_SECONDS: "30", PR_WATCHER_IGNORE_AUTHORS: "a, b," }), { ompwebUrl: "http://h:1", intervalSeconds: 30, ignoreAuthors: ["a", "b"] });
+  assert.deepEqual(settings({ PI_CODING_AGENT_DIR: "/a" }), { ompwebUrl: null, hostJson: "/a/omp-web/host.json", intervalSeconds: 60, ignoreAuthors: [] });
+  assert.deepEqual(settings({ PI_CODING_AGENT_DIR: "/a", PR_WATCHER_OMPWEB_URL: "http://h:1", PR_WATCHER_INTERVAL_SECONDS: "30", PR_WATCHER_IGNORE_AUTHORS: "a, b," }), { ompwebUrl: "http://h:1", hostJson: "/a/omp-web/host.json", intervalSeconds: 30, ignoreAuthors: ["a", "b"] });
+});
+
+test("linkedUrl follows the daemon's loopback server and never leaves the machine", () => {
+  const file = join(mkdtempSync(join(tmpdir(), "pr-watcher-host-")), "host.json");
+  const at = (url) => (writeFileSync(file, JSON.stringify({ url, token: "t" })), linkedUrl(file));
+  assert.equal(at("http://127.0.0.1:30187"), "http://127.0.0.1:30187");
+  assert.equal(at("http://localhost:30187/"), "http://localhost:30187");
+  assert.equal(at("https://ai-web.example.com"), "http://127.0.0.1:30185");
+  assert.equal(at("http://127.0.0.1.evil.com:1"), "http://127.0.0.1:30185");
+  assert.equal(at("file:///etc/passwd"), "http://127.0.0.1:30185");
+  writeFileSync(file, "{");
+  assert.equal(linkedUrl(file), "http://127.0.0.1:30185");
+  assert.equal(linkedUrl(join(file, "missing")), "http://127.0.0.1:30185");
 });
 
 test("settings fall back to 60 seconds for an invalid interval", () => {

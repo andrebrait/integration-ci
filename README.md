@@ -195,7 +195,7 @@ newer, an authenticated `gh`, and a running omp-web.
   | Variable | Default | Meaning |
   | --- | --- | --- |
   | `PR_WATCHER_DATA_DIR` | `${XDG_STATE_HOME:-~/.local/state}/pr-watcher` | Data directory |
-  | `PR_WATCHER_OMPWEB_URL` | `http://127.0.0.1:30185` | omp-web base URL |
+  | `PR_WATCHER_OMPWEB_URL` | the server this machine's `ompweb host` daemon links to (loopback `url` in `${PI_CODING_AGENT_DIR:-~/.omp/agent}/omp-web/host.json`, re-read per request), else `http://127.0.0.1:30185` | omp-web base URL |
   | `PR_WATCHER_INTERVAL_SECONDS` | `60` | Poll interval |
   | `PR_WATCHER_IGNORE_AUTHORS` | empty | Comma-separated logins never reported |
 
