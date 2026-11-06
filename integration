@@ -10,6 +10,11 @@
 #
 # Usage:
 #   integration <rebuild|build|deploy|push|prs|all> [repo-dir=$PWD]
+#   integration build-sha <sha> [repo-dir=$PWD]
+#                               # CI build of any commit (CI_REPO only) into
+#                               # $CACHE/ci-build-<sha>, never published and never
+#                               # touching $BRANCH or build-dir: staging builds. The
+#                               # workflow must take a boolean `publish` input.
 #
 # Per-repo config: ~/.config/integration/<slug>.sh  (slug = repo path, "/" -> "--")
 #   FORK_REMOTE=origin          # remote name of the fork (push target); default origin
@@ -69,6 +74,11 @@ set -euo pipefail
 CMD="${1:-}"
 [ -n "$CMD" ] || { sed -n '2,20p' "$0"; exit 2; }
 shift || true
+# build-sha takes the commit first: integration build-sha <sha> [repo-dir]
+if [ "$CMD" = build-sha ]; then
+	BUILD_SHA="${1:?usage: integration build-sha <sha> [repo-dir]}"
+	shift
+fi
 SRC_DIR="${1:-$PWD}"
 COMMON_GIT="$(git -C "$SRC_DIR" rev-parse --path-format=absolute --git-common-dir)"
 REPO_DIR="$(dirname "$COMMON_GIT")"
@@ -468,12 +478,12 @@ cmd_rebuild() {
 	echo "integration: $BRANCH rebuilt at $(git -C "$wt" rev-parse --short HEAD) (base $base, $(git -C "$REPO_DIR" rev-list --count "$base..$BRANCH") PRs)"
 }
 
-# Build the branch head on GitHub Actions: CI can only fetch a commit some ref
-# points to, so the head goes to $BRANCH-next first (a scratch ref nothing else
-# reads), and $BRANCH itself moves only after the run is green.
-cmd_build_ci() {
-	local sha slug out id url dir cfg
-	sha="$(git -C "$REPO_DIR" rev-parse "$BRANCH")"
+# Build a commit on GitHub Actions into $CACHE/ci-build-<sha>: CI can only fetch
+# a commit some ref points to, so it goes to <scratch-branch> on FORK_REMOTE
+# first (a scratch ref nothing else reads). Extra args go to `gh workflow run`.
+ci_build() { # sha scratch-branch label [gh-workflow-run-args...]
+	local sha="$1" ref="$2" label="$3" slug out id url dir cfg
+	shift 3
 	slug="$(git -C "$REPO_DIR" remote get-url "$FORK_REMOTE" | sed -E 's#^.*github\.com[:/]##; s#\.git$##')"
 	# CI sources this config and runs the workflow from CI_REPO's origin/main,
 	# not from this checkout: an unpushed TEST_CMD edit would silently not run.
@@ -495,13 +505,13 @@ cmd_build_ci() {
 	asset="$(gh release view "$release" -R "$CI_REPO" --json assets \
 		--jq "[.assets[].name | select(startswith(\"$release-\") and endswith(\"-${sha:0:10}$suffix.zip\"))] | sort | last // empty" 2>/dev/null || true)"
 	if [ -n "$release" ] && [ -n "$asset" ]; then
-		echo "integration: $BRANCH @ ${sha:0:10} is already built and published as $asset; reusing it"
+		echo "integration: $label @ ${sha:0:10} is already built and published as $asset; reusing it"
 		gh release download "$release" -R "$CI_REPO" -p "$asset" -D "$dir.dl"
 		unzip -q "$dir.dl/$asset" -d "$dir"
 		rm -rf "$dir.dl"
 	else
-		git -C "$REPO_DIR" push -q --force "$FORK_REMOTE" "$sha:refs/heads/$BRANCH-next"
-		out="$(gh workflow run "$CI_WORKFLOW" -R "$CI_REPO" -f repo="$slug" -f sha="$sha" 2>&1)" || {
+		git -C "$REPO_DIR" push -q --force "$FORK_REMOTE" "$sha:refs/heads/$ref"
+		out="$(gh workflow run "$CI_WORKFLOW" -R "$CI_REPO" -f repo="$slug" -f sha="$sha" "$@" 2>&1)" || {
 			echo "integration: dispatching $CI_WORKFLOW in $CI_REPO failed: $out" >&2
 			exit 1
 		}
@@ -510,7 +520,7 @@ cmd_build_ci() {
 		id="$(sed -nE 's#.*/actions/runs/([0-9]+).*#\1#p' <<< "$out" | head -1)"
 		[ -n "$id" ] || { echo "integration: no run URL in gh output (gh >= 2.81 required): $out" >&2; exit 1; }
 		url="https://github.com/$CI_REPO/actions/runs/$id"
-		echo "integration: building $BRANCH @ ${sha:0:10} in CI: $url"
+		echo "integration: building $label @ ${sha:0:10} in CI: $url"
 		if ! gh run watch "$id" -R "$CI_REPO" --exit-status --interval 30 >/dev/null; then
 			echo "integration: CI build failed: $url" >&2
 			exit 1
@@ -529,6 +539,14 @@ cmd_build_ci() {
 	fi
 	chmod +x "$dir"/*
 	echo "integration: CI build OK ($dir)"
+}
+
+# Build the branch head on GitHub Actions; $BRANCH itself moves only after the run is green.
+cmd_build_ci() {
+	local sha dir
+	sha="$(git -C "$REPO_DIR" rev-parse "$BRANCH")"
+	ci_build "$sha" "$BRANCH-next" "$BRANCH"
+	dir="$CACHE/ci-build-$sha"
 	if [ "$(git -C "$REPO_DIR" rev-parse "$BRANCH")" != "$sha" ]; then
 		echo "integration: $BRANCH moved during the CI build (tested ${sha:0:10}); not pushing, re-run build" >&2
 		exit 1
@@ -538,6 +556,18 @@ cmd_build_ci() {
 	printf %s "$dir" > "$CACHE/build-dir"
 	find "$CACHE" -maxdepth 1 -name 'ci-build-*' ! -path "$dir" -exec rm -rf {} +
 	cmd_push
+}
+
+# A staging build of any commit: not published (host updaters install the
+# release's newest zip), so $BRANCH, build-dir and the fork's PR branches stay as they are.
+cmd_build_sha() {
+	[ -n "${CI_REPO:-}" ] || { echo "integration: build-sha needs CI_REPO in $CONF" >&2; exit 2; }
+	local sha
+	sha="$(git -C "$REPO_DIR" rev-parse --verify --quiet "$BUILD_SHA^{commit}")" || {
+		echo "integration: no commit $BUILD_SHA in $REPO_DIR (fetch it first)" >&2
+		exit 1
+	}
+	ci_build "$sha" "$BRANCH-stage" "staging" -f publish=false
 }
 
 cmd_build() {
@@ -794,6 +824,7 @@ cmd_prs() {
 case "$CMD" in
 rebuild) cmd_rebuild ;;
 build)  cmd_build ;;
+build-sha) cmd_build_sha ;;
 deploy) cmd_deploy ;;
 push)   cmd_push ;;
 prs)    cmd_prs ;;

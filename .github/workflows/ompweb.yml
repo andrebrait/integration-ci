@@ -1,7 +1,8 @@
 name: ompweb integration build
 
 # Dispatched by `integration build` (CI_REPO/CI_WORKFLOW in config/root--git--ompweb.sh) with the
-# integration head to build. Build and test commands come from that config.
+# integration head to build, or by `integration build-sha` (publish=false) with a staging build.
+# Build and test commands come from that config.
 on:
    workflow_dispatch:
       inputs:
@@ -13,6 +14,12 @@ on:
             description: Integration commit to build (full sha)
             required: true
             type: string
+         publish:
+            # Staging builds of other commits stay out of the release: host updaters install its newest zip.
+            description: Publish the build to the ompweb release
+            required: false
+            type: boolean
+            default: true
 
 run-name: build ${{ inputs.sha }}
 
@@ -118,6 +125,8 @@ jobs:
          executables: ompweb
          description: "Standalone ompweb binary for {target}: unzip and run ./ompweb (ompweb.exe on Windows) for the web UI, ./ompweb host for the session daemon. Keep the files next to it; no Node or npm needed."
    publish:
+      # Skipped, it skips publish-binaries too (needs).
+      if: inputs.publish
       needs: build
       permissions:
          contents: write
