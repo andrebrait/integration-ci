@@ -1,0 +1,12 @@
+diff --git a/packages/coding-agent/test/skills.test.ts b/packages/coding-agent/test/skills.test.ts
+index d096dd077d3d5be82e5f1ee6214d21a8b3535850..fa31bd150d404c6c4591776c5635d6a2e7bf4a62 100644
+--- a/packages/coding-agent/test/skills.test.ts
++++ b/packages/coding-agent/test/skills.test.ts
+@@ -15,7 +15,6 @@ import {
+ } from "@oh-my-pi/pi-coding-agent/extensibility/skills";
+ import { getSessionSlashCommands } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/get-commands-handler";
+ import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls/router";
+-import { buildSystemPrompt } from "@oh-my-pi/pi-coding-agent/system-prompt";
+ import { parseInternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls/parse";
+ import { SkillProtocolHandler } from "@oh-my-pi/pi-coding-agent/internal-urls/skill-protocol";
+ import { buildSystemPrompt } from "@oh-my-pi/pi-coding-agent/system-prompt";

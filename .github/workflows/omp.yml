@@ -136,6 +136,38 @@ jobs:
            run: |
               echo "common --disk_cache=$HOME/.cache/omp-bazel-disk" >> "$RC"
               touch "$RUNNER_TEMP/bazel-start"
+         - name: Prefetch the pinned Apple SDK with curl
+           if: startsWith(matrix.target, 'darwin-')
+           shell: bash
+           env:
+              RC: ${{ steps.bazel.outputs.rc }}
+           run: |
+              # Apple can reject Bazel's Java downloader; --distdir keeps its SHA256 check.
+              python3 - <<'PY'
+              import ast
+              import hashlib
+              import os
+              from pathlib import Path
+              import re
+              import subprocess
+              from urllib.parse import urlsplit
+
+              source = Path("bazel/toolchains/darwin/sdk.bzl").read_text()
+              pins = {
+                  name: ast.literal_eval(re.search(rf"^{name} = (.+)$", source, re.MULTILINE).group(1))
+                  for name in ("_URL", "_SHA256")
+              }
+              distdir = Path(os.environ["RUNNER_TEMP"]) / "apple-sdk-dist"
+              distdir.mkdir()
+              package = distdir / Path(urlsplit(pins["_URL"]).path).name
+              subprocess.run(["curl", "--fail", "--location", "--retry", "3",
+                              "--output", str(package), pins["_URL"]], check=True)
+              with package.open("rb") as downloaded:
+                  digest = hashlib.file_digest(downloaded, "sha256").hexdigest()
+              assert digest == pins["_SHA256"], f"Apple SDK SHA256 mismatch: {digest}"
+              with open(os.environ["RC"], "a") as rc:
+                  rc.write(f"common --distdir={distdir}\n")
+              PY
          - name: Build native addons
            shell: bash
            env:

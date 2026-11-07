@@ -47,6 +47,12 @@ Builds run carried pull requests, including some by other authors. Only green
 builds seed the build cache, but a passing pull request's code ships in the
 build like any other change.
 
+The oh-my-pi Darwin addon jobs prefetch Apple's SDK package with curl into
+Bazel's `--distdir`, avoiding the Apple CDN's rejection of Bazel's downloader.
+The URL and SHA256 come from the dispatched source's `sdk.bzl`; the prefetch
+and Bazel both check that hash. Both macOS addons still use the Linux cross
+toolchain, including the arm64 Foundation Models bridge, before platform smoke tests.
+
 `<project>-latest.zip` (for oh-my-pi, `oh-my-pi-latest-<platform>.zip`) is always
 a copy of the newest build, so its URL never changes:
 

@@ -1,0 +1,22 @@
+diff --git a/packages/coding-agent/src/modes/interactive-mode.ts b/packages/coding-agent/src/modes/interactive-mode.ts
+index 74f47a84a2c1b91e94b91d58db411d80acb659a1..a819c658d0b368c1a4f8f778c4a3b1705c4ab7b0 100644
+--- a/packages/coding-agent/src/modes/interactive-mode.ts
++++ b/packages/coding-agent/src/modes/interactive-mode.ts
+@@ -2965,7 +2965,7 @@ export class InteractiveMode implements InteractiveModeContext {
+ 			}),
+ 			cfgLiveUiSettings.listen(this.settings, (next, previous) => this.#applyUiSettingChanges(next, previous)),
+ 			cfgSkillsShowStartupDiagnostics.listen(this.settings, () => {
+-				this.#syncConfigWarningHeader();
++				this.#syncHeaderExtras();
+ 			}),
+ 		);
+ 		// Refresh the next launch's status prepaint once startup settles: settings
+@@ -2983,7 +2983,7 @@ export class InteractiveMode implements InteractiveModeContext {
+ 				// `/move`, manage_skill, MCP prompts) lands here; rebuild the picker from session state.
+ 				this.#pendingSlashCommands = this.#buildPendingSlashCommands();
+ 				this.#rebuildSlashCommandAutocomplete(this.sessionManager.getCwd());
+-				this.#syncConfigWarningHeader();
++				this.#syncHeaderExtras();
+ 				this.ui.requestRender();
+ 			}),
+ 		);
