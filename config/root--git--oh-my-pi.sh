@@ -26,6 +26,8 @@ TEST_CMD+=' packages/coding-agent/test/agent-session-retry-fallback.test.ts pack
 TEST_CMD+=' packages/catalog/test/compat-compile.test.ts'
 # Carried PR #7851 (per-role skill visibility) and per-call task/eval model (#12229, merged upstream) contract tests.
 TEST_CMD+=' packages/coding-agent/test/discovery/agent-fields.test.ts packages/coding-agent/test/task/agents.test.ts packages/coding-agent/test/task/structured-subagent.test.ts packages/coding-agent/test/eval/agent-bridge.test.ts packages/coding-agent/test/task/task-schema.test.ts packages/coding-agent/test/task/task-spawn.test.ts'
+# Preserve rebased task revive/stop, skill visibility, native search, and memory worker/cache invariants.
+TEST_CMD+=' packages/coding-agent/test/task/persisted-revive.test.ts packages/coding-agent/test/task/executor-irc-wake-subagent-stop.test.ts packages/coding-agent/test/task/executor-subagent-stop.test.ts packages/coding-agent/test/task/restore-revive.test.ts packages/coding-agent/test/thread/memory-bridge.test.ts packages/coding-agent/test/cli/skill-list.test.ts packages/tui/test/tools-native-search.test.ts packages/coding-agent/test/memory-tools.test.ts packages/mnemopi/test/embedding-cache.test.ts'
 # Own process: upstream's issue-985 test calls Settings.init() without resetting a global
 # instance left by agent-session-message-pipeline.test.ts, so it fails when co-run (upstream too).
 TEST_CMD+=' && PI_CODING_AGENT_DIR="$(mktemp -d /tmp/omp-integration-agent-XXXXXX)" bun test packages/coding-agent/test/issue-985-subagent-auth-fallback.test.ts'
