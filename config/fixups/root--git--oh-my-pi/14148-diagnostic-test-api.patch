@@ -1,0 +1,13 @@
+diff --git a/packages/coding-agent/test/interactive-mode-skill-diagnostics.test.ts b/packages/coding-agent/test/interactive-mode-skill-diagnostics.test.ts
+index d5e820af4a..92393abf56 100644
+--- a/packages/coding-agent/test/interactive-mode-skill-diagnostics.test.ts
++++ b/packages/coding-agent/test/interactive-mode-skill-diagnostics.test.ts
+@@ -95,7 +95,7 @@ describe("startup skill discovery diagnostics", () => {
+ 		session = created.session;
+ 		terminal = new VirtualTerminal(columns, 48);
+ 		const composer = new Composer({ terminal });
+-		mode = new InteractiveMode(session, "test", undefined, () => {}, undefined, undefined, undefined, composer);
++		mode = new InteractiveMode(session, "test", () => {}, undefined, undefined, undefined, composer);
+ 		await mode.init({ suppressWelcomeIntro: true });
+ 		void mode.getUserInput();
+ 		await terminal.waitForRender();
