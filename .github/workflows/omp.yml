@@ -142,7 +142,10 @@ jobs:
            env:
               RC: ${{ steps.bazel.outputs.rc }}
            run: |
-              # Apple can reject Bazel's Java downloader; --distdir keeps its SHA256 check.
+              # swcdn.apple.com answers GitHub runners with HTTP 403, so the SHA256-pinned
+              # package is fetched from this repo's `apple-sdk` release (<sha256>.pkg) first;
+              # Apple stays the fallback. Either way the hash is checked before Bazel
+              # sees the file, and --distdir keeps Bazel's own SHA256 check.
               python3 - <<'PY'
               import ast
               import hashlib
@@ -160,8 +163,14 @@ jobs:
               distdir = Path(os.environ["RUNNER_TEMP"]) / "apple-sdk-dist"
               distdir.mkdir()
               package = distdir / Path(urlsplit(pins["_URL"]).path).name
-              subprocess.run(["curl", "--fail", "--location", "--retry", "3",
-                              "--output", str(package), pins["_URL"]], check=True)
+              name = f"{pins['_SHA256']}.pkg"
+              mirror = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/apple-sdk/{name}"
+              for url in (mirror, pins["_URL"]):
+                  if subprocess.run(["curl", "--fail", "--location", "--retry", "3",
+                                     "--output", str(package), url]).returncode == 0:
+                      break
+              else:
+                  raise SystemExit(f"Apple SDK unavailable: seed the apple-sdk release with {name}")
               with package.open("rb") as downloaded:
                   digest = hashlib.file_digest(downloaded, "sha256").hexdigest()
               assert digest == pins["_SHA256"], f"Apple SDK SHA256 mismatch: {digest}"

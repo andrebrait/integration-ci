@@ -1,0 +1,22 @@
+diff --git a/packages/coding-agent/src/modes/interactive-mode.ts b/packages/coding-agent/src/modes/interactive-mode.ts
+index a819c658d0..e51daffe0a 100644
+--- a/packages/coding-agent/src/modes/interactive-mode.ts
++++ b/packages/coding-agent/src/modes/interactive-mode.ts
+@@ -150,7 +150,7 @@ import {
+ 	type ResolvedRoleModel,
+ 	SHUTDOWN_CONSOLIDATE_BUDGET_MS,
+ } from "../session/agent-session";
+-import type { AgentViewSession } from "../session/agent-session-handle";
++import type { AgentSessionHandle, AgentViewSession } from "../session/agent-session-handle";
+ import type { CompactMode } from "../session/compact-modes";
+ import type { ForeignSessionSource } from "../session/foreign-session-store";
+ import { HistoryStorage } from "../session/history-storage";
+@@ -1961,7 +1961,7 @@ export class InteractiveMode implements InteractiveModeContext {
+ 	 * A session seen for the first time is seeded from the cwds its replies were
+ 	 * persisted with, so a resumed session keeps cwd changes from earlier runs.
+ 	 */
+-	#trackProseGithubRepo(session: AgentSession): ProseGithubRepoEntry[] {
++	#trackProseGithubRepo(session: AgentSessionHandle): ProseGithubRepoEntry[] {
+ 		const sessionId = session.sessionManager.getSessionId();
+ 		let history = this.#proseGithubRepos.get(sessionId);
+ 		if (!history) {

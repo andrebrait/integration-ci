@@ -1,0 +1,22 @@
+diff --git a/packages/coding-agent/src/task/persisted-revive.ts b/packages/coding-agent/src/task/persisted-revive.ts
+index 19f9976f73..be5f0b5f7d 100644
+--- a/packages/coding-agent/src/task/persisted-revive.ts
++++ b/packages/coding-agent/src/task/persisted-revive.ts
+@@ -19,7 +19,7 @@ import { initializeExtensions } from "../modes/runtime-init";
+ import type { AsyncJobManagerApi } from "../async";
+ import type { PreparedExtension } from "../extensibility/extensions/types";
+ import type { PersistedSubagentReviverFactory } from "../registry/agent-lifecycle";
+-import { type AgentRef, AgentRegistry, MAIN_AGENT_ID } from "../registry/agent-registry";
++import { type AgentRef, AgentRegistry, type AgentRegistryApi, MAIN_AGENT_ID } from "../registry/agent-registry";
+ import { createAgentSession } from "../sdk";
+ import type { AgentSession } from "../session/agent-session";
+ import type { AgentSessionHandle } from "../session/agent-session-handle";
+@@ -155,7 +155,7 @@ export function persistedAgentDefinition(displayName: string, init: PersistedSes
+  * naming the top-level session, which did not spawn it.
+  */
+ export async function resolveSpawner(
+-	registry: AgentRegistry,
++	registry: AgentRegistryApi,
+ 	topLevel: AgentSessionHandle,
+ 	ref: AgentRef,
+ 	recordedParentFile: string | undefined,

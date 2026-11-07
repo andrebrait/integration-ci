@@ -49,8 +49,21 @@ build like any other change.
 
 The oh-my-pi Darwin addon jobs prefetch Apple's SDK package with curl into
 Bazel's `--distdir`, avoiding the Apple CDN's rejection of Bazel's downloader.
-The URL and SHA256 come from the dispatched source's `sdk.bzl`; the prefetch
-and Bazel both check that hash. Both macOS addons still use the Linux cross
+The URL and SHA256 come from the dispatched source's `sdk.bzl`. GitHub runners get
+HTTP 403 from `swcdn.apple.com`, so the job first downloads
+`<sha256>.pkg` from this repo's
+[`apple-sdk`](https://github.com/andrebrait/integration-ci/releases/tag/apple-sdk)
+release and only then falls back to Apple; the prefetch and Bazel both check the
+hash. When `sdk.bzl` pins a new SDK, seed the mirror once, before dispatching:
+
+```sh
+f=$(grep -oP '^_URL = "\K[^"]+' bazel/toolchains/darwin/sdk.bzl)
+h=$(grep -oP '^_SHA256 = "\K[^"]+' bazel/toolchains/darwin/sdk.bzl)
+curl -fLo "$h.pkg" "$f" && echo "$h  $h.pkg" | sha256sum -c &&
+  gh release upload apple-sdk "$h.pkg" -R andrebrait/integration-ci
+```
+
+Both macOS addons still use the Linux cross
 toolchain, including the arm64 Foundation Models bridge, before platform smoke tests.
 
 `<project>-latest.zip` (for oh-my-pi, `oh-my-pi-latest-<platform>.zip`) is always
