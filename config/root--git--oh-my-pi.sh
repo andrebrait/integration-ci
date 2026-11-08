@@ -30,6 +30,8 @@ TEST_CMD+=' packages/coding-agent/test/discovery/agent-fields.test.ts packages/c
 TEST_CMD+=' packages/coding-agent/test/task/persisted-revive.test.ts packages/coding-agent/test/task/executor-irc-wake-subagent-stop.test.ts packages/coding-agent/test/task/executor-subagent-stop.test.ts packages/coding-agent/test/task/restore-revive.test.ts packages/coding-agent/test/thread/memory-bridge.test.ts packages/coding-agent/test/cli/skill-list.test.ts packages/tui/test/tools-native-search.test.ts packages/coding-agent/test/memory-tools.test.ts packages/mnemopi/test/embedding-cache.test.ts'
 # Preserve atomic provider/settings writes and skill diagnostic refresh invariants.
 TEST_CMD+=' packages/coding-agent/test/config/custom-provider.test.ts packages/coding-agent/test/launch/broker-metadata-writes.test.ts packages/coding-agent/test/settings-manager.test.ts packages/coding-agent/test/interactive-mode-skill-diagnostics.test.ts packages/coding-agent/test/skill-diagnostics-report.test.ts'
+# Keep template expansion and dropped-message errors compatible across queued delivery paths.
+TEST_CMD+=' packages/coding-agent/test/agent-session-send-user-message-expand.test.ts'
 # Own process: upstream's issue-985 test calls Settings.init() without resetting a global
 # instance left by agent-session-message-pipeline.test.ts, so it fails when co-run (upstream too).
 TEST_CMD+=' && PI_CODING_AGENT_DIR="$(mktemp -d /tmp/omp-integration-agent-XXXXXX)" bun test packages/coding-agent/test/issue-985-subagent-auth-fallback.test.ts'
