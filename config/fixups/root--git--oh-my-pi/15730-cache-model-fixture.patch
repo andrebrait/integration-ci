@@ -1,0 +1,31 @@
+diff --git a/packages/mnemopi/test/embedding-cache.test.ts b/packages/mnemopi/test/embedding-cache.test.ts
+index 566f0bdc6d..ca180a5028 100644
+--- a/packages/mnemopi/test/embedding-cache.test.ts
++++ b/packages/mnemopi/test/embedding-cache.test.ts
+@@ -322,20 +322,22 @@ describe("embedding cache", () => {
+ 			// Insert order, id order and argument order all differ, and the ids span three 500-id chunks.
+ 			const ids = Array.from({ length: 1300 }, (_, index) => `m${(index * 7919) % 1300}`);
+ 			const insert = db.prepare(
+-				"INSERT INTO memory_embeddings (memory_id, embedding_json, model) VALUES (?, '[1,0]', 't')",
++				"INSERT INTO memory_embeddings (memory_id, embedding_json, model) VALUES (?, '[1,0]', ?)",
+ 			);
+-			for (const id of ids) insert.run(id);
++			const model = currentEmbeddingModel();
++			for (const id of ids) insert.run(id, model);
+ 			const memoryIds = [...Array.from({ length: 1300 }, (_, index) => `m${(index * 104_729) % 1300}`), "missing"];
+ 			const preCache: string[] = [];
+ 			for (let offset = 0; offset < memoryIds.length; offset += 500) {
+ 				const chunk = memoryIds.slice(offset, offset + 500);
+ 				const rows = db
+ 					.query<{ memory_id: string }, string[]>(
+-						`SELECT memory_id, embedding_json FROM memory_embeddings WHERE memory_id IN (${chunk.map(() => "?").join(",")})`,
++						`SELECT memory_id, embedding_json FROM memory_embeddings WHERE model IS ? AND memory_id IN (${chunk.map(() => "?").join(",")})`,
+ 					)
+-					.all(...chunk);
++					.all(model, ...chunk);
+ 				for (const row of rows) preCache.push(row.memory_id);
+ 			}
++			expect(preCache).toHaveLength(1300);
+ 
+ 			cachedEmbeddings(db, memoryIds.slice(300, 900));
+ 			expect([...cachedEmbeddings(db, memoryIds).keys()]).toEqual(preCache);

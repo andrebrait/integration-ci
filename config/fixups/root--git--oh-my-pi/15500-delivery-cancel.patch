@@ -1,0 +1,158 @@
+diff --git a/packages/coding-agent/CHANGELOG.md b/packages/coding-agent/CHANGELOG.md
+index d03eb8b646..95cfe4ca4e 100644
+--- a/packages/coding-agent/CHANGELOG.md
++++ b/packages/coding-agent/CHANGELOG.md
+@@ -32,6 +32,7 @@
+ - Reading Reddit URLs now works when Reddit blocks its API: posts, comment threads, subreddits, and user pages fall back to a Redlib mirror and then the Arctic Shift archive, and render full nested comment trees.
+ - Limited xAI `web_search` to two hosted-search turns per request to help prevent unexpected X search costs.
+ - Fixed extension event delivery so each extension receives events in emission order, even when another extension is slow to process an earlier event.
++- Cancelling a queued stop hook now settles promptly without running the cancelled handler or letting later extension events overtake earlier deliveries.
+ - `pi.sendUserMessage()` now rejects when a message is dropped before a turn begins, including the cost-cap reason when available.
+ - Prevented OpenTelemetry settings from omp-managed `.env` files from leaking into child processes or in-process extensions.
+ - Supervised-service waits now complete only after logs, metadata, and session-owner state have been published.
+diff --git a/packages/coding-agent/src/extensibility/extensions/runner.ts b/packages/coding-agent/src/extensibility/extensions/runner.ts
+index 45895c7f76..57682be93e 100644
+--- a/packages/coding-agent/src/extensibility/extensions/runner.ts
++++ b/packages/coding-agent/src/extensibility/extensions/runner.ts
+@@ -394,16 +394,20 @@ async function raceHandlerWithTimeout<T>(
+ 
+ /**
+  * Wait for an extension's earlier deliveries until `deadline` (a
+- * `performance.now()` instant). Resolves `false` when the deadline passes
+- * first; an already-settled `ready` wins even at a past deadline.
++ * `performance.now()` instant). Resolves `false` on cancellation or when the
++ * deadline passes first; an already-settled `ready` wins at a past deadline.
+  */
+-async function awaitDeliveryTurn(ready: Promise<void>, deadline: number): Promise<boolean> {
++async function awaitDeliveryTurn(ready: Promise<void>, deadline: number, signal?: AbortSignal): Promise<boolean> {
++	if (signal?.aborted) return false;
+ 	const { promise: expired, resolve } = Promise.withResolvers<boolean>();
++	const onAbort = () => resolve(false);
++	signal?.addEventListener("abort", onAbort, { once: true });
+ 	const timer = setTimeout(resolve, Math.max(0, deadline - performance.now()), false);
+ 	try {
+ 		return await Promise.race([ready.then(() => true), expired]);
+ 	} finally {
+ 		clearTimeout(timer);
++		signal?.removeEventListener("abort", onAbort);
+ 	}
+ }
+ 
+@@ -2025,12 +2029,15 @@ export class ExtensionRunner {
+ 
+ 		const timeoutMs = handlerTimeoutForEvent(event.type);
+ 		const turns = this.#reserveDeliveryTurns(extensions, event.type, timeoutMs);
++		const signal = event.type === "session_stop" || event.type === "subagent_stop" ? event.signal : undefined;
+ 		try {
+ 			for (const ext of extensions) {
+ 				const handlers = ext.handlers.get(event.type);
+ 				if (!handlers || handlers.length === 0) continue;
+ 				const turn = turns?.get(ext);
+-				if (turn?.ready && !(await awaitDeliveryTurn(turn.ready, turn.deadline))) {
++				const ready = turn?.ready ? await awaitDeliveryTurn(turn.ready, turn.deadline, signal) : true;
++				if (signal?.aborted) return undefined as RunnerEmitResult<TEvent>;
++				if (!ready) {
+ 					logger.warn("Extension still handling an earlier event; delivering out of order", {
+ 						extensionPath: ext.path,
+ 						event: event.type,
+@@ -2075,7 +2082,13 @@ export class ExtensionRunner {
+ 				turn?.release();
+ 			}
+ 		} finally {
+-			if (turns) for (const turn of turns.values()) turn.release();
++			if (turns) {
++				for (const turn of turns.values()) {
++					// A cancelled delivery must not let later events bypass its predecessor.
++					if (signal?.aborted && turn.ready) void turn.ready.then(turn.release);
++					else turn.release();
++				}
++			}
+ 		}
+ 
+ 		// Handlers for these events export session-scoped environment (a session
+diff --git a/packages/coding-agent/test/extensions-runner.test.ts b/packages/coding-agent/test/extensions-runner.test.ts
+index 4668715654..fb4a992da5 100644
+--- a/packages/coding-agent/test/extensions-runner.test.ts
++++ b/packages/coding-agent/test/extensions-runner.test.ts
+@@ -4510,6 +4510,81 @@ describe("ExtensionRunner", () => {
+ 			expect(seen).toEqual(["slow:start", "observer:start", "observer:end"]);
+ 		});
+ 
++		it("cancels a queued subagent stop promptly without letting later events overtake the earlier handler", async () => {
++			const started = Promise.withResolvers<void>();
++			const release = Promise.withResolvers<void>();
++			const seen: string[] = [];
++			const errors: ExtensionError[] = [];
++			const extension = inlineExtension("cancel-queued-stop", {
++				tool_execution_start: async () => {
++					seen.push("start");
++					started.resolve();
++					await release.promise;
++					seen.push("released");
++				},
++				subagent_stop: () => seen.push("stop"),
++				tool_execution_end: () => seen.push("end"),
++			});
++			const runner = new ExtensionRunner(
++				[extension],
++				new ExtensionRuntime(),
++				tempDir.path(),
++				sessionManager,
++				modelRegistry,
++			);
++			runner.onError(error => errors.push(error));
++			const start = runner.emit({ type: "tool_execution_start", toolCallId: "call-1", toolName: "read", args: {} });
++			const deliveries: Promise<unknown>[] = [start];
++			try {
++				await started.promise;
++				const controller = new AbortController();
++				let stopSettled = false;
++				const stop = runner
++					.emitSubagentStop({
++						agent_id: "Scout",
++						agent_type: "task",
++						session_id: "child-session",
++						messages: [],
++						stop_hook_active: false,
++						signal: controller.signal,
++					})
++					.then(result => {
++						stopSettled = true;
++						return result;
++					});
++				deliveries.push(stop);
++				controller.abort();
++				const cancelledTurn = Promise.withResolvers<void>();
++				setImmediate(cancelledTurn.resolve);
++				await cancelledTurn.promise;
++				expect(stopSettled).toBe(true);
++				await expect(stop).resolves.toBeUndefined();
++				expect(seen).toEqual(["start"]);
++				expect(errors).toEqual([]);
++
++				const end = runner.emit({
++					type: "tool_execution_end",
++					toolCallId: "call-1",
++					toolName: "read",
++					result: {},
++					isError: false,
++				});
++				deliveries.push(end);
++				const queuedTurn = Promise.withResolvers<void>();
++				setImmediate(queuedTurn.resolve);
++				await queuedTurn.promise;
++				expect(seen).toEqual(["start"]);
++
++				release.resolve();
++				await Promise.all(deliveries);
++				expect(seen).toEqual(["start", "released", "end"]);
++				expect(errors).toEqual([]);
++			} finally {
++				release.resolve();
++				await Promise.all(deliveries);
++			}
++		});
++
+ 		it("delivers an event emitted inside a handler at once instead of queueing it behind that handler", async () => {
+ 			// Queued behind its own emitter the inner emit would wait out this budget.
+ 			testSetExtensionHandlerTimeoutMs(1_000);
