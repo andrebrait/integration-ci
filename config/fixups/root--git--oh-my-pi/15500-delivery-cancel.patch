@@ -71,10 +71,10 @@ index 45895c7f76..57682be93e 100644
  
  		// Handlers for these events export session-scoped environment (a session
 diff --git a/packages/coding-agent/test/extensions-runner.test.ts b/packages/coding-agent/test/extensions-runner.test.ts
-index 4668715654..fb4a992da5 100644
+index 4668715654..5083da257f 100644
 --- a/packages/coding-agent/test/extensions-runner.test.ts
 +++ b/packages/coding-agent/test/extensions-runner.test.ts
-@@ -4510,6 +4510,81 @@ describe("ExtensionRunner", () => {
+@@ -4510,6 +4510,87 @@ describe("ExtensionRunner", () => {
  			expect(seen).toEqual(["slow:start", "observer:start", "observer:end"]);
  		});
  
@@ -121,6 +121,12 @@ index 4668715654..fb4a992da5 100644
 +						return result;
 +					});
 +				deliveries.push(stop);
++				const waitingTurn = Promise.withResolvers<void>();
++				setImmediate(waitingTurn.resolve);
++				await waitingTurn.promise;
++				expect(stopSettled).toBe(false);
++				expect(seen).toEqual(["start"]);
++
 +				controller.abort();
 +				const cancelledTurn = Promise.withResolvers<void>();
 +				setImmediate(cancelledTurn.resolve);
