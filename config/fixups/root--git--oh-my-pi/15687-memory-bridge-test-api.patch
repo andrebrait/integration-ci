@@ -1,5 +1,5 @@
 diff --git a/packages/coding-agent/test/thread/memory-bridge.test.ts b/packages/coding-agent/test/thread/memory-bridge.test.ts
-index 311d92f0e7..671e268659 100644
+index 53caf33af2..671e268659 100644
 --- a/packages/coding-agent/test/thread/memory-bridge.test.ts
 +++ b/packages/coding-agent/test/thread/memory-bridge.test.ts
 @@ -14,7 +14,7 @@ import type { MnemopiBackendConfig } from "../../src/mnemopi/config";
@@ -11,7 +11,7 @@ index 311d92f0e7..671e268659 100644
  import { AgentSession } from "../../src/session/agent-session";
  import { SessionManager } from "../../src/session/session-manager";
  import type { MainThreadLink } from "../../src/thread/protocol";
-@@ -113,12 +113,13 @@ describe("memory thread service", () => {
+@@ -113,10 +113,13 @@ describe("memory thread service", () => {
  		const memories = new Map<string, MnemosyneOssWorkerRecord>();
  		let shutdowns = 0;
  		const pythonWorker: MnemosyneOssWorkerLike = {
@@ -19,10 +19,39 @@ index 311d92f0e7..671e268659 100644
 +			async request<T>(method: MnemosyneOssWorkerMethod, params: Record<string, unknown> = {}) {
  				if (method === "remember") {
  					const record: MnemosyneOssWorkerRecord = {
- 						id: "worker-memory",
- 						bank: "bridge-bank",
- 						content: String(params.content),
+-						id: "worker-memory", bank: "bridge-bank", content: String(params.content),
++						id: "worker-memory",
++						bank: "bridge-bank",
++						content: String(params.content),
 +						editable: true,
  					};
  					memories.set(record.id, record);
  					return { id: record.id } as T;
+@@ -128,16 +131,21 @@ describe("memory thread service", () => {
+ 				if (method === "recall") return { items: [...memories.values()] } as T;
+ 				throw new Error(`unexpected worker request: ${method}`);
+ 			},
+-			async shutdown() { shutdowns++; },
++			async shutdown() {
++				shutdowns++;
++			},
+ 		};
+ 		const parent = new MnemosyneOssSessionState({
+ 			sessionId: "parent-session",
+ 			session: parentSession,
+-			config: loadMnemosyneOssConfig(Settings.isolated({
+-				"mnemosyne-oss.bank": "bridge-bank",
+-				"mnemosyne-oss.autoRecall": false,
+-				"mnemosyne-oss.autoRetain": false,
+-			}), tempDir),
++			config: loadMnemosyneOssConfig(
++				Settings.isolated({
++					"mnemosyne-oss.bank": "bridge-bank",
++					"mnemosyne-oss.autoRecall": false,
++					"mnemosyne-oss.autoRetain": false,
++				}),
++				tempDir,
++			),
+ 			worker: pythonWorker,
+ 		});
+ 		parent.lastRecallSnippet = "<memories>parent recall</memories>";
