@@ -18,6 +18,7 @@ export VIEWS="$TMP/views"
 cat > "$TMP/bin/gh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ "$*" == api\ user* ]] && { echo fixture-user; exit 0; }
 if [[ "$*" == pr\ list* ]]; then
 	cat "$ROWS"
 	exit 0
@@ -236,3 +237,36 @@ git merge-base --is-ancestor "$RESOLVED" integration
 [[ "$(cat "$TMP/integration/second.txt")" == second ]]
 [[ "$(git log --reverse --format=%s "$BASE..integration")" == $'PR fork/repo#1: Fork draft\nPR #1: First change\nPR #2: Second change' ]]
 printf 'PASS: interrupted qualified squash retains its resolution and exact repository-qualified identity\n'
+
+# Changelog driver: a rebase across an upstream release and archive keeps the PR's
+# entry in [Unreleased] and leaves released sections exactly as upstream has them.
+CL="$TMP/changelog"
+git init -q -b main "$CL"
+cd "$CL"
+printf '# Changelog\n\n## [Unreleased]\n\n### Added\n\n- upstream entry\n\n## [1.0.0] - 2026-01-01\n\n### Added\n\n- archived entry\n' > CHANGELOG.md
+git add CHANGELOG.md
+git commit -qm base
+git checkout -qb pr
+printf '# Changelog\n\n## [Unreleased]\n\n### Added\n\n- upstream entry\n\n### Fixed\n\n- pr entry\n\n## [1.0.0] - 2026-01-01\n\n### Added\n\n- archived entry\n' > CHANGELOG.md
+git commit -qam pr
+git checkout -q main
+printf '# Changelog\n\n## [Unreleased]\n\n## [1.1.0] - 2026-02-01\n\n### Added\n\n- upstream entry\n' > CHANGELOG.md
+git commit -qam release
+RELEASED="$(git show main:CHANGELOG.md | sed -n '/^## \[1.1.0\]/,$p')"
+# Installed from config before any subcommand runs (an unknown one just exits 2).
+CL_SLUG="${CL#/}"
+printf "CHANGELOG_GLOB='CHANGELOG.md'\n" > "$HOME/.config/integration/${CL_SLUG//\//--}.sh"
+bash "$DRIVER" no-such-command "$CL" >/dev/null 2>&1 || true
+git checkout -q pr
+git rebase -q main
+[[ "$(sed -n '/^## \[1.1.0\]/,$p' CHANGELOG.md)" == "$RELEASED" ]]
+[[ "$(sed -n '/^## \[Unreleased\]/,/^## \[1.1.0\]/p' CHANGELOG.md)" == $'## [Unreleased]\n\n### Fixed\n\n- pr entry\n\n## [1.1.0] - 2026-02-01' ]]
+# A side that also edits a released section is not guessed at: the driver falls back
+# to a plain three-way merge, so overlapping [Unreleased] edits stop on a conflict.
+git checkout -qb rewrite main
+sed -i 's/- upstream entry/- reworded upstream entry/; s/^## \[Unreleased\]$/## [Unreleased]\n\n### Fixed\n\n- other entry/' CHANGELOG.md
+git commit -qam rewrite
+! git rebase -q pr >/dev/null 2>&1
+grep -q '^<<<<<<<' CHANGELOG.md
+git rebase --abort
+printf 'PASS: changelog driver keeps rebased entries in [Unreleased] and conflicts instead of unioning other edits\n'

@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""Git merge driver for Keep-a-Changelog files: changelog-merge %O %A %B.
+
+Moves the entries the merged side (B) added to or removed from `## [Unreleased]`
+into ours (A)'s `## [Unreleased]`, under the same `### ` subsection. Upstream
+releases, archives and rewrites of released sections therefore never pull a
+PR's entries into a released section or resurrect archived lines, which a
+`merge=union` driver does. When B changed anything outside `## [Unreleased]`
+(or added/removed a section), this falls back to `git merge-file`, so the merge
+stops with ordinary conflict markers instead of guessing.
+"""
+import subprocess
+import sys
+
+UNRELEASED = "## [Unreleased]"
+
+
+def sections(lines):
+	"""[(heading or None for the preamble, body lines)]"""
+	out = [(None, [])]
+	for line in lines:
+		if line.startswith("## "):
+			out.append((line.rstrip("\n"), []))
+		else:
+			out[-1][1].append(line)
+	return out
+
+
+def unreleased(secs):
+	return next((body for head, body in secs if head and head.startswith(UNRELEASED)), None)
+
+
+def subsection_of(body):
+	"""Line index -> enclosing `### ` heading ('' before the first one)."""
+	cur, out = "", []
+	for line in body:
+		if line.startswith("### "):
+			cur = line.rstrip("\n")
+		out.append(cur)
+	return out
+
+
+def insert_entry(body, sub, line):
+	"""Append line at the end of subsection `sub` in body, creating it if missing."""
+	cur, end = "", None
+	for i, l in enumerate(body):
+		if l.startswith("### "):
+			cur = l.rstrip("\n")
+		if cur == sub and l.strip() and not l.startswith("### "):
+			end = i + 1
+	if end is None:
+		start = next((i + 1 for i, l in enumerate(body) if l.rstrip("\n") == sub), None)
+		if start is None:
+			while body and not body[-1].strip():
+				body.pop()
+			body.extend(["\n", sub + "\n", "\n"] if sub else ["\n"])
+			end = len(body)
+		else:
+			end = start + 1 if start < len(body) and not body[start].strip() else start
+	body.insert(end, line)
+	if end + 1 == len(body) or body[end + 1].startswith(("### ", "## ")):
+		body.insert(end + 1, "\n")
+
+
+def merge(o, a, b):
+	"""Return merged lines, or None when B's change is not Unreleased-only."""
+	so, sa, sb = sections(o), sections(a), sections(b)
+	if [h for h, _ in so] != [h for h, _ in sb]:
+		return None
+	if any(bo != bb for (h, bo), (_, bb) in zip(so, sb) if not (h and h.startswith(UNRELEASED))):
+		return None
+	uo, ua, ub = unreleased(so), unreleased(sa), unreleased(sb)
+	if ua is None:
+		return None
+	if uo is None:
+		uo = []
+	o_entries = {l for l in uo if l.strip() and not l.startswith("### ")}
+	b_entries = {l for l in ub if l.strip() and not l.startswith("### ")}
+	for line in o_entries - b_entries:
+		if line in ua:
+			ua.remove(line)
+	present = {l for _, body in sa for l in body}
+	subs = subsection_of(ub)
+	for i, line in enumerate(ub):
+		if line.strip() and not line.startswith("### ") and line not in o_entries and line not in present:
+			insert_entry(ua, subs[i], line)
+	return [l for head, body in sa for l in ([head + "\n"] if head else []) + body]
+
+
+def main():
+	o_path, a_path, b_path = sys.argv[1:4]
+	read = lambda p: open(p, encoding="utf-8").readlines()
+	merged = merge(read(o_path), read(a_path), read(b_path))
+	if merged is None:
+		return subprocess.run(["git", "merge-file", "-L", "ours", "-L", "base", "-L", "theirs", a_path, o_path, b_path]).returncode
+	with open(a_path, "w", encoding="utf-8") as f:
+		f.writelines(merged)
+	return 0
+
+
+if __name__ == "__main__":
+	sys.exit(main())

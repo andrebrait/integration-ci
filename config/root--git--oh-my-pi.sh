@@ -15,6 +15,8 @@ CI_WORKFLOW=omp.yml
 # omp.yml builds every platform; this host deploys the linux-x64 binary.
 CI_TARGET=linux-x64
 BASE=upstream/main
+# upstream merges changelogs with merge=union, which drags rebased entries into released sections.
+CHANGELOG_GLOB='packages/*/CHANGELOG.md'
 BUILD_CMD='bun install --frozen-lockfile && bun run build:native && bun check && bun --cwd=packages/coding-agent run build && packages/coding-agent/dist/omp --smoke-test'
 FORMAT_CMD='bun install --frozen-lockfile >/dev/null && bun run gen:compat && bun run fmt:tools'
 TEST_CMD='PI_CODING_AGENT_DIR="$(mktemp -d /tmp/omp-integration-agent-XXXXXX)" bun test packages/agent/test/agent-loop.test.ts packages/coding-agent/test/extensions-runner.test.ts packages/coding-agent/test/agent-session-queued-steer-delivery.test.ts packages/coding-agent/test/agent-session-queued-policy.test.ts packages/coding-agent/test/agent-session-new-session-queued-steer.test.ts packages/coding-agent/test/rpc-queued-message.test.ts packages/coding-agent/test/skills.test.ts packages/coding-agent/test/skill-protocol-customdirs.test.ts packages/coding-agent/test/agent-session-video-attachment.test.ts packages/coding-agent/test/rpc-cancel-subagent.test.ts packages/coding-agent/test/rpc-steer-subagent.test.ts packages/coding-agent/test/task/structured-subagent.test.ts packages/coding-agent/test/task/wire-schema.test.ts packages/coding-agent/test/eval/agent-bridge-policy.test.ts'

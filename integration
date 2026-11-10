@@ -23,6 +23,8 @@
 #   BASE=upstream/main          # what the PRs are rebuilt onto: a ref or "latest-tag"
 #   UPSTREAM_MAIN_REF=upstream/main
 #   FORMAT_CMD='...'            # optional, runs on each squashed merge before it commits
+#   CHANGELOG_GLOB='packages/*/CHANGELOG.md'
+#                               # optional: merge these with changelog-merge (see below)
 #   EXTRA_PRS='12229=carry/pr-12229 fork/repo#1=local-draft'
 #                               # optional, space-separated PR=fork-branch pairs for PRs
 #                               # we carry. PR is a bare UPSTREAM number or a repo-qualified
@@ -114,6 +116,15 @@ done
 for pair in ${STACKED_PRS:-}; do
 	[[ "$pair" =~ ^$PR_ID:$PR_ID(,$PR_ID)*$ ]] || { echo "integration: bad STACKED_PRS entry '$pair' (want CHILD:PARENT[,PARENT2...]; each N or owner/repo#N)" >&2; exit 2; }
 done
+# CHANGELOG_GLOB: merge matching files with changelog-merge (next to this script), which
+# keeps a PR's entries in [Unreleased]. A repo's own merge=union driver instead drags
+# them into released sections and resurrects archived lines on every rebase.
+if [ -n "${CHANGELOG_GLOB:-}" ]; then
+	git -C "$REPO_DIR" config merge.integration-changelog.driver "$(dirname "$(readlink -f "$0")")/changelog-merge %O %A %B"
+	mkdir -p "$COMMON_GIT/info"
+	grep -qxF "$CHANGELOG_GLOB merge=integration-changelog" "$COMMON_GIT/info/attributes" 2>/dev/null ||
+		echo "$CHANGELOG_GLOB merge=integration-changelog" >> "$COMMON_GIT/info/attributes"
+fi
 
 # How messages and commit subjects name a PR: #N, or owner/repo#N for qualified IDs.
 pr_label() { case "$1" in *#*) echo "$1" ;; *) echo "#$1" ;; esac; }
