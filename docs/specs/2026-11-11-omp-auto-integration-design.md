@@ -161,6 +161,30 @@ The existing `oh-my-pi` rolling release in this repo and manual
 - Retiring integration-ci's `ompweb.yml` follows once this channel works on
   this host.
 
+### 3c. GitHub token for omp-web's API calls
+
+omp-web calls the GitHub API unauthenticated for release checks, release
+notes, update downloads and (with `GITHUB_TOKEN`/`GH_TOKEN` from the
+environment only) skill update checks. Unauthenticated calls share a limit of
+60 requests per hour per IP; the new channels add more checks.
+
+- Settings → Interface & Behavior (server-wide): **GitHub token**, a
+  password field with a hint to create a fine-grained PAT with "Public
+  repositories (read-only)" and no permissions. Save, Test (calls
+  `GET /rate_limit` and shows the limit), Remove.
+- Stored server-side in omp-web's data directory with mode `0600`; never
+  sent back to the browser (the UI shows only "set" and the last 4
+  characters). `GITHUB_TOKEN`/`GH_TOKEN` stay as a fallback when no token is
+  saved.
+- One helper, used by every GitHub API call in omp-web (`skill-updates`,
+  `github-release-notes`, `hosts/update-worker`, the new channel checks),
+  adds `Authorization: Bearer <token>` only for `api.github.com`; asset
+  downloads that redirect to the CDN never receive the header.
+- Linked hosts receive the token over the existing host link for their
+  update checks; a host without it falls back to unauthenticated calls.
+- A 401 from GitHub shows "GitHub token rejected" in Settings and retries
+  unauthenticated, so a revoked token never blocks updates.
+
 ## 4. Secrets and trust
 
 | Job | Runs | Secrets | Token |
@@ -206,4 +230,4 @@ runs are unchanged.
 1. Script changes + `omp-auto.yml` + prompt (this repo).
 2. `omp.yml` release inputs.
 3. You add the secrets `OMP_FORK_TOKEN` and `ANTHROPIC_API_KEY`; first dispatched round.
-4. omp-web PR: omp update source (section 3) and pre-release channel (3b).
+4. omp-web PR: omp update source (3), pre-release channel (3b), GitHub token (3c).
