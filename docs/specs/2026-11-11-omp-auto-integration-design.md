@@ -39,7 +39,7 @@ Jobs, in order:
    repo out at `ci/`, create the `integration` worktree, and run
    `ci/integration rebuild` with the CI overrides from section 5 (base =
    `tag`). `rebuild` itself never pushes. Upload `integration.bundle` (the
-   result, or the stopped state on failure), `newer-base.tsv` and `failure.json` on failure
+   result, or the stopped state on failure) and, on failure, `failure.json`
    (`step: "rebuild"`, the script's last 200 log lines).
 3. `candidate` (needs `rebuild` success; runs no fork code, no agent):
    secret `OMP_FORK_TOKEN`. Verify the bundle head, force-push it to the fork
@@ -206,14 +206,15 @@ All overrides are environment variables; unset keeps today's host behaviour.
 - `INTEGRATION_BASE`: replaces the config's `BASE` (CI: the round's tag).
 - `INTEGRATION_PR_AUTHOR`: replaces `gh api user --jq .login` in `pr_rows`
   (CI: `andrebrait`), because an Actions token cannot read `/user`.
-- `INTEGRATION_REPLAY_FALLBACK=head`: every PR is first replayed onto the
-  release tag, as today; that is the normal case. Only when a PR branch does
-  not replay onto the tag (it depends on a newer upstream) does `rebuild`
-  squash the PR head as it is instead of stopping, so the build also carries
-  the newer upstream commits under that PR. It logs `PR #N built on its own
-  base <sha10>` and records the PR in `$CACHE/newer-base.tsv` (PR, base sha).
-  The fork release notes list those PRs under `## Carried patches` with
-  "(includes upstream up to <sha10>)". Unset keeps today's stop.
+
+Every PR is built on the release tag; there is no fallback to a PR's own
+newer base. A PR branch that does not replay onto the tag stops `rebuild`
+like any conflict, and `repair` adapts it to the release in that round: it
+squashes the PR by hand onto the integration worktree (the script's existing
+resume path: commit `PR #N: <title>` with the usual `Squashed from` line) and
+re-runs `rebuild`, which continues with the next PR. The adaptation lives in
+that round's build; the next release is adapted again. PR branches
+themselves are never pushed.
 
 Conflict resolutions in CI come only from the committed `N-resolve.patch`
 files; the workflow keeps no rerere cache. The host's rerere cache and manual
@@ -221,12 +222,11 @@ runs are unchanged.
 
 ## 6. Testing
 
-- Script: `bats`-free shell tests under `tests/integration/` that build a
-  throwaway upstream repo, a fork with two PR branches and a config in a temp
-  dir, then assert: the overrides select config, cache and base; the PR
-  author override replaces the `gh` login; with the replay fallback, a PR
-  branch on a newer upstream is squashed as it is and listed in
-  `newer-base.tsv`. `gh` is stubbed on `PATH`.
+- Script: new cases in the existing `integration.test.sh` (real Git repos,
+  `gh` stubbed on `PATH`): the overrides select config, cache and base; the
+  PR author override replaces the `gh` login; a PR branch that does not replay
+  onto the tag stops `rebuild` with its PR named in the log, and a hand squash
+  committed in the worktree lets the next `rebuild` continue.
 - Workflow: one `workflow_dispatch` round with `force=true` on the current tag
   (`v18.18.9`), observed end to end. It is also the first deploy candidate
   for the host: the release's `omp-linux-x64` replaces the manual
