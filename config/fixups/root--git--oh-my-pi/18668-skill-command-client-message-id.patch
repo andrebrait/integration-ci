@@ -1,0 +1,24 @@
+diff --git a/packages/coding-agent/src/session/skill-command.ts b/packages/coding-agent/src/session/skill-command.ts
+index bb6e9a3085..3ef172dfff 100644
+--- a/packages/coding-agent/src/session/skill-command.ts
++++ b/packages/coding-agent/src/session/skill-command.ts
+@@ -15,7 +15,10 @@ export interface SkillCommandInvocation extends SkillPromptInput {
+ 	queueChipText: string;
+ }
+ 
+-export interface DispatchSkillCommandOptions extends Pick<PromptOptions, "streamingBehavior" | "onPromptAdmitted"> {
++export interface DispatchSkillCommandOptions extends Pick<
++	PromptOptions,
++	"streamingBehavior" | "onPromptAdmitted" | "clientMessageId"
++> {
+ 	queueOnly?: boolean;
+ 	images?: ImageContent[];
+ 	/** Prompt already rendered after a currentness check; skips reading SKILL.md again. */
+@@ -64,6 +67,7 @@ export async function dispatchSkillCommand(
+ 			queueOnly: options?.queueOnly,
+ 			queueChipText: invocation.queueChipText,
+ 			onPromptAdmitted: options?.onPromptAdmitted,
++			...(options?.clientMessageId !== undefined ? { clientMessageId: options.clientMessageId } : {}),
+ 		},
+ 	);
+ }
