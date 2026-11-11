@@ -206,13 +206,14 @@ All overrides are environment variables; unset keeps today's host behaviour.
 - `INTEGRATION_BASE`: replaces the config's `BASE` (CI: the round's tag).
 - `INTEGRATION_PR_AUTHOR`: replaces `gh api user --jq .login` in `pr_rows`
   (CI: `andrebrait`), because an Actions token cannot read `/user`.
-- `INTEGRATION_REPLAY_FALLBACK=head`: when a PR branch does not replay onto
-  the base (it sits on a newer upstream), `rebuild` squashes the PR head as it
-  is instead of stopping, so the build also carries the newer upstream commits
-  under that PR. It logs `PR #N built on its own base <sha10>` and records the
-  PR in `$CACHE/newer-base.tsv` (PR, base sha). The fork release notes list
-  those PRs under `## Carried patches` with "(includes upstream up to
-  <sha10>)". Unset keeps today's stop.
+- `INTEGRATION_REPLAY_FALLBACK=head`: every PR is first replayed onto the
+  release tag, as today; that is the normal case. Only when a PR branch does
+  not replay onto the tag (it depends on a newer upstream) does `rebuild`
+  squash the PR head as it is instead of stopping, so the build also carries
+  the newer upstream commits under that PR. It logs `PR #N built on its own
+  base <sha10>` and records the PR in `$CACHE/newer-base.tsv` (PR, base sha).
+  The fork release notes list those PRs under `## Carried patches` with
+  "(includes upstream up to <sha10>)". Unset keeps today's stop.
 
 Conflict resolutions in CI come only from the committed `N-resolve.patch`
 files; the workflow keeps no rerere cache. The host's rerere cache and manual
