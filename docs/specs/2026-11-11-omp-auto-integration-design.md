@@ -159,6 +159,10 @@ bundle head to be the commit that passed `BUILD_CMD` and `TEST_CMD`.
   is a checkout of `origin/main` itself (CI case).
 - Host usage (`integration rebuild/build/deploy`) behaves exactly as today.
 
+Conflict resolutions in CI come only from the committed `N-resolve.patch`
+files; the workflow keeps no rerere cache. The host's rerere cache and manual
+runs are unchanged.
+
 ## 6. Testing
 
 - Script: a CI-mode dry run in a scratch clone against the current tag
