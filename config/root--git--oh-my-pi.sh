@@ -7,7 +7,8 @@ UPSTREAM=can1357/oh-my-pi
 STACKED_PRS='14458:14148 14468:14166 15685:14166 16220:14468,15685 16221:16220 16222:16221 15729:15730 15896:15729'
 # Third-party PRs carried from our fork (rebased copy). See EXTRA_PRS in the integration script.
 # 7851: szavadsky's per-role skill visibility.
-EXTRA_PRS='7851=carry/pr-7851'
+# 18646: pasquale95's whole HTML form over RPC (`set_form_dialog`, `method: "form"`), for omp-web's form dialog.
+EXTRA_PRS='7851=carry/pr-7851 18646=carry/pr-18646'
 BRANCH=integration
 # build runs BUILD_CMD/TEST_CMD on GitHub Actions (.github/workflows/omp.yml sources this file).
 CI_REPO=andrebrait/integration-ci
@@ -55,3 +56,5 @@ sha256sum "$rel/omp" | cut -d" " -f1 > "$rel/omp.sha256"
 } > "$rel/RELEASE.md"
 ln -sfn "$rel" /opt/omp-patched/current
 echo "current -> $rel"'
+# Carried PR #18646 (RPC form dialog) contract tests.
+TEST_CMD+=' && PI_CODING_AGENT_DIR="$(mktemp -d /tmp/omp-integration-agent-XXXXXX)" bun test packages/coding-agent/test/rpc-extension-ui.test.ts packages/tui/test/html-form.test.ts'
