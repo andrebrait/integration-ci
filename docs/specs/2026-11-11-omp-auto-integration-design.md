@@ -12,9 +12,9 @@
 - omp-web can install those releases from its GUI: the omp update row gets a
   source, **Upstream** or **Custom**, per host.
 
-Non-goals: rebasing or force-pushing our open upstream PR branches
-(`integration prs`) in unattended rounds; building on every `upstream/main`
-commit; a host-side watcher; Codex/ChatGPT-subscription credentials in CI.
+Non-goals: rebasing every open PR branch each round (`integration prs`);
+building on every `upstream/main` commit; a host-side watcher;
+Codex/ChatGPT-subscription credentials in CI.
 
 ## 1. Scheduled round (`.github/workflows/omp-auto.yml`)
 
@@ -43,7 +43,8 @@ Jobs, in order:
    (`step: "rebuild"`, the script's last 200 log lines).
 3. `candidate` (needs `rebuild` success; runs no fork code, no agent):
    secret `OMP_FORK_TOKEN`. Verify the bundle head, force-push it to the fork
-   branch `integration-candidate`. Output `sha`.
+   branch `integration-candidate`. Output `sha`. Rebased PR branches from the
+   bundle are not pushed here; `release` pushes them after a green build.
 4. `build` (`uses: ./.github/workflows/omp.yml`, inputs `repo`, `sha`): the
    existing pipeline, unchanged, plus a `workflow_call` trigger.
 5. `repair` (when `rebuild` or `build` failed; one per round): see below.
@@ -206,15 +207,26 @@ All overrides are environment variables; unset keeps today's host behaviour.
 - `INTEGRATION_BASE`: replaces the config's `BASE` (CI: the round's tag).
 - `INTEGRATION_PR_AUTHOR`: replaces `gh api user --jq .login` in `pr_rows`
   (CI: `andrebrait`), because an Actions token cannot read `/user`.
+- `INTEGRATION_HEAD_PREFIX`: when `<prefix>/<fork-branch>` exists, `rebuild`
+  uses it as the PR head instead of `$FORK_REMOTE/<fork-branch>` (CI:
+  `refs/rebased`), so a branch the agent rebased locally is built without
+  being pushed first. Fetches never touch that prefix.
 
 Every PR is built on the release tag; there is no fallback to a PR's own
 newer base. A PR branch that does not replay onto the tag stops `rebuild`
-like any conflict, and `repair` adapts it to the release in that round: it
-squashes the PR by hand onto the integration worktree (the script's existing
-resume path: commit `PR #N: <title>` with the usual `Squashed from` line) and
-re-runs `rebuild`, which continues with the next PR. The adaptation lives in
-that round's build; the next release is adapted again. PR branches
-themselves are never pushed.
+like any conflict, and `repair` adapts it to the release in that round:
+
+- Our own PRs (author `andrebrait`) and `EXTRA_PRS` carry branches: the agent
+  rebases the PR branch onto the release tag, resolving conflicts, stores it
+  as `refs/rebased/<branch>` in the bundle, and re-runs `rebuild` against it.
+  After the round's build is green, `release` force-pushes each rebased
+  branch to its fork branch with `--force-with-lease` against the sha the
+  round started from (a branch you moved meanwhile is skipped and noted in
+  the release notes). The PR on GitHub then shows the rebase.
+- Other PRs (a third-party head that is not ours to push): the agent squashes
+  the PR by hand onto the integration worktree (the script's resume path:
+  `PR #N: <title>` with the usual `Squashed from` line). That adaptation
+  lives only in this round's build.
 
 Conflict resolutions in CI come only from the committed `N-resolve.patch`
 files; the workflow keeps no rerere cache. The host's rerere cache and manual
