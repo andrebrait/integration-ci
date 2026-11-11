@@ -1,0 +1,41 @@
+diff --git a/lib/i18n/locales/zh-TW.json b/lib/i18n/locales/zh-TW.json
+index 44320bf1093425e0da32440e953c1d0f10240c52..4922ddefdde689eb3ca54456dced0ea16889c1a0 100644
+--- a/lib/i18n/locales/zh-TW.json
++++ b/lib/i18n/locales/zh-TW.json
+@@ -55,6 +55,8 @@
+   "agentSession.reloadedResources": "已重新載入對話資源",
+   "agentSession.responseFailed": "代理未回傳任何回應便已停止。若持續發生，請重試並檢查供應商設定。",
+   "agentSession.sendFailed": "傳送訊息失敗：{detail}",
++  "agentSession.invalidPoolTarget": "主機池目標需要建立 ID、主機池 ID 與專案 ID。",
++  "agentSession.uploadOwnerUnavailable": "無法判斷對話所屬的主機，未上傳任何檔案。",
+   "agentSession.sessionRenamed": "對話已重新命名為 {name}",
+   "agentSession.shellSessionFailed": "無法為 Shell 指令建立對話",
+   "agentSession.queuedPromotionUnavailable": "佇列中的後續訊息已無法調整為引導指令。",
+@@ -247,6 +249,7 @@
+   "appShell.noFileOpenHint": "從檔案總管開啟檔案 — 便可在聊天中以 @提及、複製路徑，或與 HEAD 進行比較。",
+   "appShell.mentionFileInChat": "在聊天中提及檔案 (@)",
+   "appShell.revealInExplorer": "在檔案總管中顯示",
++  "appShell.revealSourceSession": "請先選取此檔案所屬的對話，再於檔案總管中顯示。",
+   "appShell.closeOtherTabs": "關閉其他分頁",
+   "appShell.closeOthers": "關閉其他",
+   "appShell.closeAllTabs": "關閉所有分頁",
+@@ -598,6 +601,8 @@
+   "chatWindow.askTitle": "來自代理的提問",
+   "chatWindow.askRecommended": "建議",
+   "chatWindow.askOther": "其他：自行輸入答案",
++  "chatWindow.optionChecked": "已勾選",
++  "chatWindow.optionUnchecked": "未勾選",
+   "chatWindow.thinking": "思考中...",
+   "chatWindow.subagentCount.one": "{count} 個子代理",
+   "chatWindow.subagentCount.other": "{count} 個子代理",
+@@ -664,6 +669,10 @@
+   "directoryPicker.selectCurrentDirectory": "選取目前目錄",
+   "directoryPicker.selectDirectory": "選取目錄",
+   "directoryPicker.selectThisFolder": "選取此資料夾",
++  "directoryPicker.registerPoolProject": "註冊儲存庫",
++  "directoryPicker.poolOrigin": "Git 儲存庫 URL 或 SSH 來源",
++  "directoryPicker.poolPreparationHint": "在 {pool} 中註冊來源，不會建立中央簽出。對話開始時由工作節點準備簽出；屆時會回報驗證、準備或儲存庫衝突。",
++  "projects.poolConfigUnavailable": "無法載入主機池設定。遠端目標無法使用，請重新載入頁面再試。",
+   "directoryPicker.profilePlaceholder": "OMP 設定檔（選填）",
+   "directoryPicker.extraArgsPlaceholder": "額外引數，每行一個（選填）",
+   "directoryPicker.profileLabel": "OMP 設定檔",
