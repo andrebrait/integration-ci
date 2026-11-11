@@ -11,7 +11,7 @@ index d03eb8b646..95cfe4ca4e 100644
  - Prevented OpenTelemetry settings from omp-managed `.env` files from leaking into child processes or in-process extensions.
  - Supervised-service waits now complete only after logs, metadata, and session-owner state have been published.
 diff --git a/packages/coding-agent/src/extensibility/extensions/runner.ts b/packages/coding-agent/src/extensibility/extensions/runner.ts
-index 4fec1d84b5..a0ac1bba09 100644
+index 1fc56e2e1e..611c1238c6 100644
 --- a/packages/coding-agent/src/extensibility/extensions/runner.ts
 +++ b/packages/coding-agent/src/extensibility/extensions/runner.ts
 @@ -435,9 +435,9 @@ async function raceHandlerWithTimeout<T>(
@@ -25,7 +25,6 @@ index 4fec1d84b5..a0ac1bba09 100644
  	try {
  		return await Promise.race([ready.then(() => true), expired]);
  	} finally {
- 		clearTimeout(timer);
 @@ -2076,7 +2076,9 @@ export class ExtensionRunner {
  				const handlers = ext.handlers.get(event.type);
  				if (!handlers || handlers.length === 0) continue;
@@ -53,10 +52,10 @@ index 4fec1d84b5..a0ac1bba09 100644
  
  		// Handlers for these events export session-scoped environment (a session
 diff --git a/packages/coding-agent/test/extensions-runner.test.ts b/packages/coding-agent/test/extensions-runner.test.ts
-index 4668715654..5083da257f 100644
+index bb5b5674e2..968e7dc9ab 100644
 --- a/packages/coding-agent/test/extensions-runner.test.ts
 +++ b/packages/coding-agent/test/extensions-runner.test.ts
-@@ -4510,6 +4510,87 @@ describe("ExtensionRunner", () => {
+@@ -4611,6 +4611,87 @@ describe("ExtensionRunner", () => {
  			expect(seen).toEqual(["slow:start", "observer:start", "observer:end"]);
  		});
  

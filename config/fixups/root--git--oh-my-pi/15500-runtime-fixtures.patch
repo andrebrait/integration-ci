@@ -1,17 +1,17 @@
 diff --git a/packages/coding-agent/test/task/executor-irc-wake-subagent-stop.test.ts b/packages/coding-agent/test/task/executor-irc-wake-subagent-stop.test.ts
-index df3a172a0a..8113182fc6 100644
+index 7a40e4df64..45b7d5d1b9 100644
 --- a/packages/coding-agent/test/task/executor-irc-wake-subagent-stop.test.ts
 +++ b/packages/coding-agent/test/task/executor-irc-wake-subagent-stop.test.ts
-@@ -119,6 +119,8 @@ describe("IRC wake turn subagent_stop (real session)", () => {
- 		structured?: boolean;
- 		/** Output schema; with it the session uses the real `YieldTool` instead of the stand-in. */
- 		outputSchema?: Record<string, unknown>;
+@@ -133,6 +133,8 @@ describe("IRC wake turn subagent_stop (real session)", () => {
+ 		usageAwareFallback?: boolean;
+ 		/** Park every compaction pass in its `session_before_compact` hook until `gate`, and resolve `entered` on arrival. */
+ 		holdCompaction?: { gate: Promise<void>; entered: PromiseWithResolvers<void> };
 +		/** Conversation the session already held before the wake, e.g. an earlier user task. */
 +		history?: AgentMessage[];
  	}) {
  		const stopEvents: SubagentStopEvent[] = [];
  		const lifecycle: LifecycleFrame[] = [];
-@@ -153,7 +155,7 @@ describe("IRC wake turn subagent_stop (real session)", () => {
+@@ -172,7 +174,7 @@ describe("IRC wake turn subagent_stop (real session)", () => {
  			: yieldTool;
  		const agent = new Agent({
  			getApiKey: () => "test-key",
@@ -20,7 +20,7 @@ index df3a172a0a..8113182fc6 100644
  			convertToLlm,
  			streamFn: mock.stream,
  		});
-@@ -484,7 +486,29 @@ describe("IRC wake turn subagent_stop (real session)", () => {
+@@ -560,7 +562,29 @@ describe("IRC wake turn subagent_stop (real session)", () => {
  
  	it("stops a refusal continuation still running when the user resumes, and cancels the pass", async () => {
  		const continuationStarted = Promise.withResolvers<void>();
@@ -50,62 +50,3 @@ index df3a172a0a..8113182fc6 100644
  			responses: [
  				yieldCall("REFUSED-PAYLOAD"),
  				() => {
-diff --git a/packages/coding-agent/test/task/persisted-revive.test.ts b/packages/coding-agent/test/task/persisted-revive.test.ts
-index c2f5fded94..ab5e52d61d 100644
---- a/packages/coding-agent/test/task/persisted-revive.test.ts
-+++ b/packages/coding-agent/test/task/persisted-revive.test.ts
-@@ -1195,7 +1195,7 @@ describe("persisted subagent revival", () => {
- 			sessionFile: null,
- 			session: {
- 				model: parentModel,
--				sessionManager: { getCwd: () => parentCwd },
-+				sessionManager: { getSessionId: () => "live-parent-session", getCwd: () => parentCwd },
- 				effectiveExtensionRoots: parentRoots,
- 				getSessionAgents: () => parentAgents,
- 			} as unknown as AgentSession,
-@@ -1305,7 +1305,7 @@ describe("persisted subagent revival", () => {
- 					sessionFile: null,
- 					session: {
- 						model: parentModel,
--						sessionManager: { getCwd: () => cwd },
-+						sessionManager: { getSessionId: () => "revived-parent-session", getCwd: () => cwd },
- 						effectiveExtensionRoots: { explicit: [], mode: "merge", configured: [], configuredLevel: "user" },
- 						getSessionAgents: () => agents,
- 					} as unknown as AgentSession,
-@@ -1431,7 +1431,11 @@ describe("persisted subagent revival", () => {
- 			const ref = { ...createRef(sessionFile), parentId: parent };
- 			const factory = createPersistedSubagentReviverFactory({
- 				session: {
--					sessionManager: { getCwd: () => cwd, getArtifactManager: () => undefined },
-+					sessionManager: {
-+						getSessionId: () => "root-session",
-+						getCwd: () => cwd,
-+						getArtifactManager: () => undefined,
-+					},
- 					effectiveExtensionRoots: { explicit: [], mode: "merge", configured: [], configuredLevel: "user" },
- 					getSessionAgents: () => [],
- 					model: rootModel,
-@@ -1456,7 +1460,7 @@ describe("persisted subagent revival", () => {
- 			parentId: "Main",
- 			session: {
- 				model: parentModel,
--				sessionManager: { getCwd: () => "/tmp" },
-+				sessionManager: { getSessionId: () => "live-parent-session", getCwd: () => "/tmp" },
- 				effectiveExtensionRoots: { explicit: [], mode: "merge", configured: [], configuredLevel: "user" },
- 				getSessionAgents: () => [],
- 			} as unknown as AgentSession,
-diff --git a/packages/coding-agent/test/task/restore-revive.test.ts b/packages/coding-agent/test/task/restore-revive.test.ts
-index 8a2c9ab25b..50e5307fbc 100644
---- a/packages/coding-agent/test/task/restore-revive.test.ts
-+++ b/packages/coding-agent/test/task/restore-revive.test.ts
-@@ -178,9 +178,9 @@ async function restoreInterruptedChild(
- 		defaultThinkingLevel: Effort.Medium,
- 	});
- 	const session = {
--		sessionId: "main-session-1",
- 		sessionFile: mainFile,
- 		sessionManager: {
-+			getSessionId: () => "main-session-1",
- 			getSessionFile: () => mainFile,
- 			getCwd: () => cwd,
- 			getArtifactManager: () => undefined,
