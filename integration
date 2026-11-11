@@ -41,6 +41,9 @@
 #                               # base), and `rebuild` squashes only the child's own commits,
 #                               # after its parent. At one stack depth rows run bare UPSTREAM
 #                               # numbers first, then qualified IDs, each by PR number.
+#   SKIP_PRS='449 fork/repo#3'   # optional, space-separated PR IDs (bare or owner/repo#N) left
+#                               # out of `prs` and `rebuild` although open, e.g. one that does
+#                               # not rebase yet; usually given for one run: SKIP_PRS=449 integration rebuild
 # Fixups: ~/.config/integration/fixups/<slug>/<N>-<name>.patch (`git diff --full-index`)
 #                               # is applied with `git apply --3way` into PR #N's squash.
 #                               # For a change that adapts PR #N to PRs squashed before
@@ -215,6 +218,7 @@ pr_rows() { # title|base
 			printf '%s\t%s\t%s\n' "$num" "$head" "${row#*$'\t'}"
 		done
 	} | while IFS=$'\t' read -r num head row; do
+		case " ${SKIP_PRS:-} " in *" $num "*) echo "integration: skipping $(pr_label "$num") (SKIP_PRS)" >&2; continue ;; esac
 		# Stack depth leads the sort key, so parents always precede children; at one
 		# depth bare UPSTREAM numbers precede qualified IDs, ordered by PR number.
 		local depth

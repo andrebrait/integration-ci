@@ -214,6 +214,14 @@ bash "$DRIVER" rebuild "$TMP/repo"
 [[ "$(git log --reverse --format=%s "$BASE..integration")" == $'PR #1: First change\nPR #10: Parent change\nPR fork/repo#2: Stacked child' ]]
 printf 'PASS: closed qualified PR drops on a fresh rebuild without dropping same-number upstream PR\n'
 
+# SKIP_PRS leaves an open PR out of a rebuild, by its whole ID: skipping upstream #1 keeps fork/repo#2.
+SKIP_PRS='1' bash "$DRIVER" rebuild "$TMP/repo"
+[[ "$(git log --reverse --format=%s "$BASE..integration")" == $'PR #10: Parent change\nPR fork/repo#2: Stacked child' ]]
+[[ ! -e "$TMP/integration/first.txt" ]]
+bash "$DRIVER" rebuild "$TMP/repo"
+[[ "$(git log --reverse --format=%s "$BASE..integration")" == $'PR #1: First change\nPR #10: Parent change\nPR fork/repo#2: Stacked child' ]]
+printf 'PASS: SKIP_PRS leaves an open PR out of one rebuild only\n'
+
 # A qualified squash can be the only completed work in an interrupted pass.
 # Later upstream #1 must not be mistaken for already-squashed fork/repo#1.
 cat >> "$HOME/.config/integration/$SLUG.sh" <<'SH'
