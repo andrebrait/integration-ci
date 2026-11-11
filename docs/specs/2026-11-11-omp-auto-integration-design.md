@@ -134,6 +134,33 @@ The existing `oh-my-pi` rolling release in this repo and manual
 - i18n en/ja/zh-CN(/zh-TW where present); tests for the check parser, digest
   mismatch, smoke-test failure rollback, and the setting round trip.
 
+### 3b. omp-web's own update channel: pre-releases
+
+`kahme247/ompweb` already publishes a GitHub pre-release for every commit on
+`main` (tag `<UTC stamp>-<sha10>`, assets `ompweb-<os>-<arch>.tar.gz` /
+`.zip` with GitHub sha256 digests, the same names as stable releases).
+
+- Per-host setting beside the omp source: **ompweb channel**, `Stable`
+  (default, today's npm/`v<semver>` check) or `Pre-release`.
+- Pre-release check: newest pre-release of `kahme247/ompweb` by
+  `published_at`; update offered when its sha10 differs from the running
+  build's commit (the build already embeds its commit for the logo
+  version display) and it is newer than the running build.
+- Install reuses the existing binary path (`stageBinary`, digest
+  verification, worker in its own systemd scope); validators accept the
+  `<stamp>-<sha10>` tag for this channel.
+- Deployment hook: a new optional env `OMP_WEB_SELF_UPDATE_CMD`. When set,
+  the updater still downloads, verifies and unpacks the release, then runs
+  the command with `OMP_WEB_UPDATE_SHA` (full commit sha) and
+  `OMP_WEB_UPDATE_DIR` (unpacked directory) instead of swapping the binary
+  itself, from the same systemd scope. This host sets it to
+  `/opt/omp-deployment/bin/ompweb-deploy "$OMP_WEB_UPDATE_SHA"
+  "$OMP_WEB_UPDATE_DIR"`; `ompweb-deploy` already accepts that binary layout
+  (`ompweb-build`'s "binary" case) and does the release dir, probes and
+  rollback. Unset keeps today's in-place binary update.
+- Retiring integration-ci's `ompweb.yml` follows once this channel works on
+  this host.
+
 ## 4. Secrets and trust
 
 | Job | Runs | Secrets | Token |
@@ -179,4 +206,4 @@ runs are unchanged.
 1. Script changes + `omp-auto.yml` + prompt (this repo).
 2. `omp.yml` release inputs.
 3. You add the secrets `OMP_FORK_TOKEN` and `ANTHROPIC_API_KEY`; first dispatched round.
-4. omp-web PR.
+4. omp-web PR: omp update source (section 3) and pre-release channel (3b).
