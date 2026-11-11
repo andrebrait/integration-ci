@@ -141,8 +141,8 @@ const DEFAULT_OMPWEB_URL = "http://127.0.0.1:30185";
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 /**
- * The omp-web server this machine's `ompweb host` daemon links to: the url in its host.json, which every local
- * omp-web (production or staging) writes at startup and `ompweb-stage` repoints. Sessions are reachable only through
+ * The omp-web server this machine's `ompweb host` daemon links to: the url in its host.json, which the local
+ * omp-web writes at startup. Sessions are reachable only through
  * that server. Loopback only, so the trusted-header secret never goes to another machine.
  */
 export function linkedUrl(hostJson) {
