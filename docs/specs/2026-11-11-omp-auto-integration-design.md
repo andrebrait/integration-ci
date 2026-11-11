@@ -63,15 +63,21 @@ Jobs, in order:
 
 Job `repair`:
 
-- Secrets: `ANTHROPIC_API_KEY` only. Read-only token. No push credential.
+- Secrets: `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`. Read-only token. No
+  push credential.
 - Input: the `rebuild` bundle and `failure.json`, or, when `build` failed,
   the candidate commit and `step: "build"` with the failed job's log tail
   (`gh run view --log-failed`).
 - The agent binary is upstream's release `omp-linux-x64` for the round's tag,
   digest-checked against upstream's `SHA256SUMS.txt`, not the code under
-  repair. Run headless: `omp -p --no-session --model
-  anthropic/claude-haiku-5-5 --thinking medium --approval-mode yolo` with
-  `ci/prompts/omp-repair.md` plus `failure.json`.
+  repair. Run headless: `omp -p --no-session --model openai/gpt-6-luna
+  --thinking high --approval-mode yolo` with `ci/prompts/omp-repair.md` plus
+  `failure.json`.
+- When that run fails on a provider error (quota, billing, auth: omp exits
+  non-zero before any commit and its output names the provider error), the
+  job runs the same prompt once more with `--model
+  anthropic/claude-haiku-5-5 --thinking medium`. A run that fails for any
+  other reason does not retry. `repair-notes.md` records which model ran.
 - The prompt tells the agent to finish the round with the `integration`
   script's own rules (resolve in the worktree, commit as `PR #N: <title>`,
   refresh `N-resolve.patch` / `N-*.patch` under `ci/config/fixups/...`,
@@ -82,9 +88,9 @@ Job `repair`:
   the agent exited 0, `BUILD_CMD` and `TEST_CMD` pass when the job re-runs
   them after the agent, and the worktree is clean.
 
-Running out of Claude credits fails `repair`, which escalates; the human then
-finishes the round locally with the subscription-backed omp and the usual
-`integration` commands.
+Running out of both API budgets fails `repair`, which escalates; the human
+then finishes the round locally with the subscription-backed omp and the
+usual `integration` commands.
 
 ## 2. Fork release (job `release` in `omp-auto.yml`)
 
@@ -185,7 +191,7 @@ environment only) skill update checks. Unauthenticated calls share a limit of
 | rebuild | fork + carried PRs | none | read |
 | candidate, candidate-2 | no fork code, no agent | `OMP_FORK_TOKEN` | — |
 | build, build-2 (`omp.yml`) | fork code | none (its `publish` job writes this repo's `oh-my-pi` release) | read; `publish`: `contents: write` |
-| repair | fork code + LLM agent | `ANTHROPIC_API_KEY` | read |
+| repair | fork code + LLM agent | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | read |
 | release | no fork code, no agent | `OMP_FORK_TOKEN` | read |
 | fixups | no fork code, no agent | none | `contents: write` |
 | escalate | no fork code, no agent | none | `issues: write` |
@@ -251,7 +257,7 @@ runs are unchanged.
 1. Script overrides and their tests (this repo).
 2. `omp.yml` `workflow_call` trigger, `ci/prompts/omp-repair.md`,
    `omp-auto.yml`.
-3. You add the secrets `OMP_FORK_TOKEN` and `ANTHROPIC_API_KEY`; first
-   dispatched round.
+3. Secrets `OMP_FORK_TOKEN`, `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` (added
+   2026-11-11); first dispatched round.
 4. omp-web PR: omp update source (3), pre-release channel (3b), GitHub token
    (3c).
