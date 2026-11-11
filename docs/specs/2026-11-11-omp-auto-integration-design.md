@@ -18,100 +18,91 @@ commit; a host-side watcher; Codex/ChatGPT-subscription credentials in CI.
 
 ## 1. Scheduled round (`.github/workflows/omp-auto.yml`)
 
-Trigger: `schedule` (hourly) and `workflow_dispatch` (input `tag`, optional;
-`force` boolean to rebuild an already-released tag).
+Trigger: `schedule` (hourly) and `workflow_dispatch` (inputs `tag`,
+optional, and `force`, boolean, to rebuild an already-released tag).
+`concurrency: omp-auto` (no cancel), so two rounds never overlap.
 
-Job `detect` (no secrets, `contents: read`):
+The existing `omp.yml` already runs `BUILD_CMD` + `TEST_CMD`, builds every
+binary, and smoke-tests them; the round reuses it through `workflow_call`
+instead of testing twice. `omp.yml` builds a commit that must exist on
+GitHub, so each candidate is pushed to the fork branch `integration-candidate`
+first. A candidate is never released until `omp.yml` is green on it.
 
-- Latest upstream release tag: `gh release view -R can1357/oh-my-pi --json
-  tagName` (stable releases only).
-- Skip when `andrebrait/oh-my-pi` already has a release whose tag starts with
-  `<tag>-int.` and `force` is false. Otherwise output `tag`.
-- `concurrency: omp-auto` (no cancel), so two rounds never overlap.
+Jobs, in order:
 
-Job `rebuild` (needs `detect`; secrets: none; token: read-only):
+1. `detect` (no secrets, `contents: read`): the latest stable upstream release
+   tag (`gh release view -R can1357/oh-my-pi --json tagName`). Skip the round
+   when `andrebrait/oh-my-pi` already has a release tagged `<tag>-int.*` and
+   `force` is false. Output `tag`.
+2. `rebuild` (no secrets, read-only token): clone `andrebrait/oh-my-pi` with
+   remotes `origin` (fork) and `upstream` (`can1357/oh-my-pi`), check this
+   repo out at `ci/`, create the `integration` worktree, and run
+   `ci/integration rebuild` with the CI overrides from section 5 (base =
+   `tag`). `rebuild` itself never pushes. Upload `integration.bundle` (the
+   result, or the stopped state on failure), `newer-base.tsv` and `failure.json` on failure
+   (`step: "rebuild"`, the script's last 200 log lines).
+3. `candidate` (needs `rebuild` success; runs no fork code, no agent):
+   secret `OMP_FORK_TOKEN`. Verify the bundle head, force-push it to the fork
+   branch `integration-candidate`. Output `sha`.
+4. `build` (`uses: ./.github/workflows/omp.yml`, inputs `repo`, `sha`): the
+   existing pipeline, unchanged, plus a `workflow_call` trigger.
+5. `repair` (when `rebuild` or `build` failed; one per round): see below.
+   On success it uploads a new `integration.bundle` and `fixups.patch`.
+6. `candidate-2` and `build-2`: the same as 3 and 4 for the repaired bundle.
+7. `release` (needs the green `build` or `build-2`): section 2.
+8. `fixups` (after a successful `repair` and green `build-2`): commit
+   `fixups.patch` to this repo's `main` as `fixups(omp): <tag> repair` with
+   the workflow's `GITHUB_TOKEN` (`contents: write`), so later rounds and
+   manual runs start from it.
+9. `escalate` (when `repair` or `build-2` failed): open one issue on this
+   repo labelled `omp-auto`, titled `omp auto-integration failed for <tag>`,
+   with the failing step, log tail, `repair-notes.md` and the run URL, using
+   `GITHUB_TOKEN` with `issues: write`. If an open `omp-auto` issue for the
+   same tag exists, comment there instead.
 
-- Clone `andrebrait/oh-my-pi` with remotes `origin` (fork) and `upstream`
-  (`can1357/oh-my-pi`), check out this repo at `ci/`.
-- Run the existing script in CI mode: `integration rebuild` with
-  `BASE=<tag>` (overrides `latest-tag`/`upstream/main`), config and fixups
-  read from `ci/config`, cache and worktrees under `$RUNNER_TEMP`.
-  Required script changes (section 5): path roots from env, `BASE` override,
-  and a `--no-push` flag so the job never needs a write token.
-- Then `BUILD_CMD` and `TEST_CMD` from the config, exactly as `omp.yml` runs
-  them.
-- On success: upload the integration branch as a git bundle artifact
-  (`integration.bundle`) plus `round.json` (`tag`, `sha`, carried PR list).
-- On failure: upload the worktree state as a bundle plus `failure.json`
-  (step: `rebuild`, `format`, `check`, or `test`; PR number when the script
-  names one; last 200 log lines) and mark the job failed.
+Job `repair`:
 
-Job `repair` (runs only when `rebuild` failed; at most one per round):
-
-- Secrets: `ANTHROPIC_API_KEY` only. Token: read-only. No push credential.
-- Restores the failed state from the bundle. The agent binary is upstream's
-  release `omp-linux-x64` for the round's tag (digest-checked against
-  `SHA256SUMS.txt`), not the code under repair. It runs headless:
-  `omp -p --no-session --model anthropic/claude-haiku-5-5 --thinking medium
-  --approval-mode yolo` with the prompt from `ci/prompts/omp-repair.md`
-  (Handlebars-free plain file; the job appends `failure.json`).
-- The prompt tells the agent: finish the round with the `integration` script's
-  own rules (resolve in the worktree, commit as `PR #N: <title>`, refresh
-  `N-resolve.patch` / `N-*.patch` under `ci/config/fixups/...`, re-run
-  `integration rebuild`), then run `BUILD_CMD` and `TEST_CMD`; never weaken or
-  skip a test, never drop a PR; when a PR cannot be carried, stop and write
-  why to `repair-notes.md`.
-- Limits: job `timeout-minutes: 90` (`BUILD_CMD` compiles the natives).
-  Exactly one repair attempt per round.
-- On success: upload the same artifacts as a successful `rebuild`, plus
-  `fixups.patch` (the diff under `ci/config/fixups`) and `repair-notes.md`.
-- On failure: upload `repair-notes.md` and the log.
-
-Job `publish-branch` (needs `rebuild` or `repair` success; no fork code runs):
-
-- Secret: `OMP_FORK_TOKEN`, a fine-grained PAT scoped to
-  `andrebrait/oh-my-pi` only: Contents write (branch push and release
-  create/delete). Writes to this repository use the workflow's own
-  `GITHUB_TOKEN` with `contents: write`.
-- Fetches the bundle, verifies its head equals `round.json`'s `sha`, and
-  force-pushes it to `andrebrait/oh-my-pi` branch `integration-release`.
-- When `repair` produced `fixups.patch`, commits it to this repo's `main` as
-  `fixups(omp): <tag> repair` and pushes with `GITHUB_TOKEN`; later rounds then
-  start from it.
-- Calls `omp.yml` via `workflow_call` with `repo`, `sha`, and the new
-  `release` inputs (section 2), passing `OMP_FORK_TOKEN` for the fork release.
-
-Job `escalate` (runs when `repair` failed, or `rebuild` failed and `repair`
-was skipped by error):
-
-- Token: the workflow's `GITHUB_TOKEN` with `issues: write`. No PAT.
-- Opens one issue on `andrebrait/integration-ci` labelled `omp-auto`, titled
-  `omp auto-integration failed for <tag>`, with the step, PR, log tail,
-  `repair-notes.md`, and the run URL. If an open `omp-auto` issue for the same
-  tag exists, it comments there instead.
+- Secrets: `ANTHROPIC_API_KEY` only. Read-only token. No push credential.
+- Input: the `rebuild` bundle and `failure.json`, or, when `build` failed,
+  the candidate commit and `step: "build"` with the failed job's log tail
+  (`gh run view --log-failed`).
+- The agent binary is upstream's release `omp-linux-x64` for the round's tag,
+  digest-checked against upstream's `SHA256SUMS.txt`, not the code under
+  repair. Run headless: `omp -p --no-session --model
+  anthropic/claude-haiku-5-5 --thinking medium --approval-mode yolo` with
+  `ci/prompts/omp-repair.md` plus `failure.json`.
+- The prompt tells the agent to finish the round with the `integration`
+  script's own rules (resolve in the worktree, commit as `PR #N: <title>`,
+  refresh `N-resolve.patch` / `N-*.patch` under `ci/config/fixups/...`,
+  re-run `integration rebuild`), then run `BUILD_CMD` and `TEST_CMD`; never
+  weaken or skip a test, never drop a PR; when a PR cannot be carried, stop
+  and write why to `repair-notes.md`.
+- `timeout-minutes: 120` (`BUILD_CMD` compiles the natives). Success means
+  the agent exited 0, `BUILD_CMD` and `TEST_CMD` pass when the job re-runs
+  them after the agent, and the worktree is clean.
 
 Running out of Claude credits fails `repair`, which escalates; the human then
 finishes the round locally with the subscription-backed omp and the usual
 `integration` commands.
 
-## 2. Fork release (`omp.yml` + `publish.yml` extension)
+## 2. Fork release (job `release` in `omp-auto.yml`)
 
-`omp.yml` gains inputs `release_repo` (default empty) and `release_tag`.
-When both are set, the `publish` job additionally creates a release on
-`release_repo`:
-
-- Tag `<upstream tag>-int.<sha7>` on the built commit, e.g.
-  `v18.18.9-int.95bee5c`. Marked latest on the fork.
-- Notes: upstream's release body for `<upstream tag>`, then a `## Carried
-  patches` section listing each squash (`PR #N: <title>` with its link), taken
-  from `round.json`.
-- Assets named exactly like upstream's release (`omp-linux-x64`,
-  `omp-darwin-arm64`, …, `omp-windows-x64.exe`) plus `SHA256SUMS.txt`, so a
-  consumer verifies them the same way.
+- Secret `OMP_FORK_TOKEN`. Runs no fork code. Downloads the `omp-<target>`
+  artifacts that the called `omp.yml` uploaded in the same run.
+- Force-pushes the released commit to the fork branch `integration-release`.
+- Tag `<upstream tag>-int.<sha7>` on that commit, e.g. `v18.18.9-int.95bee5c`.
+  Marked latest on the fork.
+- Notes: upstream's release body for `<upstream tag>`, then a
+  `## Carried patches` section listing each `PR #N: <title>` squash (newest
+  last) with a link to the PR.
+- Assets named exactly like upstream's release: `omp-linux-x64`,
+  `omp-linux-arm64`, `omp-darwin-x64`, `omp-darwin-arm64`,
+  `omp-windows-x64.exe`, `omp-windows-arm64.exe`, plus `SHA256SUMS.txt` in
+  `sha256sum` format.
 - Keeps the newest 10 fork releases; older ones are deleted with their tags.
 
-The existing `oh-my-pi` rolling release in this repo and manual
-`integration build` runs are unchanged.
+The existing `oh-my-pi` rolling release in this repo (`omp.yml`'s own
+`publish` job) and manual `integration build` runs are unchanged.
 
 ## 3. omp-web update source (kahme247/ompweb PR)
 
@@ -191,24 +182,37 @@ environment only) skill update checks. Unauthenticated calls share a limit of
 |---|---|---|---|
 | detect | no fork code | none | read |
 | rebuild | fork + carried PRs | none | read |
+| candidate, candidate-2 | no fork code, no agent | `OMP_FORK_TOKEN` | — |
+| build, build-2 (`omp.yml`) | fork code | none (its `publish` job writes this repo's `oh-my-pi` release) | read; `publish`: `contents: write` |
 | repair | fork code + LLM agent | `ANTHROPIC_API_KEY` | read |
-| publish-branch | no fork code, no agent | `OMP_FORK_TOKEN` | `contents: write` (this repo) |
+| release | no fork code, no agent | `OMP_FORK_TOKEN` | read |
+| fixups | no fork code, no agent | none | `contents: write` |
 | escalate | no fork code, no agent | none | `issues: write` |
-| omp.yml publish | no fork code | `OMP_FORK_TOKEN` (fork release) | `contents: write` (this repo's `oh-my-pi` release) |
 
-A prompt injection from upstream or a carried PR can at most produce a patch;
-that patch reaches the fork only through `publish-branch`, which requires the
-bundle head to be the commit that passed `BUILD_CMD` and `TEST_CMD`.
+A prompt injection from upstream or a carried PR can at most produce a
+candidate: it reaches the fork's `integration-candidate` branch, but is
+released only after `omp.yml` builds and tests it green. Fixup patches reach
+`main` only after that same green build.
 
 ## 5. `integration` script changes
 
-- Path roots overridable by env: `INTEGRATION_CONFIG_DIR`,
-  `INTEGRATION_CACHE_DIR`, `INTEGRATION_WORKTREES_DIR` (defaults unchanged).
-- `INTEGRATION_BASE` overrides the config's `BASE`.
-- `rebuild --no-push`: never pushes, never dispatches CI.
-- The "config differs from origin/main" guard is skipped when the config dir
-  is a checkout of `origin/main` itself (CI case).
-- Host usage (`integration rebuild/build/deploy`) behaves exactly as today.
+All overrides are environment variables; unset keeps today's host behaviour.
+
+- `INTEGRATION_SLUG`: replaces the slug derived from the repository path, so a
+  CI clone at any path reads `config/root--git--oh-my-pi.sh` and its fixups.
+- `INTEGRATION_CONFIG_DIR`: replaces `~/.config/integration` (CI: `ci/config`).
+- `INTEGRATION_CACHE_DIR`: replaces `~/.cache/integration` (CI:
+  `$RUNNER_TEMP/integration-cache`).
+- `INTEGRATION_BASE`: replaces the config's `BASE` (CI: the round's tag).
+- `INTEGRATION_PR_AUTHOR`: replaces `gh api user --jq .login` in `pr_rows`
+  (CI: `andrebrait`), because an Actions token cannot read `/user`.
+- `INTEGRATION_REPLAY_FALLBACK=head`: when a PR branch does not replay onto
+  the base (it sits on a newer upstream), `rebuild` squashes the PR head as it
+  is instead of stopping, so the build also carries the newer upstream commits
+  under that PR. It logs `PR #N built on its own base <sha10>` and records the
+  PR in `$CACHE/newer-base.tsv` (PR, base sha). The fork release notes list
+  those PRs under `## Carried patches` with "(includes upstream up to
+  <sha10>)". Unset keeps today's stop.
 
 Conflict resolutions in CI come only from the committed `N-resolve.patch`
 files; the workflow keeps no rerere cache. The host's rerere cache and manual
@@ -216,18 +220,25 @@ runs are unchanged.
 
 ## 6. Testing
 
-- Script: a CI-mode dry run in a scratch clone against the current tag
-  (`INTEGRATION_BASE=v18.18.9 integration rebuild --no-push`).
-- Workflow: one `workflow_dispatch` round with `force=true` on the current
-  tag, observed end to end (expected: rebuild fails on the known #14114
-  `models.json` conflict, so `repair` runs; either it fixes it and a fork
-  release appears, or an issue is opened).
+- Script: `bats`-free shell tests under `tests/integration/` that build a
+  throwaway upstream repo, a fork with two PR branches and a config in a temp
+  dir, then assert: the overrides select config, cache and base; the PR
+  author override replaces the `gh` login; with the replay fallback, a PR
+  branch on a newer upstream is squashed as it is and listed in
+  `newer-base.tsv`. `gh` is stubbed on `PATH`.
+- Workflow: one `workflow_dispatch` round with `force=true` on the current tag
+  (`v18.18.9`), observed end to end. It is also the first deploy candidate
+  for the host: the release's `omp-linux-x64` replaces the manual
+  `95bee5c0de` build after your go-ahead.
 - omp-web: component and unit tests above, plus a manual install of the fork
   release on this host after your go-ahead.
 
 ## Rollout order
 
-1. Script changes + `omp-auto.yml` + prompt (this repo).
-2. `omp.yml` release inputs.
-3. You add the secrets `OMP_FORK_TOKEN` and `ANTHROPIC_API_KEY`; first dispatched round.
-4. omp-web PR: omp update source (3), pre-release channel (3b), GitHub token (3c).
+1. Script overrides and their tests (this repo).
+2. `omp.yml` `workflow_call` trigger, `ci/prompts/omp-repair.md`,
+   `omp-auto.yml`.
+3. You add the secrets `OMP_FORK_TOKEN` and `ANTHROPIC_API_KEY`; first
+   dispatched round.
+4. omp-web PR: omp update source (3), pre-release channel (3b), GitHub token
+   (3c).
