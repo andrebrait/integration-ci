@@ -27,7 +27,7 @@ Each project has one release named after it (for example
 [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi)).
 Every green build adds an asset named
 `<project>-<UTC timestamp>-<commit>.zip`, for example
-`caveman-20261006T211531Z-a95b7d5e4e.zip`, and only the newest 10 are kept.
+`graphify-20261110T234907Z-e43f567871.zip`, and only the newest 10 are kept.
 oh-my-pi builds every platform, so it publishes one zip per platform instead:
 `oh-my-pi-<UTC timestamp>-<commit>-<platform>.zip`. A commit is built and
 published only once. Each zip holds the build and a `RELEASE.md` naming the
@@ -36,12 +36,8 @@ integration commit, the upstream base, and the carried pull requests.
 | Release | Zip contents |
 | --- | --- |
 | [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi) | `omp` (or `omp.exe`) for `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64` or `win32-arm64`; each smoke-tested on its own platform. macOS builds are ad-hoc signed, not notarized: after a browser download, run `xattr -d com.apple.quarantine omp` once |
-| [`caveman`](https://github.com/andrebrait/integration-ci/releases/tag/caveman) | `npm pack` of `@caveman-ai/pi` |
-| [`codegraph`](https://github.com/andrebrait/integration-ci/releases/tag/codegraph) | `npm pack` of `@colbymchenry/codegraph` |
-| [`superpowers`](https://github.com/andrebrait/integration-ci/releases/tag/superpowers) | `npm pack` of `superpowers` |
-| [`ponytail`](https://github.com/andrebrait/integration-ci/releases/tag/ponytail) | `npm pack` of `@dietrichgebert/ponytail` |
 | [`graphify`](https://github.com/andrebrait/integration-ci/releases/tag/graphify) | wheel and sdist of `graphifyy` |
-| [`ompweb`](https://github.com/andrebrait/integration-ci/releases/tag/ompweb) | `npm pack` of `@kahme247/ompweb` plus its `package-lock.json` |
+| [`ompweb`](https://github.com/andrebrait/integration-ci/releases/tag/ompweb) | `npm pack` of `@kahme247/ompweb` plus its `package-lock.json`; pending retirement once omp-web's GUI pre-release channel deploys this host |
 
 Builds run carried pull requests, including some by other authors. Only green
 builds seed the build cache, but a passing pull request's code ships in the
