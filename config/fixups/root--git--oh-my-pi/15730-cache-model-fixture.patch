@@ -1,15 +1,12 @@
 diff --git a/packages/mnemopi/test/embedding-cache.test.ts b/packages/mnemopi/test/embedding-cache.test.ts
-index 566f0bdc6d..ca180a5028 100644
+index 80ee485841..ca180a5028 100644
 --- a/packages/mnemopi/test/embedding-cache.test.ts
 +++ b/packages/mnemopi/test/embedding-cache.test.ts
-@@ -322,20 +322,22 @@ describe("embedding cache", () => {
- 			// Insert order, id order and argument order all differ, and the ids span three 500-id chunks.
- 			const ids = Array.from({ length: 1300 }, (_, index) => `m${(index * 7919) % 1300}`);
+@@ -324,18 +324,20 @@ describe("embedding cache", () => {
  			const insert = db.prepare(
--				"INSERT INTO memory_embeddings (memory_id, embedding_json, model) VALUES (?, '[1,0]', 't')",
-+				"INSERT INTO memory_embeddings (memory_id, embedding_json, model) VALUES (?, '[1,0]', ?)",
+ 				"INSERT INTO memory_embeddings (memory_id, embedding_json, model) VALUES (?, '[1,0]', ?)",
  			);
--			for (const id of ids) insert.run(id);
+-			for (const id of ids) insert.run(id, currentEmbeddingModel());
 +			const model = currentEmbeddingModel();
 +			for (const id of ids) insert.run(id, model);
  			const memoryIds = [...Array.from({ length: 1300 }, (_, index) => `m${(index * 104_729) % 1300}`), "missing"];
