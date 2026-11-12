@@ -1,0 +1,85 @@
+diff --git a/lib/i18n/locales/zh-TW.json b/lib/i18n/locales/zh-TW.json
+index 9787b06664b2764f91525ab1bd31d166db2ae960..a67326f2567bd1b2b86b543894c0a1de1d08af2d 100644
+--- a/lib/i18n/locales/zh-TW.json
++++ b/lib/i18n/locales/zh-TW.json
+@@ -1201,6 +1201,7 @@
+   "sessionSidebar.exitUnknown": "未知",
+   "sessionSidebar.agentRunning": "代理執行中…",
+   "sessionSidebar.agentRunningAria": "代理執行中",
++  "sessionSidebar.awaitingInput": "等待您的輸入",
+   "sessionSidebar.branchNamePlaceholder": "分支名稱",
+   "sessionSidebar.cancel": "取消",
+   "sessionSidebar.collapseForks": "摺疊分支",
+diff --git a/lib/rpc-manager.test.mjs b/lib/rpc-manager.test.mjs
+index 885b4423cc5e882a5aea3262a4dfa37c16ad9d33..3160a86ed5eb6858141e0d09978f2f09827f332f 100644
+--- a/lib/rpc-manager.test.mjs
++++ b/lib/rpc-manager.test.mjs
+@@ -2619,17 +2619,19 @@ test("a running remote session is listed with its host, so the sidebar groups it
+   await session.destroyAndWait();
+ });
+ 
+-test("a session with an open dialog is listed as awaiting input until the dialog is answered", async (t) => {
++test("a session with an open dialog is listed as awaiting input until the dialog is answered or omp ends it", async (t) => {
+   const { getRunningRpcSessions, startRpcSession, subscribeRunningSessions } = await import("./rpc-manager.ts");
+   let emitLine;
++  const written = [];
+   const transport = {
+     write(line, callback) {
+-      const command = JSON.parse(line);
++      const command = readCommand(line);
++      written.push(command);
+       const data = command.type === "get_state" ? { sessionId: "s-awaiting", sessionFile: "/nonexistent/s-awaiting.jsonl", isStreaming: false, isCompacting: false } : {};
+-      if (command.id) queueMicrotask(() => emitLine(JSON.stringify({ type: "response", id: command.id, command: command.type, success: true, data })));
++      if (line.includes('"t":"cmd"')) queueMicrotask(() => emitLine(ompLine({ type: "response", id: command.id, command: command.type, success: true, data })));
+       callback(null);
+     },
+-    onLine(listener) { emitLine = listener; queueMicrotask(() => listener('{"type":"ready"}')); },
++    onLine(listener) { emitLine = listener; queueMicrotask(() => listener(ompLine({ type: "ready" }))); },
+     onStderr() {},
+     onExit(listener) { this.exit = listener; },
+     endInput() { queueMicrotask(() => this.exit?.(0, null)); },
+@@ -2651,12 +2653,20 @@ test("a session with an open dialog is listed as awaiting input until the dialog
+   const pushed = [];
+   t.after(subscribeRunningSessions((update) => pushed.push(update.runningSessions.some((running) => running.id === "s-awaiting" && running.awaitingInput))));
+ 
+-  emitLine(JSON.stringify({ type: "extension_ui_request", id: "q", method: "confirm", title: "Continue?", message: "" }));
++  emitLine(JSON.stringify({ t: "ui_request", id: 7, method: "confirm", args: ["Continue?", ""] }));
+   assert.equal(awaiting(), true);
+   assert.equal(pushed.at(-1), true, "the sidebar is told the session waits on the user");
+-  await session.send({ type: "extension_ui_response", id: "q", confirmed: true });
++  await session.send({ type: "extension_ui_response", id: "7", confirmed: true });
+   assert.equal(awaiting(), false);
+   assert.equal(pushed.at(-1), false, "answering clears the mark without waiting for another omp frame");
++  await new Promise((resolve) => setImmediate(resolve));
++  assert.deepEqual(written.find((frame) => frame.type === "ui_response"), { type: "ui_response", id: 7, value: true }, "the answer reaches omp");
++
++  emitLine(JSON.stringify({ t: "ui_request", id: 8, method: "input", args: ["Name?", ""] }));
++  assert.equal(awaiting(), true);
++  emitLine(JSON.stringify({ t: "ui_end", id: 8 }));
++  assert.equal(awaiting(), false, "a dialog omp ends itself (timeout, abort) no longer waits on the user");
++  assert.equal(pushed.at(-1), false);
+ });
+ 
+ test("a reload whose host drops while the old child exits fails host_offline and spawns nothing beside it", async () => {
+diff --git a/lib/session-routes.test.mjs b/lib/session-routes.test.mjs
+index f0f9e1a6369d2fb6911762430a282105a04cb137..4e17e9253bdbf8d9d98c5a787ea503b028ed9a68 100644
+--- a/lib/session-routes.test.mjs
++++ b/lib/session-routes.test.mjs
+@@ -1622,7 +1622,7 @@ test("GET /api/sessions returns ETag and 304 across unchanged session list and r
+ 
+     // Running sessions change invalidates ETag
+     const previousSessions = globalThis.__ompSessions;
+-    globalThis.__ompSessions = new Map([["running-1", { isRunning: () => true, cwd: dir, isAlive: () => true, host: { id: "local" } }]]);
++    globalThis.__ompSessions = new Map([["running-1", { isRunning: () => true, isAwaitingInput: () => false, cwd: dir, isAlive: () => true, host: { id: "local" } }]]);
+     try {
+       const res4 = await sessionsListRoute.GET(new Request("http://localhost/api/sessions"));
+       assert.equal(res4.status, 200);
+@@ -1637,7 +1637,7 @@ test("GET /api/sessions returns ETag and 304 across unchanged session list and r
+ 
+       // Running session hostId change (while id and cwd stay the same) invalidates ETag
+       globalThis.__ompSessions = new Map([
+-        ["running-1", { isRunning: () => true, cwd: dir, isAlive: () => true, host: { id: "remote-worker-1" } }],
++        ["running-1", { isRunning: () => true, isAwaitingInput: () => false, cwd: dir, isAlive: () => true, host: { id: "remote-worker-1" } }],
+       ]);
+       const resHostChange = await sessionsListRoute.GET(new Request("http://localhost/api/sessions", {
+         headers: { "if-none-match": etag4 },
