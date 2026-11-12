@@ -18,7 +18,7 @@ export VIEWS="$TMP/views"
 cat > "$TMP/bin/gh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "$*" == api\ user* ]] && { echo fixture-user; exit 0; }
+[[ "$*" == api\ user* ]] && { [[ -z "${GH_NO_USER:-}" ]] || exit 2; echo fixture-user; exit 0; }
 if [[ "$*" == pr\ list* ]]; then
 	cat "$ROWS"
 	exit 0
@@ -245,6 +245,32 @@ git merge-base --is-ancestor "$RESOLVED" integration
 [[ "$(cat "$TMP/integration/second.txt")" == second ]]
 [[ "$(git log --reverse --format=%s "$BASE..integration")" == $'PR fork/repo#1: Fork draft\nPR #1: First change\nPR #2: Second change' ]]
 printf 'PASS: interrupted qualified squash retains its resolution and exact repository-qualified identity\n'
+
+# CI mode: config, fixups and cache from INTEGRATION_* dirs, base from INTEGRATION_BASE,
+# PR author without `gh api user`, and a locally rebased PR head under a ref prefix.
+git -C "$TMP/repo" tag v1 main
+printf 'later\n' > "$TMP/repo/later.txt"
+git -C "$TMP/repo" add later.txt
+git -C "$TMP/repo" commit -qm later
+git -C "$TMP/repo" push -q upstream main v1
+mkdir -p "$TMP/ci-config"
+printf 'FORK_REMOTE=fork\nUPSTREAM=fixture/repo\nBRANCH=integration\nBASE=upstream/main\n' > "$TMP/ci-config/ci--repo.sh"
+git -C "$TMP/repo" checkout -q -b rebased-first v1
+printf 'rebased first\n' > "$TMP/repo/first.txt"
+git -C "$TMP/repo" add first.txt
+git -C "$TMP/repo" commit -qm 'first, rebased'
+git -C "$TMP/repo" update-ref refs/rebased/first HEAD
+git -C "$TMP/repo" checkout -q main
+printf '1\tfirst\tFirst change\n' > "$ROWS"
+GH_NO_USER=1 INTEGRATION_SLUG=ci--repo INTEGRATION_CONFIG_DIR="$TMP/ci-config" \
+	INTEGRATION_CACHE_DIR="$TMP/ci-cache" INTEGRATION_BASE=v1 INTEGRATION_PR_AUTHOR=fixture-user \
+	INTEGRATION_HEAD_PREFIX=refs/rebased bash "$DRIVER" rebuild "$TMP/repo"
+[[ "$(git rev-parse integration~1)" == "$(git rev-parse v1)" ]]
+[[ ! -e "$TMP/integration/later.txt" ]]
+[[ "$(cat "$TMP/integration/first.txt")" == 'rebased first' ]]
+git log -1 --format=%b integration | grep -qF "Squashed from fork/first ($(git rev-parse refs/rebased/first)) onto v1."
+[[ -d "$TMP/ci-cache/ci--repo" ]]
+printf 'PASS: CI overrides pick config, cache, base, PR author and a locally rebased PR head\n'
 
 # Changelog driver: a rebase across an upstream release and archive keeps the PR's
 # entry in [Unreleased] and leaves released sections exactly as upstream has them.

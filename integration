@@ -87,10 +87,12 @@ fi
 SRC_DIR="${1:-$PWD}"
 COMMON_GIT="$(git -C "$SRC_DIR" rev-parse --path-format=absolute --git-common-dir)"
 REPO_DIR="$(dirname "$COMMON_GIT")"
-SLUG="$(printf %s "$REPO_DIR" | sed 's#^/##; s#/#--#g')"
-CONF="$HOME/.config/integration/$SLUG.sh"
-FIXUP_DIR="$HOME/.config/integration/fixups/$SLUG"
-CACHE="$HOME/.cache/integration/$SLUG"
+# INTEGRATION_* overrides let CI run a clone at any path against this repo's config/.
+SLUG="${INTEGRATION_SLUG:-$(printf %s "$REPO_DIR" | sed 's#^/##; s#/#--#g')}"
+CONFIG_DIR="${INTEGRATION_CONFIG_DIR:-$HOME/.config/integration}"
+CONF="$CONFIG_DIR/$SLUG.sh"
+FIXUP_DIR="$CONFIG_DIR/fixups/$SLUG"
+CACHE="${INTEGRATION_CACHE_DIR:-$HOME/.cache/integration}/$SLUG"
 mkdir -p "$CACHE"
 # One integration run per project at a time: two concurrent runs share the
 # integration worktree, build dirs, rerere cache and fork refs, and clobber each
@@ -107,7 +109,7 @@ printf '%s %s\n' "$$" "${*:-}" > "$CACHE/lock.pid"
 source "$CONF"
 FORK_REMOTE="${FORK_REMOTE:-origin}"
 BRANCH="${BRANCH:-integration}"
-BASE="${BASE:-latest-tag}"
+BASE="${INTEGRATION_BASE:-${BASE:-latest-tag}}"
 UPSTREAM_MAIN_REF="${UPSTREAM_MAIN_REF:-upstream/main}"
 # A PR ID is a bare UPSTREAM number or a repo-qualified owner/repo#N. Each name part
 # starts with a non-dot so the ID stays valid inside a git ref and a path.
@@ -181,6 +183,16 @@ remote_sha() { # remote branch -> sha
 	git -C "$REPO_DIR" ls-remote --exit-code "$1" "refs/heads/$2" | cut -f1
 }
 
+# A PR branch's head: INTEGRATION_HEAD_PREFIX/<branch> when that local ref exists
+# (a branch rebased in this clone and not pushed yet), else the fork's branch.
+pr_head() { # fork-branch -> ref
+	if [ -n "${INTEGRATION_HEAD_PREFIX:-}" ] && git -C "$REPO_DIR" rev-parse -q --verify "$INTEGRATION_HEAD_PREFIX/$1" >/dev/null; then
+		echo "$INTEGRATION_HEAD_PREFIX/$1"
+	else
+		echo "$FORK_REMOTE/$1"
+	fi
+}
+
 base_ref() {
 	if [ "$BASE" = "latest-tag" ]; then
 		git -C "$REPO_DIR" tag --sort=-creatordate --merged "$UPSTREAM_MAIN_REF" | head -1
@@ -202,7 +214,7 @@ pr_rows() { # title|base
 	# `--author` goes through GitHub's search index, which intermittently answers with
 	# no results; a short list made rebuilds drop every PR it lacked. List open PRs
 	# directly and filter by the authenticated login instead.
-	me="$(gh api user --jq .login)" || exit 1
+	me="${INTEGRATION_PR_AUTHOR:-$(gh api user --jq .login)}" || exit 1
 	{
 		gh pr list --repo "$UPSTREAM" --state open --limit 5000 \
 			--json number,headRefName,"$field",author \
@@ -255,7 +267,7 @@ replay_pr() { # scratch-worktree base head-ref tmp-branch [from-ref] -> ref
 replay_stack() { # num -> ref (also sets rebuild/pr-$num-base when stacked on open parent(s))
 	local num="$1" parent p pb from head_ref join_commit match i
 	local -a open_parents=() open_pbs=()
-	head_ref="$FORK_REMOTE/$(row_branch "$num" "$rows")"
+	head_ref="$(pr_head "$(row_branch "$num" "$rows")")"
 	parent="$(stack_parent "$num")"
 	for p in ${parent//,/ }; do
 		pb="$(row_branch "$p" "$rows")"
@@ -267,7 +279,7 @@ replay_stack() { # num -> ref (also sets rebuild/pr-$num-base when stacked on op
 	elif [ "${#open_parents[@]}" -eq 1 ]; then
 		from="$(replay_stack "${open_parents[0]}")" || return 1
 		git -C "$scratch" branch -f "rebuild/pr-$num-base" "$from" >/dev/null
-		replay_pr "$scratch" "$from" "$head_ref" "rebuild/pr-$num" "$FORK_REMOTE/${open_pbs[0]}"
+		replay_pr "$scratch" "$from" "$head_ref" "rebuild/pr-$num" "$(pr_head "${open_pbs[0]}")"
 	else
 		for p in "${open_parents[@]}"; do
 			replay_stack "$p" >/dev/null || return 1
@@ -348,7 +360,7 @@ cmd_rebuild() {
 		fi
 		while read -r squashed_head squashed_sha; do
 			[ -n "$squashed_head" ] || continue
-			if [ "$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$squashed_head" 2>/dev/null)" != "$squashed_sha" ]; then
+			if [ "$(git -C "$REPO_DIR" rev-parse "$(pr_head "$squashed_head")" 2>/dev/null)" != "$squashed_sha" ]; then
 				echo "integration: $FORK_REMOTE/$squashed_head moved since it was squashed; rebuilding from scratch"
 				resumed=""
 				break
@@ -486,7 +498,7 @@ cmd_rebuild() {
 			git -C "$wt" add -A
 		fi
 		git -C "$wt" commit -q -m "PR $lbl: $title" \
-			-m "Squashed from $FORK_REMOTE/$head ($(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$head")) onto $base." || true
+			-m "Squashed from $FORK_REMOTE/$head ($(git -C "$REPO_DIR" rev-parse "$(pr_head "$head")")) onto $base." || true
 	done <<< "$rows"
 	git -C "$REPO_DIR" worktree remove --force "$scratch"
 	git -C "$wt" checkout -q -B "$BRANCH"
