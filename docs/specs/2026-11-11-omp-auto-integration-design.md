@@ -19,8 +19,10 @@ Codex/ChatGPT-subscription credentials in CI.
 ## 1. Scheduled round (`.github/workflows/omp-auto.yml`)
 
 Trigger: `schedule` (hourly) and `workflow_dispatch` (inputs `tag`,
-optional, and `force`, boolean, to rebuild an already-released tag).
-`concurrency: omp-auto` (no cancel), so two rounds never overlap.
+optional, and `force`, boolean, to rebuild an already-released tag; the
+internal inputs `candidate` and `repair_run` start the second run below).
+One round at a time: `detect` skips a scheduled run while another run of this
+workflow is active (a `concurrency` group would cancel a queued second run).
 
 The existing `omp.yml` already runs `BUILD_CMD` + `TEST_CMD`, builds every
 binary, and smoke-tests them; the round reuses it through `workflow_call`
@@ -38,28 +40,36 @@ Jobs, in order:
    remotes `origin` (fork) and `upstream` (`can1357/oh-my-pi`), check this
    repo out at `ci/`, create the `integration` worktree, and run
    `ci/integration rebuild` with the CI overrides from section 5 (base =
-   `tag`). `rebuild` itself never pushes. Upload `integration.bundle` (the
-   result, or the stopped state on failure) and, on failure, `failure.json`
-   (`step: "rebuild"`, the script's last 200 log lines).
+   `tag`). `rebuild` itself never pushes. On success, upload
+   `integration.bundle` (`<tag>..integration`) and `round.json`; on failure,
+   `failure.json` (`step: "rebuild"`, the script's last 200 log lines).
 3. `candidate` (needs `rebuild` success; runs no fork code, no agent):
    secret `OMP_FORK_TOKEN`. Verify the bundle head, force-push it to the fork
    branch `integration-candidate`. Output `sha`. Rebased PR branches from the
    bundle are not pushed here; `release` pushes them after a green build.
 4. `build` (`uses: ./.github/workflows/omp.yml`, inputs `repo`, `sha`): the
    existing pipeline, unchanged, plus a `workflow_call` trigger.
-5. `repair` (when `rebuild` or `build` failed; one per round): see below.
-   On success it uploads a new `integration.bundle` and `fixups.patch`.
-6. `candidate-2` and `build-2`: the same as 3 and 4 for the repaired bundle.
-7. `release` (needs the green `build` or `build-2`): section 2.
-8. `fixups` (after a successful `repair` and green `build-2`): commit
+5. `repair` (when `rebuild` or `build` failed, first run only): see below.
+   On success it uploads `integration.bundle` (integration plus
+   `refs/rebased/*`), `rebased.tsv` (branch, sha at round start, rebased
+   sha), `fixups.patch` and `repair-notes.md`.
+6. `repair-push` (no fork code): pushes the repaired branch to
+   `integration-candidate` and the rebased PR branches to
+   `integration-rebased/<branch>`, then dispatches a second run of this
+   workflow with `candidate=<sha>` and `repair_run=<this run>`. The second run
+   skips `rebuild`, `candidate` and `repair` and goes straight to `build`.
+   Calling `omp.yml` twice in one run would collide on its artifact names.
+7. `release` (needs a green `build`): section 2.
+8. `fixups` (second run, after `release`): commit the repair's
    `fixups.patch` to this repo's `main` as `fixups(omp): <tag> repair` with
    the workflow's `GITHUB_TOKEN` (`contents: write`), so later rounds and
    manual runs start from it.
-9. `escalate` (when `repair` or `build-2` failed): open one issue on this
-   repo labelled `omp-auto`, titled `omp auto-integration failed for <tag>`,
-   with the failing step, log tail, `repair-notes.md` and the run URL, using
-   `GITHUB_TOKEN` with `issues: write`. If an open `omp-auto` issue for the
-   same tag exists, comment there instead.
+9. `escalate` (when `repair`, `repair-push`, `candidate` or `release` failed,
+   or the second run's `build` failed): open one issue on this repo labelled
+   `omp-auto`, titled `omp auto-integration failed for <tag>`, with the job
+   results, `repair-notes.md` and the run URL, using `GITHUB_TOKEN` with
+   `issues: write`. If an open `omp-auto` issue for the same tag exists,
+   comment there instead.
 
 Job `repair`:
 
@@ -84,9 +94,11 @@ Job `repair`:
   re-run `integration rebuild`), then run `BUILD_CMD` and `TEST_CMD`; never
   weaken or skip a test, never drop a PR; when a PR cannot be carried, stop
   and write why to `repair-notes.md`.
-- `timeout-minutes: 120` (`BUILD_CMD` compiles the natives). Success means
-  the agent exited 0, `BUILD_CMD` and `TEST_CMD` pass when the job re-runs
-  them after the agent, and the worktree is clean.
+- `timeout-minutes: 330` (`BUILD_CMD` compiles the natives). Success means
+  the agent exited 0, a from-scratch `integration rebuild` reproduces the
+  round from the saved fixups, resolutions and `refs/rebased/*` alone, and
+  the worktree is clean. `BUILD_CMD`/`TEST_CMD` are proven by the second
+  run's `build`.
 
 Running out of both API budgets fails `repair`, which escalates; the human
 then finishes the round locally with the subscription-backed omp and the
@@ -189,8 +201,8 @@ environment only) skill update checks. Unauthenticated calls share a limit of
 |---|---|---|---|
 | detect | no fork code | none | read |
 | rebuild | fork + carried PRs | none | read |
-| candidate, candidate-2 | no fork code, no agent | `OMP_FORK_TOKEN` | — |
-| build, build-2 (`omp.yml`) | fork code | none (its `publish` job writes this repo's `oh-my-pi` release) | read; `publish`: `contents: write` |
+| candidate, repair-push | no fork code, no agent | `OMP_FORK_TOKEN` | `actions: write` (repair-push) |
+| build (`omp.yml`) | fork code | none (its `publish` job writes this repo's `oh-my-pi` release) | read; `publish`: `contents: write` |
 | repair | fork code + LLM agent | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | read |
 | release | no fork code, no agent | `OMP_FORK_TOKEN` | read |
 | fixups | no fork code, no agent | none | `contents: write` |

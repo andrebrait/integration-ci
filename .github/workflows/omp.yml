@@ -19,6 +19,15 @@ on:
             description: Integration commit to build (full sha)
             required: true
             type: string
+   # omp-auto.yml builds each round's candidate through the same jobs.
+   workflow_call:
+      inputs:
+         repo:
+            required: true
+            type: string
+         sha:
+            required: true
+            type: string
 
 run-name: build ${{ inputs.sha }}
 
