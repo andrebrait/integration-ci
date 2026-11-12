@@ -848,6 +848,87 @@ cmd_prs() {
 	done <<< "$rows"
 }
 
+# Rebase every carried PR branch onto BASE (CI rounds: the release tag), parents
+# before stacked children, and keep going past failures; a child of a failed
+# parent is skipped. A branch that moved is stored as INTEGRATION_HEAD_PREFIX/<branch>
+# (default refs/rebased), which `rebuild` then uses; nothing is pushed. Writes
+# $CACHE/rebase.tsv: PR, branch, status (unchanged|rebased|failed|skipped), old sha, new sha.
+cmd_rebase() {
+	[ -n "${UPSTREAM:-}" ] || { echo "integration: UPSTREAM not set; rebase needs the PR list" >&2; exit 2; }
+	INTEGRATION_HEAD_PREFIX="${INTEGRATION_HEAD_PREFIX:-refs/rebased}"
+	git -C "$REPO_DIR" fetch "$FORK_REMOTE" --prune
+	git -C "$REPO_DIR" fetch upstream --tags --prune
+	git -C "$REPO_DIR" for-each-ref --format='delete %(refname)' "$INTEGRATION_HEAD_PREFIX/" | git -C "$REPO_DIR" update-ref --stdin
+	local rows base wt num branch prbase lbl parent p pb old new from join_commit status failed=0 i unchanged
+	local -a heads=() pbs=()
+	rows="$(pr_rows base)"
+	base="$(base_ref)"
+	wt="$(worktrees_root)/rebase-scratch"
+	git -C "$REPO_DIR" worktree remove --force "$wt" 2>/dev/null || rm -rf "$wt"
+	git -C "$REPO_DIR" worktree add --detach "$wt" "$base" >/dev/null
+	: > "$CACHE/rebase.tsv"
+	while IFS=$'\t' read -r num branch prbase; do
+		[ -n "$num" ] || continue
+		lbl="$(pr_label "$num")"
+		old="$(git -C "$REPO_DIR" rev-parse "$FORK_REMOTE/$branch")"
+		new="" status=""
+		heads=() pbs=()
+		parent="$(stack_parent "$num")"
+		for p in ${parent//,/ }; do
+			pb="$(row_branch "$p" "$rows")"
+			[ -n "$pb" ] || continue
+			pbs+=("$pb")
+			heads+=("$(pr_head "$pb")")
+			case "$(awk -F'\t' -v b="$pb" '$2 == b { print $3 }' "$CACHE/rebase.tsv")" in
+				failed | skipped) status=skipped ;;
+			esac
+		done
+		git -C "$wt" checkout -q --detach "$FORK_REMOTE/$branch"
+		if [ -n "$status" ]; then
+			echo "integration: PR $lbl skipped: a parent it is stacked on did not rebase"
+		elif [ "${#heads[@]}" -eq 0 ]; then
+			# Replay only the PR's own commits: those past its merge base with its upstream base.
+			from="$(git -C "$REPO_DIR" merge-base "upstream/$prbase" "$FORK_REMOTE/$branch")"
+			git -C "$wt" rebase -q --onto "$base" "$from" >/dev/null 2>&1 || status=failed
+		elif [ "${#heads[@]}" -eq 1 ]; then
+			from="$(git -C "$REPO_DIR" merge-base "$FORK_REMOTE/${pbs[0]}" "$FORK_REMOTE/$branch")"
+			git -C "$wt" rebase -q --onto "${heads[0]}" "$from" >/dev/null 2>&1 || status=failed
+		else
+			join_commit="$(git -C "$REPO_DIR" rev-list --merges --first-parent "upstream/$prbase..$FORK_REMOTE/$branch" | head -1)"
+			unchanged=1
+			for i in "${!heads[@]}"; do
+				[ "$(git -C "$REPO_DIR" rev-parse "$join_commit^$((i + 1))" 2>/dev/null || true)" = "$(git -C "$REPO_DIR" rev-parse "${heads[$i]}")" ] || unchanged=0
+			done
+			if [ -z "$join_commit" ]; then
+				status=failed
+			elif [ "$unchanged" -eq 0 ]; then
+				git -C "$wt" checkout -q --detach "${heads[0]}"
+				for i in "${heads[@]:1}"; do
+					git -C "$wt" merge -q --no-edit "$i" >/dev/null 2>&1 || { git -C "$wt" merge --abort 2>/dev/null; status=failed; break; }
+				done
+				[ -n "$status" ] || git -C "$wt" rebase -q --onto HEAD "$join_commit" "$FORK_REMOTE/$branch" >/dev/null 2>&1 || status=failed
+			fi
+		fi
+		if [ "$status" = failed ]; then
+			git -C "$wt" rebase --abort 2>/dev/null || true
+			failed=$((failed + 1))
+			echo "integration: PR $lbl ($branch) does not rebase onto $base"
+		elif [ -z "$status" ]; then
+			new="$(git -C "$wt" rev-parse HEAD)"
+			if [ "$new" = "$old" ]; then
+				status=unchanged
+			else
+				status=rebased
+				git -C "$REPO_DIR" update-ref "$INTEGRATION_HEAD_PREFIX/$branch" "$new"
+			fi
+			echo "integration: PR $lbl ($branch) $status on $base"
+		fi
+		printf '%s\t%s\t%s\t%s\t%s\n' "$num" "$branch" "$status" "$old" "$new" >> "$CACHE/rebase.tsv"
+	done <<< "$rows"
+	git -C "$REPO_DIR" worktree remove --force "$wt"
+	[ "$failed" -eq 0 ] || { echo "integration: $failed PR(s) did not rebase onto $base; see $CACHE/rebase.tsv" >&2; exit 1; }
+}
+
 case "$CMD" in
 rebuild) cmd_rebuild ;;
 build)  cmd_build ;;
@@ -855,6 +936,7 @@ build-sha) cmd_build_sha ;;
 deploy) cmd_deploy ;;
 push)   cmd_push ;;
 prs)    cmd_prs ;;
+rebase) cmd_rebase ;;
 # PRs are refreshed onto their upstream base first: rebuild squashes exactly what
 # each PR branch holds, so a stale PR would otherwise integrate stale code.
 all)    cmd_prs; cmd_rebuild; cmd_build; cmd_deploy ;;

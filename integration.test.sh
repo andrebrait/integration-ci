@@ -272,6 +272,36 @@ git log -1 --format=%b integration | grep -qF "Squashed from fork/first ($(git r
 [[ -d "$TMP/ci-cache/ci--repo" ]]
 printf 'PASS: CI overrides pick config, cache, base, PR author and a locally rebased PR head\n'
 
+# CI rebase: every PR is moved onto the release tag past failures; a PR cut from a
+# newer upstream replays only its own commits; a child of a failed parent is skipped.
+cd "$TMP/repo"
+git checkout -qb newer main
+printf 'newer\n' > newer.txt
+git add newer.txt
+git commit -qm newer
+git checkout -qb broken main
+printf 'broken\n' > later.txt
+git commit -qam broken
+git checkout -qb broken-child broken
+printf 'child\n' > broken-child.txt
+git add broken-child.txt
+git commit -qm broken-child
+git checkout -q main
+git push -q fork newer broken broken-child
+printf 'STACKED_PRS=%s\n' "'22:21'" >> "$TMP/ci-config/ci--repo.sh"
+printf '1\tfirst\tmain\n20\tnewer\tmain\n21\tbroken\tmain\n22\tbroken-child\tmain\n' > "$ROWS"
+if INTEGRATION_SLUG=ci--repo INTEGRATION_CONFIG_DIR="$TMP/ci-config" INTEGRATION_CACHE_DIR="$TMP/ci-cache" \
+	INTEGRATION_BASE=v1 INTEGRATION_PR_AUTHOR=fixture-user bash "$DRIVER" rebase "$TMP/repo"; then
+	echo "FAIL: rebase with a conflicting PR reported success" >&2
+	exit 1
+fi
+[[ "$(cut -f1,3 "$TMP/ci-cache/ci--repo/rebase.tsv")" == $'1\tunchanged\n20\trebased\n21\tfailed\n22\tskipped' ]]
+! git rev-parse -q --verify refs/rebased/first >/dev/null
+[[ "$(git rev-parse refs/rebased/newer~1)" == "$(git rev-parse v1)" ]]
+[[ "$(git show refs/rebased/newer:newer.txt)" == newer ]]
+! git rev-parse -q --verify refs/rebased/broken >/dev/null
+printf 'PASS: CI rebase keeps going past a failed PR and replays only each PR'"'"'s own commits\n'
+
 # Changelog driver: a rebase across an upstream release and archive keeps the PR's
 # entry in [Unreleased] and leaves released sections exactly as upstream has them.
 CL="$TMP/changelog"
