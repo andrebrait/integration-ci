@@ -128,7 +128,7 @@ jobs:
          project: ompweb
          artifact: bin-ompweb
          targets: linux-x64 linux-arm64 darwin-x64 darwin-arm64 windows-x64
-         executables: ompweb
+         executables: ompweb ompweb-omp
          description: "Standalone ompweb binary for {target}: unzip and run ./ompweb (ompweb.exe on Windows) for the web UI, ./ompweb host for the session daemon. Keep the files next to it; no Node or npm needed."
    publish:
       # Skipped, it skips publish-binaries too (needs).
