@@ -458,7 +458,7 @@ jobs:
                 printf '\n## Carried patches\n\n'
                 # The branch is the release plus `PR ...:` squashes, newest first.
                 gh api "repos/$FORK/commits?sha=$SHA&per_page=100" --jq '.[].commit.message | split("\n")[0]' |
-                  awk '!/^PR / { exit } { print }' | tac |
+                  awk 'done { next } !/^PR / { done = 1; next } { print }' | tac |
                   sed -E 's~^PR #([0-9]+): (.*)~- [#\1](https://github.com/can1357/oh-my-pi/pull/\1): \2~; s~^PR ([^ #]+)#([0-9]+): (.*)~- [\1#\2](https://github.com/\1/pull/\2): \3~'
               } > notes.md
               gh release create "$rel" -R "$FORK" --target "$SHA" --title "$rel" --notes-file notes.md --latest out/*
