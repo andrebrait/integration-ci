@@ -1,0 +1,49 @@
+name: omp repair agent
+description: >-
+   Runs upstream's own omp release binary (never the code under repair) headless
+   on ci/prompts/omp-repair.md plus a failure description. GPT-6 Luna (high) first;
+   Claude Haiku 5.5 (medium) only when Luna fails on a provider error before
+   changing anything.
+inputs:
+   tag:
+      description: Upstream release tag of the round (selects the agent binary)
+      required: true
+   failure:
+      description: Path of the failure.json handed to the agent
+      required: true
+   openai-api-key:
+      required: true
+   anthropic-api-key:
+      required: true
+runs:
+   using: composite
+   steps:
+      - shell: bash
+        env:
+           TAG: ${{ inputs.tag }}
+           FAILURE: ${{ inputs.failure }}
+           OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+           ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        run: |
+           set -uo pipefail
+           ulimit -Sn 65536 || true
+           dir="$RUNNER_TEMP/agent"
+           mkdir -p "$dir"
+           gh release download "$TAG" -R "$UPSTREAM" -D "$dir" -p omp-linux-x64 -p SHA256SUMS.txt --clobber
+           (cd "$dir" && grep -E '[ *]omp-linux-x64$' SHA256SUMS.txt | sha256sum -c -) || exit 1
+           chmod +x "$dir/omp-linux-x64"
+           prompt="$(cat ci/prompts/omp-repair.md; printf '\n## failure.json\n\n```json\n'; cat "$FAILURE"; printf '\n```\n')"
+           state() { git rev-parse HEAD; git for-each-ref refs/rebased/; git -C "$INTEGRATION_WT" rev-parse HEAD; git -C "$INTEGRATION_WT" status --porcelain; git -C ci status --porcelain; }
+           before="$(state)"
+           run_agent() { # model thinking
+             echo "repair model: $1 ($2)" | tee -a "$RUNNER_TEMP/agent.log"
+             "$dir/omp-linux-x64" -p --no-session --model "$1" --thinking "$2" --approval-mode yolo "$prompt" 2>&1 | tee -a "$RUNNER_TEMP/agent.log"
+           }
+           run_agent openai/gpt-6-luna high
+           status=$?
+           if [ "$status" != 0 ] && [ "$(state)" = "$before" ] &&
+             grep -qiE 'insufficient_quota|exceeded your current quota|billing|credit balance|invalid[_ ]api[_ ]key|incorrect api key|authentication|unauthorized|\b(401|402|429)\b' "$RUNNER_TEMP/agent.log"; then
+             run_agent anthropic/claude-haiku-5-5 medium
+             status=$?
+           fi
+           exit "$status"

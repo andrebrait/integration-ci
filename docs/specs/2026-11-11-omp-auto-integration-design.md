@@ -12,97 +12,74 @@
 - omp-web can install those releases from its GUI: the omp update row gets a
   source, **Upstream** or **Custom**, per host.
 
-Non-goals: rebasing every open PR branch each round (`integration prs`);
-building on every `upstream/main` commit; a host-side watcher;
+Non-goals: building on every `upstream/main` commit; a host-side watcher;
 Codex/ChatGPT-subscription credentials in CI.
 
 ## 1. Scheduled round (`.github/workflows/omp-auto.yml`)
 
-Trigger: `schedule` (hourly) and `workflow_dispatch` (inputs `tag`,
-optional, and `force`, boolean, to rebuild an already-released tag; the
-internal inputs `candidate` and `repair_run` start the second run below).
-One round at a time: `detect` skips a scheduled run while another run of this
-workflow is active (a `concurrency` group would cancel a queued second run).
+Trigger: `schedule` (hourly) and `workflow_dispatch` (inputs `tag`, optional,
+and `force`, boolean, to rebuild an already-released tag; the internal input
+`candidate` starts the second run below). One round at a time: `detect` skips a
+scheduled run while another run of this workflow is active (a `concurrency`
+group would cancel a queued second run).
 
-The existing `omp.yml` already runs `BUILD_CMD` + `TEST_CMD`, builds every
-binary, and smoke-tests them; the round reuses it through `workflow_call`
-instead of testing twice. `omp.yml` builds a commit that must exist on
-GitHub, so each candidate is pushed to the fork branch `integration-candidate`
-first. A candidate is never released until `omp.yml` is green on it.
+A round has three stages. Each stage that fails gets one agent repair; a failed
+repair opens the issue.
 
-Jobs, in order:
-
-1. `detect` (no secrets, `contents: read`): the latest stable upstream release
-   tag (`gh release view -R can1357/oh-my-pi --json tagName`). Skip the round
-   when `andrebrait/oh-my-pi` already has a release tagged `<tag>-int.*` and
-   `force` is false. Output `tag`.
-2. `rebuild` (no secrets, read-only token): clone `andrebrait/oh-my-pi` with
-   remotes `origin` (fork) and `upstream` (`can1357/oh-my-pi`), check this
-   repo out at `ci/`, create the `integration` worktree, and run
-   `ci/integration rebuild` with the CI overrides from section 5 (base =
-   `tag`). `rebuild` itself never pushes. On success, upload
-   `integration.bundle` (`<tag>..integration`) and `round.json`; on failure,
-   `failure.json` (`step: "rebuild"`, the script's last 200 log lines).
-3. `candidate` (needs `rebuild` success; runs no fork code, no agent):
-   secret `OMP_FORK_TOKEN`. Verify the bundle head, force-push it to the fork
-   branch `integration-candidate`. Output `sha`. Rebased PR branches from the
-   bundle are not pushed here; `release` pushes them after a green build.
-4. `build` (`uses: ./.github/workflows/omp.yml`, inputs `repo`, `sha`): the
-   existing pipeline, unchanged, plus a `workflow_call` trigger.
-5. `repair` (when `rebuild` or `build` failed, first run only): see below.
-   On success it uploads `integration.bundle` (integration plus
-   `refs/rebased/*`), `rebased.tsv` (branch, sha at round start, rebased
-   sha), `fixups.patch` and `repair-notes.md`.
-6. `repair-push` (no fork code): pushes the repaired branch to
-   `integration-candidate` and the rebased PR branches to
-   `integration-rebased/<branch>`, then dispatches a second run of this
-   workflow with `candidate=<sha>` and `repair_run=<this run>`. The second run
-   skips `rebuild`, `candidate` and `repair` and goes straight to `build`.
+1. **Rebase** (`rebase`; runs only git, so it holds `OMP_FORK_TOKEN`):
+   `integration rebase` moves every carried PR branch onto the release tag,
+   parents before stacked children, replaying only each PR's own commits
+   (those past its merge base with `upstream/<base>`). A failure does not stop
+   the rest; a child of a failed parent is `skipped`. Each branch that moved is
+   force-pushed with a lease on its starting sha; an unchanged branch is not
+   pushed, so open PRs see no needless force-pushes.
+2. **Rebase repair** (`rebase-repair`, agent) rebases the failed and skipped
+   branches; `rebase-repair-push` (no fork code) pushes them and commits any
+   fixups.
+3. **Integrate** (`integrate`; runs `FORMAT_CMD`, no secrets): `integration
+   rebuild` onto the tag, now mostly squashes, fixups and resolution patches.
+   `integrate-repair` (agent) fixes a failure and saves resolutions and fixups.
+   `candidate` (no fork code) pushes the result to the fork branch
+   `integration-candidate` and commits the fixups.
+4. **Build** (`build`): `omp.yml` through `workflow_call` (it runs `BUILD_CMD`,
+   `TEST_CMD`, every binary and the smoke tests). `build-repair` (agent, with
+   the bazel cache) fixes a failure through PR branches or fixups;
+   `build-repair-push` (no fork code) publishes it and dispatches a second run
+   with `candidate=<sha>`, which goes straight to `build` and `release`.
    Calling `omp.yml` twice in one run would collide on its artifact names.
-7. `release` (needs a green `build`): section 2.
-8. `fixups` (second run, after `release`): commit the repair's
-   `fixups.patch` to this repo's `main` as `fixups(omp): <tag> repair` with
-   the workflow's `GITHUB_TOKEN` (`contents: write`), so later rounds and
-   manual runs start from it.
-9. `escalate` (when `repair`, `repair-push`, `candidate` or `release` failed,
-   or the second run's `build` failed): open one issue on this repo labelled
-   `omp-auto`, titled `omp auto-integration failed for <tag>`, with the job
-   results, `repair-notes.md` and the run URL, using `GITHUB_TOKEN` with
-   `issues: write`. If an open `omp-auto` issue for the same tag exists,
-   comment there instead.
+5. **Release** (`release`, needs a green `build`): section 2.
+6. **Escalate**: any failed repair, publishing job or release, or a failed
+   second-run build, opens one issue on this repo labelled `omp-auto`, titled
+   `omp auto-integration failed for <tag>`, with the job results, the repair
+   notes and the run URL (`GITHUB_TOKEN`, `issues: write`). An open issue for
+   the same tag gets a comment instead.
 
-Job `repair`:
+Agent jobs (`.github/actions/omp-agent`):
 
-- Secrets: `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`. Read-only token. No
-  push credential.
-- Input: the `rebuild` bundle and `failure.json`, or, when `build` failed,
-  the candidate commit and `step: "build"` with the failed job's log tail
-  (`gh run view --log-failed`).
+- Secrets: `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`. Read-only token. No push
+  credential: their refs and patches go to the next publishing job as an
+  artifact (`scripts/collect-round.sh`, `scripts/publish-round.sh`).
 - The agent binary is upstream's release `omp-linux-x64` for the round's tag,
   digest-checked against upstream's `SHA256SUMS.txt`, not the code under
   repair. Run headless: `omp -p --no-session --model openai/gpt-6-luna
   --thinking high --approval-mode yolo` with `ci/prompts/omp-repair.md` plus
-  `failure.json`.
-- When that run fails on a provider error (quota, billing, auth: omp exits
-  non-zero before any commit and its output names the provider error), the
-  job runs the same prompt once more with `--model
-  anthropic/claude-haiku-5-5 --thinking medium`. A run that fails for any
-  other reason does not retry. `repair-notes.md` records which model ran.
-- The prompt tells the agent to finish the round with the `integration`
-  script's own rules (resolve in the worktree, commit as `PR #N: <title>`,
-  refresh `N-resolve.patch` / `N-*.patch` under `ci/config/fixups/...`,
-  re-run `integration rebuild`), then run `BUILD_CMD` and `TEST_CMD`; never
-  weaken or skip a test, never drop a PR; when a PR cannot be carried, stop
-  and write why to `repair-notes.md`.
-- `timeout-minutes: 330` (`BUILD_CMD` compiles the natives). Success means
-  the agent exited 0, a from-scratch `integration rebuild` reproduces the
-  round from the saved fixups, resolutions and `refs/rebased/*` alone, and
-  the worktree is clean. `BUILD_CMD`/`TEST_CMD` are proven by the second
-  run's `build`.
+  `failure.json` (`step`: `rebase`, `integrate` or `build`).
+- When that run fails on a provider error (quota, billing, auth) and changed
+  nothing, the same prompt runs once with `--model anthropic/claude-haiku-5-5
+  --thinking medium`. Any other failure does not retry.
+- Outputs the agent may change: `refs/rebased/<branch>` (pushed to that fork
+  branch, so an open PR moves with it), the `integration` branch, and files
+  under `config/fixups/root--git--oh-my-pi/` (committed to `main` so later
+  rounds pass on their own).
+- Success means the stage's own check passes from the saved outputs alone:
+  every failed PR is on the tag (rebase), or a from-scratch `integration
+  rebuild` completes (integrate, build). `BUILD_CMD`/`TEST_CMD` after a build
+  repair are proven by the second run's `build`.
 
-Running out of both API budgets fails `repair`, which escalates; the human
-then finishes the round locally with the subscription-backed omp and the
-usual `integration` commands.
+Running out of both API budgets fails the repair, which escalates; the human
+then finishes the round locally with the subscription-backed omp and the usual
+`integration` commands.
+
 
 ## 2. Fork release (job `release` in `omp-auto.yml`)
 
@@ -199,19 +176,17 @@ environment only) skill update checks. Unauthenticated calls share a limit of
 
 | Job | Runs | Secrets | Token |
 |---|---|---|---|
-| detect | no fork code | none | read |
-| rebuild | fork + carried PRs | none | read |
-| candidate, repair-push | no fork code, no agent | `OMP_FORK_TOKEN` | `actions: write` (repair-push) |
-| build (`omp.yml`) | fork code | none (its `publish` job writes this repo's `oh-my-pi` release) | read; `publish`: `contents: write` |
-| repair | fork code + LLM agent | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | read |
-| release | no fork code, no agent | `OMP_FORK_TOKEN` | read |
-| fixups | no fork code, no agent | none | `contents: write` |
+| detect | no fork code | none | `actions: read` |
+| rebase | git only | `OMP_FORK_TOKEN` | read |
+| rebase-repair, integrate-repair, build-repair | fork code + LLM agent | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | read |
+| integrate, build (`omp.yml`) | fork code | none (`omp.yml` `publish` writes this repo's `oh-my-pi` release) | read; `publish`: `contents: write` |
+| rebase-repair-push, candidate, build-repair-push | no fork code, no agent | `OMP_FORK_TOKEN` | `contents: write` (fixups); `actions: write` (build-repair-push) |
+| release | no fork code, no agent | `OMP_FORK_TOKEN` | none |
 | escalate | no fork code, no agent | none | `issues: write` |
 
-A prompt injection from upstream or a carried PR can at most produce a
-candidate: it reaches the fork's `integration-candidate` branch, but is
-released only after `omp.yml` builds and tests it green. Fixup patches reach
-`main` only after that same green build.
+A prompt injection from upstream or a carried PR can reach the fork's PR
+branches and `integration-candidate`, and fixups on this repo's `main`, but a
+release needs `omp.yml` green on the exact candidate commit.
 
 ## 5. `integration` script changes
 
@@ -230,21 +205,13 @@ All overrides are environment variables; unset keeps today's host behaviour.
   `refs/rebased`), so a branch the agent rebased locally is built without
   being pushed first. Fetches never touch that prefix.
 
-Every PR is built on the release tag; there is no fallback to a PR's own
-newer base. A PR branch that does not replay onto the tag stops `rebuild`
-like any conflict, and `repair` adapts it to the release in that round:
+- `integration rebase` (new subcommand): rebases every carried PR onto `BASE`
+  past failures, stores each branch that moved as `<prefix>/<branch>`, and
+  writes `$CACHE/rebase.tsv` (PR, branch, status, old sha, new sha). It never
+  pushes; `scripts/push-rebased.sh` does, with leases.
 
-- Our own PRs (author `andrebrait`) and `EXTRA_PRS` carry branches: the agent
-  rebases the PR branch onto the release tag, resolving conflicts, stores it
-  as `refs/rebased/<branch>` in the bundle, and re-runs `rebuild` against it.
-  After the round's build is green, `release` force-pushes each rebased
-  branch to its fork branch with `--force-with-lease` against the sha the
-  round started from (a branch you moved meanwhile is skipped and noted in
-  the release notes). The PR on GitHub then shows the rebase.
-- Other PRs (a third-party head that is not ours to push): the agent squashes
-  the PR by hand onto the integration worktree (the script's resume path:
-  `PR #N: <title>` with the usual `Squashed from` line). That adaptation
-  lives only in this round's build.
+Every PR is built on the release tag; there is no fallback to a PR's own newer
+base.
 
 Conflict resolutions in CI come only from the committed `N-resolve.patch`
 files; the workflow keeps no rerere cache. The host's rerere cache and manual

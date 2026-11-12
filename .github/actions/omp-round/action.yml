@@ -1,0 +1,35 @@
+name: omp round setup
+description: >-
+   Prepares a clone of the fork (checked out at the workspace root, this repo at
+   ci/) for an omp auto-integration stage: upstream remote, commit identity, bun,
+   and the `integration` worktree with the release's prebuilt native addon.
+inputs:
+   tag:
+      description: Upstream release tag of the round
+      required: true
+   worktree-ref:
+      description: Ref the integration worktree starts from
+      required: false
+      default: origin/integration
+runs:
+   using: composite
+   steps:
+      - uses: ./.github/actions/bun-install
+      - shell: bash
+        env:
+           TAG: ${{ inputs.tag }}
+           REF: ${{ inputs.worktree-ref }}
+        run: |
+           set -euo pipefail
+           git remote add upstream "https://github.com/$UPSTREAM.git"
+           git config user.name "omp auto-integration"
+           git config user.email "omp-auto@users.noreply.github.com"
+           git fetch -q upstream "refs/tags/$TAG:refs/tags/$TAG"
+           git branch -f integration "$REF"
+           git worktree add -q "$INTEGRATION_WT" integration
+           # FORMAT_CMD (gen:compat) loads the native addon: the release's prebuilt one
+           # serves until a stage runs BUILD_CMD.
+           npm pack -q --pack-destination "$RUNNER_TEMP" "@oh-my-pi/pi-natives-linux-x64@${TAG#v}" >/dev/null
+           tar xzf "$RUNNER_TEMP"/oh-my-pi-pi-natives-linux-x64-*.tgz -C "$RUNNER_TEMP"
+           mkdir -p "$INTEGRATION_WT/packages/natives/native"
+           cp "$RUNNER_TEMP"/package/*.node "$INTEGRATION_WT/packages/natives/native/"

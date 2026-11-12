@@ -1,15 +1,18 @@
 name: omp auto-integration
 
-# Rebuilds the integration branch onto each new upstream omp release, builds it
-# with omp.yml, and publishes it as a release on the fork. A round that fails
-# gets one repair attempt by an omp agent; the repaired candidate is built by a
-# second run of this workflow (`candidate` input). A failed repair, or a repaired
-# candidate that still fails, opens an issue here.
+# Builds each new upstream omp release plus our carried PRs and publishes it as a
+# release on the fork. Stages, each with one agent repair when it fails:
+#   rebase     every PR branch onto the release, pushing each branch that moved
+#   integrate  `integration rebuild`: one squash per PR, fixups, resolutions
+#   build      omp.yml on the integrated candidate
+# A repaired build is built by a second run of this workflow (`candidate` input):
+# calling omp.yml twice in one run would collide on its artifact names. A stage
+# whose repair fails opens an issue here.
 # Design: docs/specs/2026-11-11-omp-auto-integration-design.md.
 #
-# Trust: jobs that run fork code or the agent get no push credential. Only
-# candidate, repair-push and release hold OMP_FORK_TOKEN, and they run no fork
-# code. Nothing is released before omp.yml builds and tests the exact commit.
+# Trust: jobs that run fork code or an agent hold no push credential; they hand
+# their refs and patches to a publishing job that runs no fork code. `rebase` only
+# runs git, so it pushes itself.
 on:
    schedule:
       - cron: "17 * * * *"
@@ -26,17 +29,12 @@ on:
             type: boolean
             default: false
          candidate:
-            description: "Internal: repaired candidate commit to build"
-            required: false
-            type: string
-            default: ""
-         repair_run:
-            description: "Internal: run that holds the repair artifact"
+            description: "Internal: repaired candidate commit to build and release"
             required: false
             type: string
             default: ""
 
-run-name: omp auto-integration ${{ inputs.tag || 'latest' }}${{ inputs.candidate && ' (repaired)' || '' }}
+run-name: omp auto-integration ${{ inputs.tag || 'latest' }}${{ inputs.candidate && ' (repaired build)' || '' }}
 
 permissions: {}
 
@@ -63,8 +61,8 @@ jobs:
               set -euo pipefail
               [ -n "$TAG" ] || TAG="$(gh release view -R "$UPSTREAM" --json tagName --jq .tagName)"
               if [ -z "$CANDIDATE" ]; then
-                # One round at a time. A repaired candidate always runs; a scheduled
-                # round that finds another one running waits for the next hour.
+                # One round at a time. A repaired build always runs; a scheduled round
+                # that finds another one active waits for the next hour.
                 busy="$(gh run list -R "$GITHUB_REPOSITORY" --workflow omp-auto.yml --limit 20 --json databaseId,status \
                   --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID and .status != \"completed\")] | length")"
                 if [ "$busy" != 0 ] && [ "$GITHUB_EVENT_NAME" = schedule ]; then
@@ -78,15 +76,64 @@ jobs:
               fi
               echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-   # Runs the fork's code (FORMAT_CMD) with no secrets.
-   rebuild:
+   # Runs only git (no fork code), so it pushes the branches it rebased itself.
+   rebase:
       needs: detect
       if: needs.detect.outputs.tag != '' && inputs.candidate == ''
       runs-on: ubuntu-24.04
-      timeout-minutes: 60
+      timeout-minutes: 30
       permissions:
          contents: read
       env:
+         GH_TOKEN: ${{ github.token }}
+         INTEGRATION_SLUG: root--git--oh-my-pi
+         INTEGRATION_CONFIG_DIR: ${{ github.workspace }}/ci/config
+         INTEGRATION_CACHE_DIR: /tmp/integration-cache
+         INTEGRATION_BASE: ${{ needs.detect.outputs.tag }}
+         INTEGRATION_PR_AUTHOR: andrebrait
+      steps:
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+           with:
+              repository: ${{ env.FORK }}
+              fetch-depth: 0
+              persist-credentials: false
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+           with:
+              path: ci
+              persist-credentials: false
+         - name: Rebase every PR onto ${{ needs.detect.outputs.tag }}
+           id: rebase
+           run: |
+              set +e
+              git remote add upstream "https://github.com/$UPSTREAM.git"
+              git config user.name "omp auto-integration"
+              git config user.email "omp-auto@users.noreply.github.com"
+              mkdir -p "$RUNNER_TEMP/rebase"
+              ci/integration rebase "$GITHUB_WORKSPACE" 2>&1 | tee "$RUNNER_TEMP/rebase/rebase.log"
+              echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+              cp "$INTEGRATION_CACHE_DIR/$INTEGRATION_SLUG/rebase.tsv" "$RUNNER_TEMP/rebase/"
+         - name: Push the rebased branches
+           env:
+              TOKEN: ${{ secrets.OMP_FORK_TOKEN }}
+           run: |
+              git remote set-url --push origin "https://x-access-token:$TOKEN@github.com/$FORK.git"
+              ci/scripts/push-rebased.sh "$RUNNER_TEMP/rebase/rebase.tsv"
+         - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+           with:
+              name: rebase
+              path: ${{ runner.temp }}/rebase
+              retention-days: 7
+         - if: steps.rebase.outputs.status != '0'
+           run: exit 1
+
+   rebase-repair:
+      needs: [detect, rebase]
+      if: ${{ !cancelled() && needs.rebase.result == 'failure' }}
+      runs-on: ubuntu-24.04
+      timeout-minutes: 120
+      permissions:
+         contents: read
+      env: &stage-env
          GH_TOKEN: ${{ github.token }}
          INTEGRATION_SLUG: root--git--oh-my-pi
          INTEGRATION_CONFIG_DIR: ${{ github.workspace }}/ci/config
@@ -105,75 +152,175 @@ jobs:
            with:
               path: ci
               persist-credentials: false
-         - uses: ./.github/actions/bun-install
-         - name: Prepare the integration worktree
+         - uses: ./ci/.github/actions/omp-round
+           with:
+              tag: ${{ needs.detect.outputs.tag }}
+         - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+           with:
+              name: rebase
+              path: ${{ runner.temp }}/rebase
+         - run: |
+              jq -n --arg tag "$INTEGRATION_BASE" --rawfile prs "$RUNNER_TEMP/rebase/rebase.tsv" \
+                --arg log "$(tail -n 200 "$RUNNER_TEMP/rebase/rebase.log")" \
+                '{step: "rebase", tag: $tag, prs: $prs, log: $log}' > "$RUNNER_TEMP/failure.json"
+         - uses: ./ci/.github/actions/omp-agent
+           with:
+              tag: ${{ needs.detect.outputs.tag }}
+              failure: ${{ runner.temp }}/failure.json
+              openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+              anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+         - name: Verify every PR is on the release
            run: |
               set -euo pipefail
-              git remote add upstream "https://github.com/$UPSTREAM.git"
-              git config user.name "omp auto-integration"
-              git config user.email "omp-auto@users.noreply.github.com"
-              git branch -f integration origin/integration
-              git worktree add -q "$INTEGRATION_WT" integration
-              # FORMAT_CMD (gen:compat) loads the native addon: use the release's prebuilt one.
-              npm pack -q --pack-destination "$RUNNER_TEMP" "@oh-my-pi/pi-natives-linux-x64@${INTEGRATION_BASE#v}" >/dev/null
-              tar xzf "$RUNNER_TEMP"/oh-my-pi-pi-natives-linux-x64-*.tgz -C "$RUNNER_TEMP"
-              mkdir -p "$INTEGRATION_WT/packages/natives/native"
-              cp "$RUNNER_TEMP"/package/*.node "$INTEGRATION_WT/packages/natives/native/"
-         - name: Rebuild onto ${{ needs.detect.outputs.tag }}
-           run: |
-              set -o pipefail
-              mkdir -p "$RUNNER_TEMP/round"
-              if ci/integration rebuild "$GITHUB_WORKSPACE" 2>&1 | tee "$RUNNER_TEMP/rebuild.log"; then
-                exit 0
-              fi
-              jq -n --arg tag "$INTEGRATION_BASE" --arg log "$(tail -n 200 "$RUNNER_TEMP/rebuild.log")" \
-                '{step: "rebuild", tag: $tag, log: $log}' > "$RUNNER_TEMP/round/failure.json"
-              exit 1
-         - name: Bundle the rebuilt branch
-           run: |
-              set -euo pipefail
-              git bundle create "$RUNNER_TEMP/round/integration.bundle" integration "^$INTEGRATION_BASE"
-              jq -n --arg tag "$INTEGRATION_BASE" --arg sha "$(git rev-parse integration)" '{tag: $tag, sha: $sha}' > "$RUNNER_TEMP/round/round.json"
+              # Fetched rows are the ones `rebase` pushed; the rest must be rebased now.
+              while IFS=$'\t' read -r num branch status _ _; do
+                case "$status" in failed | skipped) ;; *) continue ;; esac
+                git merge-base --is-ancestor "$INTEGRATION_BASE" "refs/rebased/$branch" ||
+                  { echo "PR $num ($branch) is not on $INTEGRATION_BASE" >&2; exit 1; }
+              done < "$RUNNER_TEMP/rebase/rebase.tsv"
+              ci/scripts/collect-round.sh "$RUNNER_TEMP/out"
+         - if: always()
+           run: cp "$RUNNER_TEMP/agent.log" "$RUNNER_TEMP/repair-notes.md" "$RUNNER_TEMP/out/" 2>/dev/null || true
          - if: always()
            uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
            with:
-              name: round-rebuild
-              path: ${{ runner.temp }}/round
-              retention-days: 7
-              if-no-files-found: ignore
+              name: rebase-repair
+              path: ${{ runner.temp }}/out
+              retention-days: 30
 
-   # Publishes the rebuilt branch as the fork's integration-candidate; runs no fork code.
-   candidate:
-      needs: [detect, rebuild]
+   # Runs no fork code: publishes the repaired branches and their fixups.
+   rebase-repair-push:
+      needs: [detect, rebase-repair]
       runs-on: ubuntu-24.04
       timeout-minutes: 30
-      permissions: {}
-      outputs:
-         sha: ${{ steps.push.outputs.sha }}
+      permissions:
+         contents: write
       steps:
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
          - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
            with:
-              name: round-rebuild
-              path: round
-         - id: push
+              name: rebase-repair
+              path: ${{ runner.temp }}/out
+         - env:
+              TOKEN: ${{ secrets.OMP_FORK_TOKEN }}
+              TAG: ${{ needs.detect.outputs.tag }}
+           run: |
+              set -euo pipefail
+              scripts/publish-round.sh "$RUNNER_TEMP/out"
+              scripts/commit-fixups.sh "$RUNNER_TEMP/out/fixups.patch" "fixups(omp): $TAG rebase repair"
+
+   # Runs the fork's code (FORMAT_CMD) with no secrets.
+   integrate:
+      needs: [detect, rebase, rebase-repair-push]
+      if: >-
+         ${{ !cancelled() && needs.detect.outputs.tag != '' && inputs.candidate == '' &&
+         (needs.rebase.result == 'success' || needs.rebase-repair-push.result == 'success') }}
+      runs-on: ubuntu-24.04
+      timeout-minutes: 60
+      permissions:
+         contents: read
+      env: *stage-env
+      steps:
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+           with:
+              repository: ${{ env.FORK }}
+              fetch-depth: 0
+              persist-credentials: false
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+           with:
+              path: ci
+              persist-credentials: false
+         - uses: ./ci/.github/actions/omp-round
+           with:
+              tag: ${{ needs.detect.outputs.tag }}
+         - name: Integrate onto ${{ needs.detect.outputs.tag }}
+           run: |
+              set -o pipefail
+              mkdir -p "$RUNNER_TEMP/out"
+              if ci/integration rebuild "$GITHUB_WORKSPACE" 2>&1 | tee "$RUNNER_TEMP/integrate.log"; then
+                ci/scripts/collect-round.sh "$RUNNER_TEMP/out" integration
+                exit 0
+              fi
+              jq -n --arg tag "$INTEGRATION_BASE" --arg log "$(tail -n 200 "$RUNNER_TEMP/integrate.log")" \
+                '{step: "integrate", tag: $tag, log: $log}' > "$RUNNER_TEMP/out/failure.json"
+              exit 1
+         - if: always()
+           uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+           with:
+              name: integrate
+              path: ${{ runner.temp }}/out
+              retention-days: 7
+
+   integrate-repair:
+      needs: [detect, integrate]
+      if: ${{ !cancelled() && needs.integrate.result == 'failure' }}
+      runs-on: ubuntu-24.04
+      timeout-minutes: 120
+      permissions:
+         contents: read
+      env: *stage-env
+      steps:
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+           with:
+              repository: ${{ env.FORK }}
+              fetch-depth: 0
+              persist-credentials: false
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+           with:
+              path: ci
+              persist-credentials: false
+         - uses: ./ci/.github/actions/omp-round
+           with:
+              tag: ${{ needs.detect.outputs.tag }}
+         - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+           with:
+              name: integrate
+              path: ${{ runner.temp }}/integrate
+         - uses: ./ci/.github/actions/omp-agent
+           with:
+              tag: ${{ needs.detect.outputs.tag }}
+              failure: ${{ runner.temp }}/integrate/failure.json
+              openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+              anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+         - name: Rebuild from the saved branches and patches alone
+           run: |
+              set -euo pipefail
+              git -C "$INTEGRATION_WT" checkout -q -B integration origin/integration
+              ci/integration rebuild "$GITHUB_WORKSPACE"
+              ci/scripts/collect-round.sh "$RUNNER_TEMP/out" integration
+         - if: always()
+           run: cp "$RUNNER_TEMP/agent.log" "$RUNNER_TEMP/repair-notes.md" "$RUNNER_TEMP/out/" 2>/dev/null || true
+         - if: always()
+           uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+           with:
+              name: integrate-repair
+              path: ${{ runner.temp }}/out
+              retention-days: 30
+
+   # Runs no fork code: publishes the integrated branch as the fork's integration-candidate.
+   candidate:
+      needs: [detect, integrate, integrate-repair]
+      if: ${{ !cancelled() && (needs.integrate.result == 'success' || needs.integrate-repair.result == 'success') }}
+      runs-on: ubuntu-24.04
+      timeout-minutes: 30
+      permissions:
+         contents: write
+      outputs:
+         sha: ${{ steps.publish.outputs.sha }}
+      steps:
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+           with:
+              name: ${{ needs.integrate-repair.result == 'success' && 'integrate-repair' || 'integrate' }}
+              path: ${{ runner.temp }}/out
+         - id: publish
            env:
               TOKEN: ${{ secrets.OMP_FORK_TOKEN }}
               TAG: ${{ needs.detect.outputs.tag }}
            run: |
               set -euo pipefail
-              round="$PWD/round"
-              git init -q fork && cd fork
-              # The fork and upstream serve every object a blobless clone lacks.
-              git remote add origin "https://x-access-token:$TOKEN@github.com/$FORK.git"
-              git remote add upstream "https://github.com/$UPSTREAM.git"
-              for r in origin upstream; do git config "remote.$r.promisor" true; git config "remote.$r.partialclonefilter" blob:none; done
-              git fetch -q --filter=blob:none --no-tags upstream "refs/tags/$TAG:refs/tags/$TAG"
-              git bundle verify -q "$round/integration.bundle"
-              git fetch -q "$round/integration.bundle" refs/heads/integration:refs/heads/integration
-              sha="$(git rev-parse integration)"
-              [ "$sha" = "$(jq -r .sha "$round/round.json")" ]
-              git push -q --force origin "integration:refs/heads/integration-candidate"
-              echo "sha=$sha" >> "$GITHUB_OUTPUT"
+              scripts/publish-round.sh "$RUNNER_TEMP/out" | tee -a "$GITHUB_OUTPUT"
+              scripts/commit-fixups.sh "$RUNNER_TEMP/out/fixups.patch" "fixups(omp): $TAG integrate repair"
 
    build:
       needs: [detect, candidate]
@@ -183,28 +330,17 @@ jobs:
       uses: ./.github/workflows/omp.yml
       with:
          repo: andrebrait/oh-my-pi
-         sha: ${{ needs.candidate.outputs.sha || inputs.candidate }}
+         sha: ${{ inputs.candidate || needs.candidate.outputs.sha }}
 
-   # Runs the fork's code and the agent; holds the model API keys and no push credential.
-   repair:
-      needs: [detect, rebuild, candidate, build]
-      if: >-
-         !cancelled() && needs.detect.outputs.tag != '' && inputs.candidate == '' &&
-         (needs.rebuild.result == 'failure' || needs.build.result == 'failure')
+   build-repair:
+      needs: [detect, candidate, build]
+      if: ${{ !cancelled() && inputs.candidate == '' && needs.build.result == 'failure' }}
       runs-on: ubuntu-24.04
       timeout-minutes: 330
       permissions:
          contents: read
          actions: read
-      env:
-         GH_TOKEN: ${{ github.token }}
-         INTEGRATION_SLUG: root--git--oh-my-pi
-         INTEGRATION_CONFIG_DIR: ${{ github.workspace }}/ci/config
-         INTEGRATION_CACHE_DIR: /tmp/integration-cache
-         INTEGRATION_BASE: ${{ needs.detect.outputs.tag }}
-         INTEGRATION_PR_AUTHOR: andrebrait
-         INTEGRATION_HEAD_PREFIX: refs/rebased
-         INTEGRATION_WT: /tmp/integration
+      env: *stage-env
       steps:
          - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
            with:
@@ -215,7 +351,10 @@ jobs:
            with:
               path: ci
               persist-credentials: false
-         - uses: ./.github/actions/bun-install
+         - uses: ./ci/.github/actions/omp-round
+           with:
+              tag: ${{ needs.detect.outputs.tag }}
+              worktree-ref: origin/integration-candidate
          # Bazel disk cache, as omp.yml's build job: BUILD_CMD compiles the natives.
          - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
            with:
@@ -224,144 +363,65 @@ jobs:
               restore-keys: bazel-disk-v1-build-
          - id: bazel
            uses: ./.github/actions/bazel-cache
-         - name: Prepare the integration worktree and the agent
+         - name: Describe the failed build
            env:
               RC: ${{ steps.bazel.outputs.rc }}
-              TAG: ${{ needs.detect.outputs.tag }}
            run: |
               set -euo pipefail
               echo "common --disk_cache=$HOME/.cache/omp-bazel-disk" >> "$RC"
-              git remote add upstream "https://github.com/$UPSTREAM.git"
-              git config user.name "omp auto-integration"
-              git config user.email "omp-auto@users.noreply.github.com"
-              git branch -f integration origin/integration
-              git worktree add -q "$INTEGRATION_WT" integration
-              # Prebuilt addon for FORMAT_CMD until the agent runs BUILD_CMD.
-              npm pack -q --pack-destination "$RUNNER_TEMP" "@oh-my-pi/pi-natives-linux-x64@${TAG#v}" >/dev/null
-              tar xzf "$RUNNER_TEMP"/oh-my-pi-pi-natives-linux-x64-*.tgz -C "$RUNNER_TEMP"
-              mkdir -p "$INTEGRATION_WT/packages/natives/native"
-              cp "$RUNNER_TEMP"/package/*.node "$INTEGRATION_WT/packages/natives/native/"
-              # The agent is upstream's own release binary, never the code under repair.
-              mkdir -p "$RUNNER_TEMP/agent"
-              gh release download "$TAG" -R "$UPSTREAM" -D "$RUNNER_TEMP/agent" -p omp-linux-x64 -p SHA256SUMS.txt
-              (cd "$RUNNER_TEMP/agent" && grep -E '[ *]omp-linux-x64$' SHA256SUMS.txt | sha256sum -c -)
-              chmod +x "$RUNNER_TEMP/agent/omp-linux-x64"
-         - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-           continue-on-error: true
+              echo "OMP_BAZEL_RC=$RC" >> "$GITHUB_ENV"
+              echo "OMP_NATIVE_BUILD_BACKEND=bazel" >> "$GITHUB_ENV"
+              log=""
+              for id in $(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" --paginate \
+                --jq '.jobs[] | select(.conclusion == "failure") | .id'); do
+                log+="$(gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$id/logs" | tail -n 150)"$'\n'
+              done
+              jq -n --arg tag "$INTEGRATION_BASE" --arg log "$log" '{step: "build", tag: $tag, log: $log}' > "$RUNNER_TEMP/failure.json"
+         - uses: ./ci/.github/actions/omp-agent
            with:
-              name: round-rebuild
-              path: ${{ runner.temp }}/round
-         - name: Describe the failure
-           env:
-              TAG: ${{ needs.detect.outputs.tag }}
+              tag: ${{ needs.detect.outputs.tag }}
+              failure: ${{ runner.temp }}/failure.json
+              openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+              anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+         - name: Rebuild from the saved branches and patches alone
            run: |
               set -euo pipefail
-              f="$RUNNER_TEMP/failure.json"
-              if [ -f "$RUNNER_TEMP/round/failure.json" ]; then
-                cp "$RUNNER_TEMP/round/failure.json" "$f"
-              else
-                # The candidate failed omp.yml: hand the agent the failed jobs' log tails.
-                log=""
-                for id in $(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" --paginate \
-                  --jq '.jobs[] | select(.conclusion == "failure") | .id'); do
-                  log+="$(gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$id/logs" | tail -n 150)"$'\n'
-                done
-                jq -n --arg tag "$TAG" --arg log "$log" '{step: "build", tag: $tag, log: $log}' > "$f"
-              fi
-              cat "$f"
-         - name: Repair
-           env:
-              OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-              ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-              OMP_BAZEL_RC: ${{ steps.bazel.outputs.rc }}
-              OMP_NATIVE_BUILD_BACKEND: bazel
-           run: |
-              set -uo pipefail
-              ulimit -Sn 65536 || true
-              omp="$RUNNER_TEMP/agent/omp-linux-x64"
-              prompt="$(cat ci/prompts/omp-repair.md; printf '\n## failure.json\n\n```json\n'; cat "$RUNNER_TEMP/failure.json"; printf '\n```\n')"
-              state() { git -C "$INTEGRATION_WT" rev-parse HEAD; git -C "$INTEGRATION_WT" status --porcelain; }
-              before="$(state)"
-              run_agent() { # model thinking
-                echo "repair model: $1 ($2)" | tee -a "$RUNNER_TEMP/agent.log"
-                "$omp" -p --no-session --model "$1" --thinking "$2" --approval-mode yolo "$prompt" 2>&1 | tee -a "$RUNNER_TEMP/agent.log"
-              }
-              run_agent openai/gpt-6-luna high
-              status=$?
-              # Fall back only when Luna never started working: a provider error and nothing changed.
-              if [ "$status" != 0 ] && [ "$(state)" = "$before" ] &&
-                grep -qiE 'insufficient_quota|exceeded your current quota|billing|credit balance|invalid[_ ]api[_ ]key|incorrect api key|authentication|unauthorized|\b(401|402|429)\b' "$RUNNER_TEMP/agent.log"; then
-                run_agent anthropic/claude-haiku-5-5 medium
-                status=$?
-              fi
-              exit "$status"
-         - name: Verify and bundle the repair
-           env:
-              TAG: ${{ needs.detect.outputs.tag }}
-           run: |
-              set -euo pipefail
-              out="$RUNNER_TEMP/repair"
-              mkdir -p "$out"
-              # The saved fixups, resolutions and rebased heads must rebuild the round on their own.
               git -C "$INTEGRATION_WT" checkout -q -B integration origin/integration
               ci/integration rebuild "$GITHUB_WORKSPACE"
-              [ -z "$(git -C "$INTEGRATION_WT" status --porcelain)" ]
-              rebased="$(git for-each-ref --format='%(refname)' refs/rebased/)"
-              # shellcheck disable=SC2086
-              git bundle create "$out/integration.bundle" integration $rebased "^$TAG"
-              : > "$out/rebased.tsv"
-              for ref in $rebased; do
-                b="${ref#refs/rebased/}"
-                printf '%s\t%s\t%s\n' "$b" "$(git rev-parse "origin/$b")" "$(git rev-parse "$ref")" >> "$out/rebased.tsv"
-              done
-              git -C ci add -N config/fixups
-              git -C ci diff -- config/fixups > "$out/fixups.patch"
-              jq -n --arg tag "$TAG" --arg sha "$(git rev-parse integration)" '{tag: $tag, sha: $sha}' > "$out/round.json"
+              ci/scripts/collect-round.sh "$RUNNER_TEMP/out" integration
          - if: always()
-           run: |
-              out="$RUNNER_TEMP/repair"
-              mkdir -p "$out"
-              cp "$RUNNER_TEMP/agent.log" "$out/" 2>/dev/null || true
-              cp "$RUNNER_TEMP/repair-notes.md" "$out/" 2>/dev/null || echo "The repair agent wrote no notes." > "$out/repair-notes.md"
+           run: cp "$RUNNER_TEMP/agent.log" "$RUNNER_TEMP/repair-notes.md" "$RUNNER_TEMP/out/" 2>/dev/null || true
          - if: always()
            uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
            with:
-              name: repair
-              path: ${{ runner.temp }}/repair
+              name: build-repair
+              path: ${{ runner.temp }}/out
               retention-days: 30
 
-   # Publishes the repaired candidate and starts the run that builds it; runs no fork code.
-   repair-push:
-      needs: [detect, repair]
+   # Runs no fork code: publishes the repaired candidate and starts the run that builds it.
+   build-repair-push:
+      needs: [detect, build-repair]
       runs-on: ubuntu-24.04
       timeout-minutes: 30
       permissions:
+         contents: write
          actions: write
       steps:
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
          - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
            with:
-              name: repair
-              path: repair
+              name: build-repair
+              path: ${{ runner.temp }}/out
          - env:
               TOKEN: ${{ secrets.OMP_FORK_TOKEN }}
               GH_TOKEN: ${{ github.token }}
               TAG: ${{ needs.detect.outputs.tag }}
            run: |
               set -euo pipefail
-              repair="$PWD/repair"
-              git init -q fork && cd fork
-              git remote add origin "https://x-access-token:$TOKEN@github.com/$FORK.git"
-              git remote add upstream "https://github.com/$UPSTREAM.git"
-              for r in origin upstream; do git config "remote.$r.promisor" true; git config "remote.$r.partialclonefilter" blob:none; done
-              git fetch -q --filter=blob:none --no-tags upstream "refs/tags/$TAG:refs/tags/$TAG"
-              git bundle verify -q "$repair/integration.bundle"
-              git fetch -q "$repair/integration.bundle" refs/heads/integration:refs/heads/integration 'refs/rebased/*:refs/rebased/*'
-              sha="$(git rev-parse integration)"
-              [ "$sha" = "$(jq -r .sha "$repair/round.json")" ]
-              # Rebased PR branches wait under integration-rebased/ until the build is green.
-              git push -q --force origin "integration:refs/heads/integration-candidate" 'refs/rebased/*:refs/heads/integration-rebased/*'
-              gh workflow run omp-auto.yml -R "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" \
-                -f tag="$TAG" -f candidate="$sha" -f repair_run="$GITHUB_RUN_ID" -f force=true
+              sha="$(scripts/publish-round.sh "$RUNNER_TEMP/out" | sed -n 's/^sha=//p')"
+              [ -n "$sha" ]
+              scripts/commit-fixups.sh "$RUNNER_TEMP/out/fixups.patch" "fixups(omp): $TAG build repair"
+              gh workflow run omp-auto.yml -R "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" -f tag="$TAG" -f candidate="$sha" -f force=true
 
    # Runs no fork code: attaches the built binaries to a release on the fork.
    release:
@@ -369,26 +429,14 @@ jobs:
       if: ${{ !cancelled() && needs.build.result == 'success' }}
       runs-on: ubuntu-24.04
       timeout-minutes: 30
-      permissions:
-         actions: read
-      outputs:
-         tag: ${{ steps.release.outputs.tag }}
+      permissions: {}
       steps:
          - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
            with:
               pattern: omp-*
               path: bin
-         - if: inputs.repair_run != ''
-           uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-           with:
-              name: repair
-              path: repair
-              run-id: ${{ inputs.repair_run }}
-              github-token: ${{ github.token }}
-         - id: release
-           env:
+         - env:
               GH_TOKEN: ${{ secrets.OMP_FORK_TOKEN }}
-              READ_TOKEN: ${{ github.token }}
               TAG: ${{ needs.detect.outputs.tag }}
               SHA: ${{ inputs.candidate || needs.candidate.outputs.sha }}
            run: |
@@ -401,30 +449,14 @@ jobs:
                 src="bin/omp-${pair%%:*}"
                 cp "$src/$(ls "$src")" "out/${pair#*:}"
               done
-              chmod +x out/omp-linux-* out/omp-darwin-*
               (cd out && sha256sum -- * > SHA256SUMS.txt)
-              # Rebased PR branches move only if nobody pushed them since the round started.
-              skipped=""
-              if [ -s repair/rebased.tsv ]; then
-                while IFS=$'\t' read -r branch old new; do
-                  cur="$(gh api "repos/$FORK/git/ref/heads/$branch" --jq .object.sha)"
-                  if [ "$cur" = "$old" ]; then
-                    gh api -X PATCH "repos/$FORK/git/refs/heads/$branch" -f sha="$new" -F force=true >/dev/null
-                    echo "Rebased $branch onto $TAG: $new"
-                  else
-                    skipped+="- \`$branch\` moved during the round; its rebase onto $TAG was not pushed."$'\n'
-                  fi
-                  gh api -X DELETE "repos/$FORK/git/refs/heads/integration-rebased/$branch" >/dev/null || true
-                done < repair/rebased.tsv
-              fi
               {
-                GH_TOKEN="$READ_TOKEN" gh release view "$TAG" -R "$UPSTREAM" --json body --jq .body
+                gh release view "$TAG" -R "$UPSTREAM" --json body --jq .body
                 printf '\n## Carried patches\n\n'
                 # The branch is the release plus `PR ...:` squashes, newest first.
                 gh api "repos/$FORK/commits?sha=$SHA&per_page=100" --jq '.[].commit.message | split("\n")[0]' |
                   awk '!/^PR / { exit } { print }' | tac |
                   sed -E 's~^PR #([0-9]+): (.*)~- [#\1](https://github.com/can1357/oh-my-pi/pull/\1): \2~; s~^PR ([^ #]+)#([0-9]+): (.*)~- [\1#\2](https://github.com/\1/pull/\2): \3~'
-                [ -z "$skipped" ] || printf '\n%s' "$skipped"
               } > notes.md
               gh release create "$rel" -R "$FORK" --target "$SHA" --title "$rel" --notes-file notes.md --latest out/*
               gh api -X PATCH "repos/$FORK/git/refs/heads/integration-release" -f sha="$SHA" -F force=true >/dev/null ||
@@ -432,43 +464,16 @@ jobs:
               # Keep the newest 10 integration releases.
               gh release list -R "$FORK" --limit 100 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[].tagName' |
                 grep -- '-int\.' | tail -n +11 | while read -r old; do gh release delete "$old" -R "$FORK" --cleanup-tag --yes; done
-              echo "tag=$rel" >> "$GITHUB_OUTPUT"
-
-   # Keeps a repair's fixups for later rounds, once its candidate is green.
-   fixups:
-      needs: [detect, release]
-      if: ${{ !cancelled() && needs.release.result == 'success' && inputs.repair_run != '' }}
-      runs-on: ubuntu-24.04
-      timeout-minutes: 10
-      permissions:
-         contents: write
-         actions: read
-      steps:
-         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-         - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-           with:
-              name: repair
-              path: ${{ runner.temp }}/repair
-              run-id: ${{ inputs.repair_run }}
-              github-token: ${{ github.token }}
-         - env:
-              TAG: ${{ needs.detect.outputs.tag }}
-           run: |
-              set -euo pipefail
-              patch="$RUNNER_TEMP/repair/fixups.patch"
-              [ -s "$patch" ] || { echo "The repair changed no fixups."; exit 0; }
-              git apply --index "$patch"
-              git -c user.name="omp auto-integration" -c user.email="omp-auto@users.noreply.github.com" \
-                commit -q -m "fixups(omp): $TAG repair" -m "From run https://github.com/$GITHUB_REPOSITORY/actions/runs/${{ inputs.repair_run }}."
-              git push -q origin HEAD:main
+              echo "Released $rel" >> "$GITHUB_STEP_SUMMARY"
 
    escalate:
-      needs: [detect, rebuild, candidate, build, repair, repair-push, release]
+      needs: [detect, rebase-repair, rebase-repair-push, integrate-repair, candidate, build, build-repair, build-repair-push, release]
       if: >-
-         !cancelled() && needs.detect.outputs.tag != '' && (
-            needs.repair.result == 'failure' || needs.repair-push.result == 'failure' ||
-            needs.release.result == 'failure' || needs.candidate.result == 'failure' ||
-            (inputs.candidate != '' && needs.build.result == 'failure'))
+         ${{ !cancelled() && needs.detect.outputs.tag != '' && (
+            needs.rebase-repair.result == 'failure' || needs.rebase-repair-push.result == 'failure' ||
+            needs.integrate-repair.result == 'failure' || needs.candidate.result == 'failure' ||
+            needs.build-repair.result == 'failure' || needs.build-repair-push.result == 'failure' ||
+            needs.release.result == 'failure' || (inputs.candidate != '' && needs.build.result == 'failure')) }}
       runs-on: ubuntu-24.04
       timeout-minutes: 10
       permissions:
@@ -478,30 +483,29 @@ jobs:
          - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
            continue-on-error: true
            with:
-              name: repair
+              pattern: "*-repair"
               path: repair
-              run-id: ${{ inputs.repair_run || github.run_id }}
-              github-token: ${{ github.token }}
          - env:
               GH_TOKEN: ${{ github.token }}
               TAG: ${{ needs.detect.outputs.tag }}
-              RESULTS: >-
-                 rebuild=${{ needs.rebuild.result }} candidate=${{ needs.candidate.result }}
-                 build=${{ needs.build.result }} repair=${{ needs.repair.result }}
-                 repair-push=${{ needs.repair-push.result }} release=${{ needs.release.result }}
+              RESULTS: ${{ toJSON(needs) }}
            run: |
               set -euo pipefail
               title="omp auto-integration failed for $TAG"
               {
                 echo "Run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
                 echo
-                echo "Jobs: \`$RESULTS\`"
+                echo "Jobs: $(jq -r 'to_entries | map("\(.key)=\(.value.result)") | join(" ")' <<< "$RESULTS")"
                 echo
-                echo "Finish this round locally with \`integration rebuild\` (base \`$TAG\`), or fix the cause and re-run the workflow with \`force\`."
-                if [ -f repair/repair-notes.md ]; then printf '\n## Repair notes\n\n'; cat repair/repair-notes.md; fi
+                echo "Finish this round locally with \`integration rebase\` / \`integration rebuild\` (base \`$TAG\`), or fix the cause and re-run the workflow with \`force\`."
+                for notes in repair/*/repair-notes.md; do
+                  [ -f "$notes" ] || continue
+                  printf '\n## %s notes\n\n' "$(basename "$(dirname "$notes")")"
+                  cat "$notes"
+                done
               } > body.md
               gh label create omp-auto -R "$GITHUB_REPOSITORY" --color B60205 --description "omp auto-integration failures" --force >/dev/null
-              n="$(gh issue list -R "$GITHUB_REPOSITORY" --label omp-auto --state open --search "in:title \"$title\"" --json number,title \
+              n="$(gh issue list -R "$GITHUB_REPOSITORY" --label omp-auto --state open --json number,title \
                 --jq "[.[] | select(.title == \"$title\")][0].number // empty")"
               if [ -n "$n" ]; then
                 gh issue comment "$n" -R "$GITHUB_REPOSITORY" --body-file body.md
