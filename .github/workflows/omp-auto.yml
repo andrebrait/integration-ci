@@ -191,6 +191,8 @@ jobs:
    # Runs no fork code: publishes the repaired branches and their fixups.
    rebase-repair-push:
       needs: [detect, rebase-repair]
+      # Explicit: the implicit success() is false once any earlier job (here `rebase`) failed.
+      if: ${{ !cancelled() && needs.rebase-repair.result == 'success' }}
       runs-on: ubuntu-24.04
       timeout-minutes: 30
       permissions:
@@ -401,6 +403,7 @@ jobs:
    # Runs no fork code: publishes the repaired candidate and starts the run that builds it.
    build-repair-push:
       needs: [detect, build-repair]
+      if: ${{ !cancelled() && needs.build-repair.result == 'success' }}
       runs-on: ubuntu-24.04
       timeout-minutes: 30
       permissions:
