@@ -47,7 +47,7 @@ index 885b4423cc5e882a5aea3262a4dfa37c16ad9d33..3160a86ed5eb6858141e0d09978f2f09
    assert.equal(awaiting(), true);
    assert.equal(pushed.at(-1), true, "the sidebar is told the session waits on the user");
 -  await session.send({ type: "extension_ui_response", id: "q", confirmed: true });
-+  await session.send({ type: "extension_ui_response", id: "7", confirmed: true });
++  await session.send({ type: "ui_response", id: 7, value: true });
    assert.equal(awaiting(), false);
    assert.equal(pushed.at(-1), false, "answering clears the mark without waiting for another omp frame");
 +  await new Promise((resolve) => setImmediate(resolve));
