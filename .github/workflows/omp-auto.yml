@@ -114,6 +114,11 @@ jobs:
               git config user.email "omp-auto@users.noreply.github.com"
               git branch -f integration origin/integration
               git worktree add -q "$INTEGRATION_WT" integration
+              # FORMAT_CMD (gen:compat) loads the native addon: use the release's prebuilt one.
+              npm pack -q --pack-destination "$RUNNER_TEMP" "@oh-my-pi/pi-natives-linux-x64@${INTEGRATION_BASE#v}" >/dev/null
+              tar xzf "$RUNNER_TEMP"/oh-my-pi-pi-natives-linux-x64-*.tgz -C "$RUNNER_TEMP"
+              mkdir -p "$INTEGRATION_WT/packages/natives/native"
+              cp "$RUNNER_TEMP"/package/*.node "$INTEGRATION_WT/packages/natives/native/"
          - name: Rebuild onto ${{ needs.detect.outputs.tag }}
            run: |
               set -o pipefail
@@ -231,6 +236,11 @@ jobs:
               git config user.email "omp-auto@users.noreply.github.com"
               git branch -f integration origin/integration
               git worktree add -q "$INTEGRATION_WT" integration
+              # Prebuilt addon for FORMAT_CMD until the agent runs BUILD_CMD.
+              npm pack -q --pack-destination "$RUNNER_TEMP" "@oh-my-pi/pi-natives-linux-x64@${TAG#v}" >/dev/null
+              tar xzf "$RUNNER_TEMP"/oh-my-pi-pi-natives-linux-x64-*.tgz -C "$RUNNER_TEMP"
+              mkdir -p "$INTEGRATION_WT/packages/natives/native"
+              cp "$RUNNER_TEMP"/package/*.node "$INTEGRATION_WT/packages/natives/native/"
               # The agent is upstream's own release binary, never the code under repair.
               mkdir -p "$RUNNER_TEMP/agent"
               gh release download "$TAG" -R "$UPSTREAM" -D "$RUNNER_TEMP/agent" -p omp-linux-x64 -p SHA256SUMS.txt
