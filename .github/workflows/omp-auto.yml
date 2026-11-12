@@ -177,7 +177,7 @@ jobs:
 
    build:
       needs: [detect, candidate]
-      if: always() && needs.detect.outputs.tag != '' && (needs.candidate.result == 'success' || inputs.candidate != '')
+      if: ${{ !cancelled() && needs.detect.outputs.tag != '' && (needs.candidate.result == 'success' || inputs.candidate != '') }}
       permissions:
          contents: write
       uses: ./.github/workflows/omp.yml
@@ -189,7 +189,7 @@ jobs:
    repair:
       needs: [detect, rebuild, candidate, build]
       if: >-
-         always() && needs.detect.outputs.tag != '' && inputs.candidate == '' &&
+         !cancelled() && needs.detect.outputs.tag != '' && inputs.candidate == '' &&
          (needs.rebuild.result == 'failure' || needs.build.result == 'failure')
       runs-on: ubuntu-24.04
       timeout-minutes: 330
@@ -366,7 +366,7 @@ jobs:
    # Runs no fork code: attaches the built binaries to a release on the fork.
    release:
       needs: [detect, candidate, build]
-      if: always() && needs.build.result == 'success'
+      if: ${{ !cancelled() && needs.build.result == 'success' }}
       runs-on: ubuntu-24.04
       timeout-minutes: 30
       permissions:
@@ -437,7 +437,7 @@ jobs:
    # Keeps a repair's fixups for later rounds, once its candidate is green.
    fixups:
       needs: [detect, release]
-      if: always() && needs.release.result == 'success' && inputs.repair_run != ''
+      if: ${{ !cancelled() && needs.release.result == 'success' && inputs.repair_run != '' }}
       runs-on: ubuntu-24.04
       timeout-minutes: 10
       permissions:
@@ -465,7 +465,7 @@ jobs:
    escalate:
       needs: [detect, rebuild, candidate, build, repair, repair-push, release]
       if: >-
-         always() && needs.detect.outputs.tag != '' && (
+         !cancelled() && needs.detect.outputs.tag != '' && (
             needs.repair.result == 'failure' || needs.repair-push.result == 'failure' ||
             needs.release.result == 'failure' || needs.candidate.result == 'failure' ||
             (inputs.candidate != '' && needs.build.result == 'failure'))
