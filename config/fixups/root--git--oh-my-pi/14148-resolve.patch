@@ -1,0 +1,92 @@
+diff --git a/packages/coding-agent/src/extensibility/settings.ts b/packages/coding-agent/src/extensibility/settings.ts
+index ee8ea1c44a6942b7a5b98bfd4227945ce1275e70..f4068e47822c44ac8caeb180d91e4002e517e63d 100644
+--- a/packages/coding-agent/src/extensibility/settings.ts
++++ b/packages/coding-agent/src/extensibility/settings.ts
+@@ -110,17 +110,13 @@ export const cfgSkillsIncludeSkills = register({
+ 	default: EMPTY_STRING_ARRAY,
+ });
+ 
+-<<<<<<< HEAD
+ export const cfgSkillsOptInSkills = register({
+ 	id: "skills.optInSkills",
+ 	type: "array",
+ 	default: EMPTY_STRING_ARRAY,
+ });
+ 
+-/** Skill discovery options (`skills.*` except the `omp skill` registry URL). */
+-=======
+-/** Skill discovery options (excludes registry URL and startup-only presentation settings). */
+->>>>>>> rebuild/pr-14148
++/** Skill discovery options (`skills.*` except the `omp skill` registry URL and startup-only presentation settings). */
+ export const cfgSkills = combine({
+ 	enabled: cfgSkillsEnabled,
+ 	enableSkillCommands: cfgSkillsEnableSkillCommands,
+@@ -135,11 +131,8 @@ export const cfgSkills = combine({
+ 	ignoredSkills: cfgSkillsIgnoredSkills,
+ 	manualSkills: cfgSkillsManualSkills,
+ 	includeSkills: cfgSkillsIncludeSkills,
+-<<<<<<< HEAD
+ 	optInSkills: cfgSkillsOptInSkills,
+-=======
+ 	dedupeSameOrigin: cfgSkillsDedupeSameOrigin,
+->>>>>>> rebuild/pr-14148
+ });
+ 
+ /** Skill discovery options ({@link cfgSkills}); omitted fields fall back to the setting defaults. */
+diff --git a/packages/coding-agent/src/extensibility/skills.ts b/packages/coding-agent/src/extensibility/skills.ts
+index 956e5a76cb82476c8086c34f6a53322148136a60..80b4d1e8fac66da2f5985b457971f3271022d9b4 100644
+--- a/packages/coding-agent/src/extensibility/skills.ts
++++ b/packages/coding-agent/src/extensibility/skills.ts
+@@ -659,22 +659,16 @@ export async function loadSkills(options: LoadSkillsOptions = {}): Promise<LoadS
+ 			continue;
+ 		}
+ 
+-<<<<<<< HEAD
+ 		const skill = capSkillToSkill(capSkill, `${capSkill._source.provider}:${capSkill.level}`);
+-		if (admit(skill, capSkill.content, capSkill.frontmatter, skillNamespace(capSkill)) !== undefined)
+-=======
+-		const skill: Skill = {
+-			name: capSkill.name,
+-			description: typeof capSkill.frontmatter?.description === "string" ? capSkill.frontmatter.description : "",
+-			filePath: capSkill.path,
+-			baseDir: capSkill.path.replace(/[\\/]SKILL\.md$/, ""),
+-			source: `${capSkill._source.provider}:${capSkill.level}`,
+-			...(capSkill.containRoot !== undefined && { containRoot: capSkill.containRoot }),
+-			hide: capSkill.frontmatter?.hide === true || capSkill.frontmatter?.disableModelInvocation === true,
+-			_source: capSkill._source,
+-		};
+-		if (admit(skill, capSkill.content, capSkill.frontmatter, skillNamespace(capSkill), resolvedPath) !== undefined)
+->>>>>>> rebuild/pr-14148
++		if (
++			admit(
++				skill,
++				capSkill.content,
++				capSkill.frontmatter,
++				skillNamespace(capSkill),
++				resolvedPath,
++			) !== undefined
++		)
+ 			realPathSet.add(resolvedPath);
+ 	}
+ 
+
+diff --git a/packages/coding-agent/test/skills.test.ts b/packages/coding-agent/test/skills.test.ts
+index 059b86eb5ed1dd9dd5eda36012bab4e5ff5d4e71..a4e37d7ccc9105442ec5b8e8a658b8e0acf4d2b6 100644
+--- a/packages/coding-agent/test/skills.test.ts
++++ b/packages/coding-agent/test/skills.test.ts
+@@ -18,15 +18,11 @@ import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls/router";
+ import { buildSystemPrompt } from "@oh-my-pi/pi-coding-agent/system-prompt";
+ import { parseInternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls/parse";
+ import { SkillProtocolHandler } from "@oh-my-pi/pi-coding-agent/internal-urls/skill-protocol";
+-<<<<<<< HEAD
+-=======
+-import { buildSystemPrompt } from "@oh-my-pi/pi-coding-agent/system-prompt";
+ import {
+ 	getSkillStorePath,
+ 	STORE_INTEGRITY_FILE,
+ 	writeSkillsLock,
+ } from "@oh-my-pi/pi-coding-agent/skillshare/manifest";
+->>>>>>> rebuild/pr-14148
+ import { CombinedAutocompleteProvider } from "@oh-my-pi/pi-tui/autocomplete";
+ import { __resetDirsFromEnvForTests, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+ import { restoreEnvValue } from "./helpers/settings-test-state";

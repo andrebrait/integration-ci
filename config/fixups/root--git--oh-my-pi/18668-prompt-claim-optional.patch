@@ -1,0 +1,13 @@
+diff --git a/packages/coding-agent/src/session/agent-session.ts b/packages/coding-agent/src/session/agent-session.ts
+index 0a3cca81ce02057bc4bbfd41b2bd8bb8cdaad15d..4078224ba2afe596d00a2cbe0de49c0d57216bd2 100644
+--- a/packages/coding-agent/src/session/agent-session.ts
++++ b/packages/coding-agent/src/session/agent-session.ts
+@@ -9096,7 +9096,7 @@ export class AgentSession implements SettingsScope, AgentViewSession {
+ 		outcome: PromptDispatchOutcome,
+ 		followUps: PromptFollowUps | undefined,
+ 		holder?: HoldState,
+-		claim: ClientMessageClaim | undefined,
++		claim?: ClientMessageClaim,
+ 	): Promise<boolean> {
+ 		const expandPromptTemplates = options?.expandPromptTemplates ?? true;
+ 		// Slash/custom-command handling below rewrites `text`; keep the original

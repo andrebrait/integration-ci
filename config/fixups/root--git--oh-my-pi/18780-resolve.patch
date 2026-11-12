@@ -1,0 +1,17 @@
+diff --git a/packages/coding-agent/test/task/persisted-revive.test.ts b/packages/coding-agent/test/task/persisted-revive.test.ts
+index e08eb0dac22240c1d151cca0441d2ae2779ea7d9..1b8ce74263561684712cc6038f12d5551d199a58 100644
+--- a/packages/coding-agent/test/task/persisted-revive.test.ts
++++ b/packages/coding-agent/test/task/persisted-revive.test.ts
+@@ -178,12 +178,9 @@ async function createPersistedSession(
+ 		resolvedModel?: string;
+ 		perCallModelIdentity?: string;
+ 		perCallThinkingLevel?: ConfiguredThinkingLevel | null;
+-<<<<<<< HEAD
+ 		/** Transcript of the session that spawned this one, as a nested child's header records it. */
+ 		parentSession?: string;
+-=======
+ 		actualEffort?: Effort;
+->>>>>>> rebuild/pr-18780
+ 	},
+ ): Promise<string> {
+ 	const manager = contract?.parentSession

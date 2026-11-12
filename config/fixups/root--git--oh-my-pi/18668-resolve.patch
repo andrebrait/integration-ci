@@ -1,0 +1,470 @@
+diff --git a/packages/coding-agent/src/modes/rpc/rpc-mode.ts b/packages/coding-agent/src/modes/rpc/rpc-mode.ts
+index 7c995512f5818f7c08321db511f1f159ae26ed6e..487b8829ee09fbd9bbdad824ef9424d7a9649a1f 100644
+--- a/packages/coding-agent/src/modes/rpc/rpc-mode.ts
++++ b/packages/coding-agent/src/modes/rpc/rpc-mode.ts
+@@ -266,62 +266,6 @@ export type RpcSkillCommandSession = Pick<
+ 	SkillRediscoverySource;
+ export type RpcSkillCommandResult = { agentInvoked: true };
+ 
+-<<<<<<< HEAD
+-=======
+-export interface RpcSkillInvocation extends SkillPromptInput {
+-	skill: Skill;
+-	queueChipText: string;
+-}
+-
+-/**
+- * Fast in-memory pre-check for a skill invocation: settings gate, text shape,
+- * and skill lookup. Returns null when the message is not a runnable skill
+- * command. Performs no I/O — safe to run on the RPC serial queue.
+- */
+-export function resolveRpcSkillInvocation(session: RpcSkillCommandSession, text: string): RpcSkillInvocation | null {
+-	if (!session.skillsSettings?.enableSkillCommands) return null;
+-	const parsed = parseSkillInvocation(text);
+-	if (!parsed) return null;
+-	const skill = session.skills.find(candidate => candidate.name === parsed.name);
+-	if (!skill) return null;
+-	return { skill, args: parsed.args, prompt: parsed.prompt, queueChipText: text };
+-}
+-
+-/**
+- * Slow half of a skill invocation: builds the skill prompt message (file I/O)
+- * and dispatches it through the full prompt pipeline (usage preflight,
+- * compaction checks, provider calls). Resolves once the turn is scheduled.
+- * Must not run on the RPC serial queue's response path — register it with
+- * watchAndReportPromptResult and answer the command once it is admitted.
+- */
+-export async function runRpcSkillCommand(
+-	session: RpcSkillCommandSession,
+-	invocation: RpcSkillInvocation,
+-	streamingBehavior: "steer" | "followUp" = "steer",
+-	prebuilt?: BuiltSkillPromptMessage,
+-	onPromptAdmitted?: () => void,
+-	images?: ImageContent[],
+-	clientMessageId?: string,
+-): Promise<boolean> {
+-	const built = prebuilt ?? (await session.buildUserSkillPrompt(invocation.skill, invocation));
+-	return session.promptCustomMessage(
+-		{
+-			customType: SKILL_PROMPT_MESSAGE_TYPE,
+-			content: images?.length ? [{ type: "text", text: built.message }, ...images] : built.message,
+-			display: true,
+-			details: built.details,
+-			attribution: "user",
+-		},
+-		{
+-			streamingBehavior,
+-			queueChipText: invocation.queueChipText,
+-			onPromptAdmitted,
+-			...(clientMessageId !== undefined ? { clientMessageId } : {}),
+-		},
+-	);
+-}
+-
+->>>>>>> rebuild/pr-18668
+ /**
+  * Skill branch of the `prompt` command: resolves the invocation cheaply, then
+  * registers the slow dispatch with watchAndReportPromptResult and awaits
+@@ -364,14 +308,9 @@ export async function dispatchRpcSkillPrompt(input: {
+ 				streamingBehavior: input.streamingBehavior,
+ 				prebuilt: built,
+ 				onPromptAdmitted,
+-<<<<<<< HEAD
+ 				images: input.images,
++				clientMessageId: input.clientMessageId,
+ 			}),
+-=======
+-				input.images,
+-				input.clientMessageId,
+-			),
+->>>>>>> rebuild/pr-18668
+ 		results: input.results,
+ 		onError: input.onError,
+ 		extensionUserMessageTracker: input.extensionUserMessageTracker,
+diff --git a/packages/coding-agent/src/modes/rpc/rpc-types.ts b/packages/coding-agent/src/modes/rpc/rpc-types.ts
+index b8a25d523a276005dda39924886328b8bef1b346..45d74ce197b2fea510a105bdf74e245d28b13434 100644
+--- a/packages/coding-agent/src/modes/rpc/rpc-types.ts
++++ b/packages/coding-agent/src/modes/rpc/rpc-types.ts
+@@ -78,12 +78,9 @@ export type RpcCommand =
+ 
+ 	// State
+ 	| { id?: string; type: "get_state" }
+-<<<<<<< HEAD
+ 	| { id?: string; type: "get_skill_diagnostics" }
+ 	| { id?: string; type: "set_skill_startup_diagnostics"; enabled: boolean }
+-=======
+ 	| { id?: string; type: "get_client_message_status"; clientMessageIds: string[] }
+->>>>>>> rebuild/pr-18668
+ 	| { id?: string; type: "set_fast_mode"; enabled: boolean }
+ 	| { id?: string; type: "set_slow_mode"; enabled: boolean }
+ 	| {
+@@ -498,7 +495,6 @@ export type RpcResponse =
+ 
+ 	// State
+ 	| { id?: string; type: "response"; command: "get_state"; success: true; data: RpcSessionState }
+-<<<<<<< HEAD
+ 	| { id?: string; type: "response"; command: "get_skill_diagnostics"; success: true; data: SkillDiagnosticsSnapshot }
+ 	| {
+ 			id?: string;
+@@ -507,9 +503,7 @@ export type RpcResponse =
+ 			success: true;
+ 			data: SkillDiagnosticsSnapshot;
+ 	  }
+-=======
+ 	| { id?: string; type: "response"; command: "get_client_message_status"; success: true; data: ClientMessageStatus }
+->>>>>>> rebuild/pr-18668
+ 	| {
+ 			id?: string;
+ 			type: "response";
+diff --git a/packages/coding-agent/src/modes/rpc/wire/commands.ts b/packages/coding-agent/src/modes/rpc/wire/commands.ts
+index 30f987c71586dd13e88ee20337fc04c74f3ba417..4e3ac42e00cf707dceb9c7bbf9b2cfae0680ae83 100644
+--- a/packages/coding-agent/src/modes/rpc/wire/commands.ts
++++ b/packages/coding-agent/src/modes/rpc/wire/commands.ts
+@@ -103,7 +103,6 @@ export const rpcCommands: readonly RpcCommandSpec[] = [
+ 
+ 	{ name: "get_state", doc: "Snapshot the session state.", result: "SessionState" },
+ 	{
+-<<<<<<< HEAD
+ 		name: "get_skill_diagnostics",
+ 		doc: "Snapshot skill resolution; available even when startup notices are disabled.",
+ 		result: "SkillDiagnosticsSnapshot",
+@@ -113,14 +112,14 @@ export const rpcCommands: readonly RpcCommandSpec[] = [
+ 		doc: "Persist the skill startup-notice preference; returns the snapshot with the effective setting.",
+ 		params: { enabled: "boolean" },
+ 		result: "SkillDiagnosticsSnapshot",
+-=======
++	},
++	{
+ 		name: "get_client_message_status",
+ 		doc: "Read current correlated messages, queues and explicit resolutions without starting or waiting for a turn.",
+ 		params: {
+ 			clientMessageIds: doc("string[]", "Between 1 and 32 unique nonempty IDs, each at most 128 characters."),
+ 		},
+ 		result: "ClientMessageStatus",
+->>>>>>> rebuild/pr-18668
+ 	},
+ 	{
+ 		name: "set_fast_mode",
+diff --git a/packages/coding-agent/src/modes/rpc/wire/rpc-wire.generated.ts b/packages/coding-agent/src/modes/rpc/wire/rpc-wire.generated.ts
+index 38b479d48e285660d45c651faffcca3522697469..5b0b1ad45a0dfdc07b0c64dbf2204d9a00e8d4ab 100644
+--- a/packages/coding-agent/src/modes/rpc/wire/rpc-wire.generated.ts
++++ b/packages/coding-agent/src/modes/rpc/wire/rpc-wire.generated.ts
+@@ -1691,14 +1691,13 @@ export interface OpenSessionParams {
+ 	modelId?: string;
+ }
+ 
+-<<<<<<< HEAD
+ export interface SetSkillStartupDiagnosticsParams {
+ 	enabled: boolean;
+-=======
++}
++
+ export interface GetClientMessageStatusParams {
+ 	/** Between 1 and 32 unique nonempty IDs, each at most 128 characters. */
+ 	clientMessageIds: string[];
+->>>>>>> rebuild/pr-18668
+ }
+ 
+ export interface SetFastModeParams {
+@@ -2047,12 +2046,9 @@ export interface RpcWireCommands {
+ 	new_session: { params: NewSessionParams; result: CancellationResult };
+ 	open_session: { params: OpenSessionParams; result: OpenSessionResult };
+ 	get_state: { params: undefined; result: SessionState };
+-<<<<<<< HEAD
+ 	get_skill_diagnostics: { params: undefined; result: SkillDiagnosticsSnapshot };
+ 	set_skill_startup_diagnostics: { params: SetSkillStartupDiagnosticsParams; result: SkillDiagnosticsSnapshot };
+-=======
+ 	get_client_message_status: { params: GetClientMessageStatusParams; result: ClientMessageStatus };
+->>>>>>> rebuild/pr-18668
+ 	set_fast_mode: { params: SetFastModeParams; result: FastModeResult };
+ 	set_slow_mode: { params: SetSlowModeParams; result: SetSlowModeResult };
+ 	goal: { params: GoalParams; result: GoalResult };
+diff --git a/packages/coding-agent/src/modes/rpc/wire/rpc-wire.schema.json b/packages/coding-agent/src/modes/rpc/wire/rpc-wire.schema.json
+index e0c76b7285b6a3daac9eb032ca0e6c0be9c3f6b5..5d704a13ad6b0ff8fe2be72056dfa685f2be19be 100644
+--- a/packages/coding-agent/src/modes/rpc/wire/rpc-wire.schema.json
++++ b/packages/coding-agent/src/modes/rpc/wire/rpc-wire.schema.json
+@@ -142,7 +142,6 @@
+ 				"clientOmit": []
+ 			},
+ 			{
+-<<<<<<< HEAD
+ 				"name": "get_skill_diagnostics",
+ 				"doc": "Snapshot skill resolution; available even when startup notices are disabled.",
+ 				"params": null,
+@@ -158,12 +157,17 @@
+ 				"doc": "Persist the skill startup-notice preference; returns the snapshot with the effective setting.",
+ 				"params": "SetSkillStartupDiagnosticsParams",
+ 				"result": "SkillDiagnosticsSnapshot",
+-=======
++				"nullable": false,
++				"unwrap": null,
++				"timeoutMs": null,
++				"completion": null,
++				"clientOmit": []
++			},
++			{
+ 				"name": "get_client_message_status",
+ 				"doc": "Read current correlated messages, queues and explicit resolutions without starting or waiting for a turn.",
+ 				"params": "GetClientMessageStatusParams",
+ 				"result": "ClientMessageStatus",
+->>>>>>> rebuild/pr-18668
+ 				"nullable": false,
+ 				"unwrap": null,
+ 				"timeoutMs": null,
+@@ -6627,7 +6631,6 @@
+ 				"sessionDir"
+ 			]
+ 		},
+-<<<<<<< HEAD
+ 		"SetSkillStartupDiagnosticsParams": {
+ 			"type": "object",
+ 			"properties": {
+@@ -6637,7 +6640,8 @@
+ 			},
+ 			"required": [
+ 				"enabled"
+-=======
++			]
++		},
+ 		"GetClientMessageStatusParams": {
+ 			"type": "object",
+ 			"properties": {
+@@ -6651,7 +6655,6 @@
+ 			},
+ 			"required": [
+ 				"clientMessageIds"
+->>>>>>> rebuild/pr-18668
+ 			]
+ 		},
+ 		"SetFastModeParams": {
+diff --git a/packages/coding-agent/src/session/agent-session.ts b/packages/coding-agent/src/session/agent-session.ts
+index 0105983d192b80af658964dc56b27aaad200e71b..0a3cca81ce02057bc4bbfd41b2bd8bb8cdaad15d 100644
+--- a/packages/coding-agent/src/session/agent-session.ts
++++ b/packages/coding-agent/src/session/agent-session.ts
+@@ -8952,7 +8952,7 @@ export class AgentSession implements SettingsScope, AgentViewSession {
+ 	 */
+ 	async prompt(text: string, options?: PromptOptions): Promise<boolean> {
+ 		const claim = this.#reserveClientMessageId(options?.clientMessageId);
+-		return this.#admitSubmission(() => this.#prompt(text, options, claim));
++		return this.#admitSubmission(() => this.#prompt(text, options, undefined, claim));
+ 	}
+ 
+ 	/**
+@@ -9037,11 +9037,7 @@ export class AgentSession implements SettingsScope, AgentViewSession {
+ 		this.#toolChoiceQueue.removeByLabel("plan-mode-decision");
+ 	}
+ 
+-<<<<<<< HEAD
+-	async #prompt(text: string, options?: PromptOptions, holder?: HoldState): Promise<boolean> {
+-=======
+-	async #prompt(text: string, options?: PromptOptions, claim?: ClientMessageClaim): Promise<boolean> {
+->>>>>>> rebuild/pr-18668
++	async #prompt(text: string, options?: PromptOptions, holder?: HoldState, claim?: ClientMessageClaim): Promise<boolean> {
+ 		// Stamp the operator's submission instant before ANY async preprocessing —
+ 		// command execution, image normalization, vision-model description — so the
+ 		// prompt→yield delta includes the whole wait, whatever path the prompt takes.
+@@ -9068,15 +9064,9 @@ export class AgentSession implements SettingsScope, AgentViewSession {
+ 			// Locally handled commands and failed dispatches release that claim.
+ 			const release = await this.#maintenance.waitForMaintenanceCleanup();
+ 			const outcome: PromptDispatchOutcome = { sessionClaimed: false };
+-<<<<<<< HEAD
+-			if (!release) return await this.#dispatchPrompt(text, options, submittedAt, outcome, followUps, holder);
++			if (!release) return await this.#dispatchPrompt(text, options, submittedAt, outcome, followUps, holder, claim);
+ 			try {
+-				return await this.#dispatchPrompt(text, options, submittedAt, outcome, followUps, holder);
+-=======
+-			if (!release) return await this.#dispatchPrompt(text, options, submittedAt, outcome, followUps, claim);
+-			try {
+-				return await this.#dispatchPrompt(text, options, submittedAt, outcome, followUps, claim);
+->>>>>>> rebuild/pr-18668
++				return await this.#dispatchPrompt(text, options, submittedAt, outcome, followUps, holder, claim);
+ 			} finally {
+ 				release(outcome.sessionClaimed);
+ 			}
+@@ -9105,11 +9095,8 @@ export class AgentSession implements SettingsScope, AgentViewSession {
+ 		submittedAt: number,
+ 		outcome: PromptDispatchOutcome,
+ 		followUps: PromptFollowUps | undefined,
+-<<<<<<< HEAD
+ 		holder?: HoldState,
+-=======
+ 		claim: ClientMessageClaim | undefined,
+->>>>>>> rebuild/pr-18668
+ 	): Promise<boolean> {
+ 		const expandPromptTemplates = options?.expandPromptTemplates ?? true;
+ 		// Slash/custom-command handling below rewrites `text`; keep the original
+@@ -11377,12 +11364,8 @@ export class AgentSession implements SettingsScope, AgentViewSession {
+ 			return false;
+ 		}
+ 		if (deliverAs === "aside") {
+-<<<<<<< HEAD
+ 			if (await this.#sessionGenerationChanged(sessionGeneration)) return false;
+-=======
+-			if (await this.#sessionGenerationChanged(sessionGeneration)) return;
+ 			this.#admitClientMessageClaim(options?.clientMessage);
+->>>>>>> rebuild/pr-18668
+ 			// Non-interrupting: rides the same step-boundary aside poll as
+ 			// sendCustomMessage's streaming aside branch — not an agent-core queue
+ 			// entry, so no drain-retry latch and no idle-queue drain scheduling.
+diff --git a/packages/coding-agent/src/session/session-entries.ts b/packages/coding-agent/src/session/session-entries.ts
+index f52c77f12785da35ca5c245e2c6555fb4c58157f..c765e4e95cdd1d0427c55de7f9786a87042a5da8 100644
+--- a/packages/coding-agent/src/session/session-entries.ts
++++ b/packages/coding-agent/src/session/session-entries.ts
+@@ -113,13 +113,10 @@ export interface SessionEntryBase {
+ export interface SessionMessageEntry extends SessionEntryBase {
+ 	type: "message";
+ 	message: AgentMessage;
+-<<<<<<< HEAD
+ 	/** Cwd an assistant reply was written in; binds its bare `#N` refs to that repo after a resume. */
+ 	cwd?: string;
+-=======
+ 	/** Local client intent metadata; never included in provider context. */
+ 	clientMessageId?: string;
+->>>>>>> rebuild/pr-18668
+ }
+ 
+ /** Usage from a model call that does not belong in the conversation transcript. */
+diff --git a/packages/coding-agent/src/session/session-manager.ts b/packages/coding-agent/src/session/session-manager.ts
+index 4251b351f1837806420aa37c81dfa9b1236a9d82..93f3b9e7b78be118c3fa1e22342463a3f07c25b8 100644
+--- a/packages/coding-agent/src/session/session-manager.ts
++++ b/packages/coding-agent/src/session/session-manager.ts
+@@ -3590,14 +3590,9 @@ export class SessionManager {
+ 			| FileMentionMessage,
+ 		metadata?: { clientMessageId?: string },
+ 	): string {
+-<<<<<<< HEAD
+-		const entry: SessionMessageEntry = { type: "message", ...this.#freshEntryFields(), message };
+-		if (message.role === "assistant") entry.cwd = this.#cwd;
+-=======
+ 		const entry: SessionMessageEntry = { type: "message", ...this.#freshEntryFields(), message, ...metadata };
+-		// Correlated acceptance must survive reconnect even before the first assistant reply.
++		if (message.role === "assistant") entry.cwd = this.#cwd;
+ 		if (metadata?.clientMessageId !== undefined) this.#forceFileCreation = true;
+->>>>>>> rebuild/pr-18668
+ 		this.#recordEntry(entry);
+ 		return entry.id;
+ 	}
+diff --git a/sdk/go/omp-rpc/wire.go b/sdk/go/omp-rpc/wire.go
+index 769841296fb6f59ea2cf9a8a1b76c79ed894d9b9..7f9c3af56ad40af2eb3ff712d52ee3e4408244c8 100644
+--- a/sdk/go/omp-rpc/wire.go
++++ b/sdk/go/omp-rpc/wire.go
+@@ -8241,7 +8241,6 @@ func (c Commands) GetState(ctx context.Context) (SessionState, error) {
+ 	return out, err
+ }
+ 
+-<<<<<<< HEAD
+ // GetSkillDiagnostics sends "get_skill_diagnostics": Snapshot skill resolution; available even when startup notices are disabled.
+ func (c Commands) GetSkillDiagnostics(ctx context.Context) (SkillDiagnosticsSnapshot, error) {
+ 	var out SkillDiagnosticsSnapshot
+@@ -8258,7 +8257,9 @@ type SetSkillStartupDiagnosticsCommand struct {
+ func (c Commands) SetSkillStartupDiagnostics(ctx context.Context, p SetSkillStartupDiagnosticsCommand) (SkillDiagnosticsSnapshot, error) {
+ 	var out SkillDiagnosticsSnapshot
+ 	err := c.call(ctx, "set_skill_startup_diagnostics", p, 0, &out)
+-=======
++	return out, err
++}
++
+ // GetClientMessageStatusCommand holds the parameters of "get_client_message_status".
+ type GetClientMessageStatusCommand struct {
+ 	// Between 1 and 32 unique nonempty IDs, each at most 128 characters.
+@@ -8269,7 +8270,6 @@ type GetClientMessageStatusCommand struct {
+ func (c Commands) GetClientMessageStatus(ctx context.Context, p GetClientMessageStatusCommand) (ClientMessageStatus, error) {
+ 	var out ClientMessageStatus
+ 	err := c.call(ctx, "get_client_message_status", p, 0, &out)
+->>>>>>> rebuild/pr-18668
+ 	return out, err
+ }
+ 
+diff --git a/sdk/python/omp-rpc/src/omp_rpc/_wire.py b/sdk/python/omp-rpc/src/omp_rpc/_wire.py
+index 5d04bbcd506318b872177b76c858a463c48a4d80..31103d9d5ac0c5d868d5091659049a7d9fcb5b2d 100644
+--- a/sdk/python/omp-rpc/src/omp_rpc/_wire.py
++++ b/sdk/python/omp-rpc/src/omp_rpc/_wire.py
+@@ -3590,7 +3590,6 @@ class WireClient:
+         params: dict[str, object] = {}
+         return parse_session_state(self._command("get_state", params), "get_state")
+ 
+-<<<<<<< HEAD
+     def get_skill_diagnostics(self) -> SkillDiagnosticsSnapshot:
+         """Snapshot skill resolution; available even when startup notices are disabled."""
+         params: dict[str, object] = {}
+@@ -3601,13 +3600,12 @@ class WireClient:
+         params: dict[str, object] = {}
+         params["enabled"] = enabled
+         return parse_skill_diagnostics_snapshot(self._command("set_skill_startup_diagnostics", params), "set_skill_startup_diagnostics")
+-=======
++
+     def get_client_message_status(self, client_message_ids: Sequence[str]) -> ClientMessageStatus:
+         """Read current correlated messages, queues and explicit resolutions without starting or waiting for a turn."""
+         params: dict[str, object] = {}
+         params["clientMessageIds"] = list(client_message_ids)
+         return parse_client_message_status(self._command("get_client_message_status", params), "get_client_message_status")
+->>>>>>> rebuild/pr-18668
+ 
+     def set_fast_mode(self, enabled: bool) -> FastModeResult:
+         """Enable or disable fast mode for the session."""
+diff --git a/sdk/rust/omp-rpc/src/wire.rs b/sdk/rust/omp-rpc/src/wire.rs
+index 3b8c03e49d02e360bfd8bb8e65352ef099f6ffdf..d3e6cf4d3d4e21bb0d01a1e704fb5700c4cfe0b0 100644
+--- a/sdk/rust/omp-rpc/src/wire.rs
++++ b/sdk/rust/omp-rpc/src/wire.rs
+@@ -5458,15 +5458,15 @@ pub struct OpenSessionParams {
+ }
+ 
+ #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+-<<<<<<< HEAD
+ pub struct SetSkillStartupDiagnosticsParams {
+ 	pub enabled: bool,
+-=======
++}
++
++#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+ pub struct GetClientMessageStatusParams {
+ 	/// Between 1 and 32 unique nonempty IDs, each at most 128 characters.
+ 	#[serde(rename = "clientMessageIds")]
+ 	pub client_message_ids: Vec<String>,
+->>>>>>> rebuild/pr-18668
+ }
+ 
+ #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+@@ -6258,13 +6258,12 @@ fn default_queued_messages_state_live_steered() -> i64 {
+ 	serde_json::from_str("0").expect("valid wire default")
+ }
+ 
+-<<<<<<< HEAD
+ fn default_skill_diagnostic_duplicate_match() -> SkillDuplicateMatch {
+ 	serde_json::from_str("\"content\"").expect("valid wire default")
+-=======
++}
++
+ fn default_session_state_supports_client_message_ids() -> bool {
+ 	serde_json::from_str("false").expect("valid wire default")
+->>>>>>> rebuild/pr-18668
+ }
+ 
+ fn default_session_state_is_streaming() -> bool {
+@@ -6593,7 +6592,6 @@ impl Command for GetStateCommand {
+ 	}
+ }
+ 
+-<<<<<<< HEAD
+ /// Snapshot skill resolution; available even when startup notices are disabled.
+ #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+ pub struct GetSkillDiagnosticsCommand {}
+@@ -6621,7 +6619,9 @@ impl Command for SetSkillStartupDiagnosticsCommand {
+ 
+ 	fn decode(data: Option<Value>) -> Result<Self::Output, serde_json::Error> {
+ 		serde_json::from_value::<SkillDiagnosticsSnapshot>(data.unwrap_or_else(|| Value::Object(Map::new())))
+-=======
++	}
++}
++
+ /// Read current correlated messages, queues and explicit resolutions without starting or waiting for a turn.
+ #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+ pub struct GetClientMessageStatusCommand {
+@@ -6637,7 +6637,6 @@ impl Command for GetClientMessageStatusCommand {
+ 
+ 	fn decode(data: Option<Value>) -> Result<Self::Output, serde_json::Error> {
+ 		serde_json::from_value::<ClientMessageStatus>(data.unwrap_or_else(|| Value::Object(Map::new())))
+->>>>>>> rebuild/pr-18668
+ 	}
+ }
+ 

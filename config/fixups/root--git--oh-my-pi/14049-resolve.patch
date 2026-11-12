@@ -1,0 +1,20 @@
+diff --git a/docs/skills.md b/docs/skills.md
+index 35b29b5d0965fdf162174b0e716ee3712650b3d1..535c685386be12e8f264c84f4ad92ead57156889 100644
+--- a/docs/skills.md
++++ b/docs/skills.md
+@@ -55,13 +55,8 @@ Supported frontmatter fields on the skill type:
+ - `description?: string`
+ - `globs?: string[]`
+ - `alwaysApply?: boolean`
+-<<<<<<< HEAD
+-- `hide?: boolean`
+-- `disableModelInvocation?: boolean` (Agent Skills opt-out of model invocation; normalized from kebab-case `disable-model-invocation`). Like `hide` it excludes the skill from the system-prompt `<skills>` listing, but unlike a presentation-only `hide: true` it is sticky: per-role `unhideSkills` re-exposes `hide: true` skills yet never resurrects a `disableModelInvocation` opt-out (see `docs/task-agent-discovery.md`). Loader provenance is tracked on `Skill.modelInvocationDisabled`.
+-=======
+-- `hide?: boolean` (author-controlled model visibility; `true` keeps the skill loaded but omits it from the model prompt)
+-- `disableModelInvocation?: boolean` (Agent Skills equivalent of `hide`; normalized from kebab-case `disable-model-invocation`)
+->>>>>>> rebuild/pr-14049
++- `hide?: boolean` (author-controlled model visibility; `true` keeps the skill loaded but omits it from the model prompt; per-role `unhideSkills` can re-expose this presentation-only hide)
++- `disableModelInvocation?: boolean` (Agent Skills opt-out of model invocation; normalized from kebab-case `disable-model-invocation`). Like `hide` it excludes the skill from the system-prompt `<skills>` listing, but unlike presentation-only `hide: true` it is sticky: per-role `unhideSkills` re-exposes `hide: true` skills but never resurrects a `disableModelInvocation` opt-out (see `docs/task-agent-discovery.md`). Loader provenance is tracked on `Skill.modelInvocationDisabled`.
+ - additional keys are preserved as unknown metadata by conventional scanners
+ - `enabled: false` skips a skill in conventional scanners and Skillshare discovery
+ 

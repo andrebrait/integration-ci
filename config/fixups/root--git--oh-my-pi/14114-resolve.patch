@@ -1,0 +1,36 @@
+diff --git a/packages/coding-agent/CHANGELOG.md b/packages/coding-agent/CHANGELOG.md
+index 5e73dcf742070d47549097f01e9f72fcefab3338..0b0e894600a04ae4e77530a27dfd7e53ab135b7e 100644
+--- a/packages/coding-agent/CHANGELOG.md
++++ b/packages/coding-agent/CHANGELOG.md
+@@ -2,7 +2,6 @@
+ 
+ ## [Unreleased]
+ 
+-<<<<<<< ours
+ ### Changed
+ 
+ - Issue and PR references to other repositories are now written as `owner/repo#N` or full URLs, so bare `#N` only ever means the current repository ([#13078](https://github.com/can1357/oh-my-pi/pull/13078) by [@andrebrait](https://github.com/andrebrait))
+@@ -16,11 +15,9 @@
+ ### Fixed
+ 
+ - Fixed an unknown `skill://` name listing hidden skills as available to the model ([#14049](https://github.com/can1357/oh-my-pi/pull/14049) by [@andrebrait](https://github.com/andrebrait)).
+-=======
+ ### Added
+ 
+ - Added an Auto Thinking Source setting (`providers.autoThinkingSource`): `vendor` makes the `auto` thinking level use the model vendor's default effort (for example `medium` on Claude Opus 5.5 and GPT-5.6, `high` on other Claude models) instead of classifying each prompt ([#14114](https://github.com/can1357/oh-my-pi/pull/14114) by [@andrebrait](https://github.com/andrebrait))
+->>>>>>> theirs
+ 
+ ## [18.19.0] - 2026-11-12
+ 
+@@ -142,11 +139,7 @@
+ 
+ ### Added
+ 
+-<<<<<<< ours
+ - Added custom OpenAI-compatible provider management and comment-preserving `models.yml` editing ([#13874](https://github.com/can1357/oh-my-pi/pull/13874) by [@andrebrait](https://github.com/andrebrait)).
+-=======
+-- Added an Auto Thinking Source setting (`providers.autoThinkingSource`): `vendor` makes the `auto` thinking level use the model vendor's default effort (for example `medium` on Claude Opus 5.5 and GPT-5.6, `high` on other Claude models) instead of classifying each prompt ([#14114](https://github.com/can1357/oh-my-pi/pull/14114) by [@andrebrait](https://github.com/andrebrait))
+->>>>>>> theirs
+ 
+ ## [18.18.7] - 2026-11-10
+ 

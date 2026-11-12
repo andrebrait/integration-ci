@@ -1,0 +1,13 @@
+diff --git a/packages/coding-agent/src/session/agent-session.ts b/packages/coding-agent/src/session/agent-session.ts
+index a88e0f0cb59d6b3e0a4cae587ad3138e89b5e0cb..af0f46546c2666f95ec63aede1c059f3b2b43445 100644
+--- a/packages/coding-agent/src/session/agent-session.ts
++++ b/packages/coding-agent/src/session/agent-session.ts
+@@ -2591,8 +2591,6 @@ export class AgentSession implements SettingsScope, AgentViewSession {
+ 			restoreBaseSystemPromptBeforeMemoryPromotion: prompt => {
+ 				this.#tools.restoreBaseSystemPrompt(prompt, this.#tools.systemPromptSources);
+ 				this.agent.setSystemPrompt(prompt);
+-			}
+-				this.agent.setSystemPrompt(prompt);
+ 			},
+ 			refreshBaseSystemPrompt: () => this.#tools.refreshBaseSystemPrompt(),
+ 			replaceMemoryTools: tools => this.#tools.replaceMemoryTools(tools),

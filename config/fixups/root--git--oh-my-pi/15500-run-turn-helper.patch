@@ -1,0 +1,20 @@
+diff --git a/packages/coding-agent/src/task/executor.ts b/packages/coding-agent/src/task/executor.ts
+index 7813cdbe11e937127cf49d5f16016e4850ee1e8f..6d45a51fb348e17f342da1111d13f6e3ad182592 100644
+--- a/packages/coding-agent/src/task/executor.ts
++++ b/packages/coding-agent/src/task/executor.ts
+@@ -2924,6 +2924,15 @@ async function driveSessionToResult(
+ 	 * (monitor signal) and genuine failures propagate.
+ 	 */
+ 	const runTurn = async (send: () => Promise<void>): Promise<void> => {
++		try {
++			await send();
++			await awaitAbortable(session.waitForIdle());
++		} catch (err) {
++			const recoverableStop = monitor.budgetStopRequested() || monitor.yieldTurnStopRequested();
++			if (!recoverableStop || abortSignal.aborted || endsRun(err)) throw err;
++		}
++	};
++
+ 	try {
+ 		if (steps && !restore) recordStepsSent(session.sessionManager, steps.sent, steps.prompts);
+ 		monitor.holdForSteps(steps !== undefined && steps.sent < steps.prompts.length);
