@@ -37,6 +37,7 @@ integration commit, the upstream base, and the carried pull requests.
 | --- | --- |
 | [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi) | `omp` (or `omp.exe`) for `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64` or `win32-arm64`; each smoke-tested on its own platform. macOS builds are ad-hoc signed, not notarized: after a browser download, run `xattr -d com.apple.quarantine omp` once |
 | [`graphify`](https://github.com/andrebrait/integration-ci/releases/tag/graphify) | wheel and sdist of `graphifyy` |
+| [`superpowers`](https://github.com/andrebrait/integration-ci/releases/tag/superpowers) | `npm pack` of `superpowers` |
 | [`ompweb`](https://github.com/andrebrait/integration-ci/releases/tag/ompweb) | `npm pack` of `@kahme247/ompweb` plus its `package-lock.json`; pending retirement once omp-web's GUI pre-release channel deploys this host |
 
 Builds run carried pull requests, including some by other authors. Only green
