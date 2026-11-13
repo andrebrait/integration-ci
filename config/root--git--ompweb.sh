@@ -10,7 +10,8 @@ CI_TARGET=linux-x64
 BASE=upstream/main
 UPSTREAM_MAIN_REF=upstream/main
 # runner/ (PR #460) has its own deps; lib/hosts/omp-socket.test.mjs imports runner/src/channel.ts.
-BUILD_CMD='npm ci --no-audit --no-fund && { [ ! -d runner ] || npx bun install --cwd runner --frozen-lockfile; } && npm run build && npm run lint && npm test'
+# use-omp-build.ts fetches the fork's omp packages the runner pins into runner/vendor/ (older commits lack it).
+BUILD_CMD='npm ci --no-audit --no-fund && { [ ! -f runner/scripts/use-omp-build.ts ] || npx bun runner/scripts/use-omp-build.ts; } && { [ ! -d runner ] || npx bun install --cwd runner --frozen-lockfile; } && npm run build && npm run lint && npm test'
 # Single omp-web on purpose: nginx routes UI and /api/ to 30185. A second
 # omp-web on the same ~/.omp/agent (the retired ompweb-pwa) spawns competing
 # omp children and omp forks the session file. ompweb-deploy preflights the
