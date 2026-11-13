@@ -1,6 +1,6 @@
 # integration-flow config for /root/git/ompweb
-FORK_REMOTE=upstream  # andrebrait/ompweb is gone: PR heads and deploy/integration live on kahme247/ompweb
-UPSTREAM=kahme247/ompweb
+FORK_REMOTE=upstream  # PR heads and deploy/integration live on ompweb-dev/ompweb
+UPSTREAM=ompweb-dev/ompweb
 BRANCH=deploy/integration
 CI_REPO=andrebrait/integration-ci
 CI_WORKFLOW=ompweb.yml
