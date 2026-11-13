@@ -13,12 +13,23 @@ export GIT_COMMITTER_NAME=IntegrationTest GIT_COMMITTER_EMAIL=test@example.inval
 mkdir -p "$HOME/.config/integration" "$TMP/bin"
 export PATH="$TMP/bin:$PATH"
 export ROWS="$TMP/rows"
-export VIEWS="$TMP/views"
+export VIEWS="$TMP/views" FORK_GIT="$TMP/fork.git" DISPATCHED="$TMP/dispatched"
 : > "$VIEWS"
 cat > "$TMP/bin/gh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "$*" == api\ user* ]] && { [[ -z "${GH_NO_USER:-}" ]] || exit 2; echo fixture-user; exit 0; }
+# A fork branch head comes from the bare fork repo; the slug must be FORK_REMOTE's path.
+if [[ "$1" == api && "$2" == repos/*/branches/* ]]; then
+	[[ "$2" == "repos/${FORK_GIT%.git}/branches/"* ]] || exit 2
+	git --git-dir="$FORK_GIT" rev-parse --verify -q "refs/heads/${2#*/branches/}"
+	exit
+fi
+if [[ "$*" == workflow\ run* ]]; then
+	printf '%s\n' "$*" >> "$DISPATCHED"
+	echo "fixture: no dispatch" >&2
+	exit 1
+fi
 if [[ "$*" == pr\ list* ]]; then
 	cat "$ROWS"
 	exit 0
@@ -301,6 +312,45 @@ fi
 [[ "$(git show refs/rebased/newer:newer.txt)" == newer ]]
 ! git rev-parse -q --verify refs/rebased/broken >/dev/null
 printf 'PASS: CI rebase keeps going past a failed PR and replays only each PR'"'"'s own commits\n'
+
+# heads: one row per carried PR with the fork's sha, after SKIP_PRS and closed EXTRA_PRS drop out.
+printf "FORK_REMOTE=fork\nUPSTREAM=fixture/repo\nEXTRA_PRS='fork/repo#1=local-draft 10=second 11=left'\n" > "$TMP/ci-config/heads--repo.sh"
+printf '20\tnewer\tmain\n2\tbroken\tmain\n1\tfirst\tmain\n' > "$ROWS"
+printf 'fork/repo\t1\tOPEN\tFork draft\tmain\nfixture/repo\t10\tOPEN\tParent change\tmain\nfixture/repo\t11\tCLOSED\tLeft change\tmain\n' > "$VIEWS"
+HEADS="$(SKIP_PRS=20 INTEGRATION_SLUG=heads--repo INTEGRATION_CONFIG_DIR="$TMP/ci-config" INTEGRATION_CACHE_DIR="$TMP/ci-cache" \
+	INTEGRATION_PR_AUTHOR=fixture-user bash "$DRIVER" heads "$TMP/repo" 2>/dev/null)"
+fork_sha() { git --git-dir="$FORK_GIT" rev-parse "refs/heads/$1"; }
+[[ "$HEADS" == "$(printf '1\tfirst\t%s\n2\tbroken\t%s\n10\tsecond\t%s\nfork/repo#1\tlocal-draft\t%s' \
+	"$(fork_sha first)" "$(fork_sha broken)" "$(fork_sha second)" "$(fork_sha local-draft)")" ]]
+printf 'PASS: heads lists carried PRs with fork shas, honouring SKIP_PRS and EXTRA_PRS\n'
+
+# CI_CONFIG_REF: build compares the config with that ref (default origin/main) before dispatching.
+git init -q --bare "$TMP/cfg.git"
+git init -q -b main "$TMP/cfg"
+mkdir -p "$TMP/cfg/config" "$TMP/cfg/.github/workflows"
+printf 'FORK_REMOTE=fork\nUPSTREAM=fixture/repo\nCI_REPO=fixture/ci\nCI_WORKFLOW=ci.yml\n' > "$TMP/cfg/config/cfg--repo.sh"
+: > "$TMP/cfg/.github/workflows/ci.yml"
+git -C "$TMP/cfg" add -A
+git -C "$TMP/cfg" commit -qm main
+git -C "$TMP/cfg" remote add origin "$TMP/cfg.git"
+git -C "$TMP/cfg" push -q origin main
+git -C "$TMP/cfg" checkout -qb fork-ci
+printf '# fork-ci\n' >> "$TMP/cfg/config/cfg--repo.sh"
+git -C "$TMP/cfg" commit -qam fork-ci
+git -C "$TMP/cfg" push -q origin fork-ci
+cfg_build() { INTEGRATION_SLUG=cfg--repo INTEGRATION_CONFIG_DIR="$TMP/cfg/config" INTEGRATION_CACHE_DIR="$TMP/ci-cache" \
+	bash "$DRIVER" build-sha "$BASE" "$TMP/repo" 2>&1; }
+: > "$DISPATCHED"
+OUT="$(CI_CONFIG_REF=origin/fork-ci cfg_build)" && { echo "FAIL: fixture dispatch reported success" >&2; exit 1; }
+[[ "$OUT" == *"dispatching ci.yml in fixture/ci failed"* && -s "$DISPATCHED" ]]
+: > "$DISPATCHED"
+OUT="$(cfg_build)" && { echo "FAIL: build against a config differing from origin/main succeeded" >&2; exit 1; }
+[[ "$OUT" == *"differs from fixture/ci origin/main"* && ! -s "$DISPATCHED" ]]
+printf '# unpushed\n' >> "$TMP/cfg/config/cfg--repo.sh"
+git -C "$TMP/cfg" commit -qam unpushed
+OUT="$(CI_CONFIG_REF=origin/fork-ci cfg_build)" && { echo "FAIL: build against a stale CI_CONFIG_REF succeeded" >&2; exit 1; }
+[[ "$OUT" == *"differs from fixture/ci origin/fork-ci"* && ! -s "$DISPATCHED" ]]
+printf 'PASS: build checks the config against CI_CONFIG_REF and refuses a stale one\n'
 
 # Changelog driver: a rebase across an upstream release and archive keeps the PR's
 # entry in [Unreleased] and leaves released sections exactly as upstream has them.

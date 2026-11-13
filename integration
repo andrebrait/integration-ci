@@ -15,6 +15,10 @@
 #                               # $CACHE/ci-build-<sha>, never published and never
 #                               # touching $BRANCH or build-dir: staging builds. The
 #                               # workflow must take a boolean `publish` input.
+#   integration heads [repo-dir=$PWD]
+#                               # gh only, no fetch or build: "<pr>\t<fork-branch>\t<sha>"
+#                               # per PR `prs`/`rebuild` would carry (SKIP_PRS and EXTRA_PRS
+#                               # applied), sha as the fork has it on GitHub, sorted by PR.
 #
 # Per-repo config: ~/.config/integration/<slug>.sh  (slug = repo path, "/" -> "--")
 #   FORK_REMOTE=origin          # remote name of the fork (push target); default origin
@@ -59,6 +63,9 @@
 #                               # the run's artifacts become BUILD_DIR. The head is first
 #                               # pushed to FORK_REMOTE as $BRANCH-next so CI can fetch it.
 #                               # A commit already published in CI_REPO is reused, not rebuilt.
+#   CI_CONFIG_REF=origin/main   # optional: the <remote>/<branch> CI reads this config and
+#                               # CI_WORKFLOW from; build refuses while the config or .github
+#                               # here differs from it. Default origin/main.
 #   CI_TARGET=linux-x64         # optional, for a multi-platform workflow: the target whose
 #                               # binary becomes BUILD_DIR (the host's own platform).
 #   DEPLOY_CMD='...'            # runs with BUILD_DIR, DEPLOY_SHA, DEPLOY_BASE exported
@@ -77,7 +84,7 @@
 set -euo pipefail
 
 CMD="${1:-}"
-[ -n "$CMD" ] || { sed -n '2,20p' "$0"; exit 2; }
+[ -n "$CMD" ] || { sed -n '2,24p' "$0"; exit 2; }
 shift || true
 # build-sha takes the commit first: integration build-sha <sha> [repo-dir]
 if [ "$CMD" = build-sha ]; then
@@ -181,6 +188,10 @@ rebase_in_progress() { # dir -> 0/1
 # so a concurrent fetch can make it name another branch's commit.
 remote_sha() { # remote branch -> sha
 	git -C "$REPO_DIR" ls-remote --exit-code "$1" "refs/heads/$2" | cut -f1
+}
+
+fork_slug() { # -> owner/repo of FORK_REMOTE
+	git -C "$REPO_DIR" remote get-url "$FORK_REMOTE" | sed -E 's#^.*github\.com[:/]##; s#\.git$##'
 }
 
 # A PR branch's head: INTEGRATION_HEAD_PREFIX/<branch> when that local ref exists
@@ -511,13 +522,14 @@ cmd_rebuild() {
 ci_build() { # sha scratch-branch label [gh-workflow-run-args...]
 	local sha="$1" ref="$2" label="$3" slug out id url dir cfg
 	shift 3
-	slug="$(git -C "$REPO_DIR" remote get-url "$FORK_REMOTE" | sed -E 's#^.*github\.com[:/]##; s#\.git$##')"
-	# CI sources this config and runs the workflow from CI_REPO's origin/main,
+	slug="$(fork_slug)"
+	# CI sources this config and runs the workflow from CI_CONFIG_REF in CI_REPO,
 	# not from this checkout: an unpushed TEST_CMD edit would silently not run.
+	local cfg_ref="${CI_CONFIG_REF:-origin/main}"
 	cfg="$(git -C "$(dirname "$(readlink -f "$CONF")")" rev-parse --show-toplevel)"
-	git -C "$cfg" fetch -q origin main
-	if ! git -C "$cfg" diff --quiet origin/main -- "$(readlink -f "$CONF")" .github; then
-		echo "integration: $CONF or $cfg/.github differs from $CI_REPO origin/main; commit and push $cfg first (CI reads origin/main)" >&2
+	git -C "$cfg" fetch -q "${cfg_ref%%/*}" "+refs/heads/${cfg_ref#*/}:refs/remotes/$cfg_ref"
+	if ! git -C "$cfg" diff --quiet "$cfg_ref" -- "$(readlink -f "$CONF")" .github; then
+		echo "integration: $CONF or $cfg/.github differs from $CI_REPO $cfg_ref; commit and push $cfg first (CI reads $cfg_ref)" >&2
 		exit 1
 	fi
 	dir="$CACHE/ci-build-$sha"
@@ -929,12 +941,30 @@ cmd_rebase() {
 	[ "$failed" -eq 0 ] || { echo "integration: $failed PR(s) did not rebase onto $base; see $CACHE/rebase.tsv" >&2; exit 1; }
 }
 
+# The carried PRs' heads as the fork has them on GitHub: the round's change detection
+# compares these with the heads its last release squashed.
+cmd_heads() {
+	local rows slug out num branch sha
+	rows="$(pr_rows base)"
+	slug="$(fork_slug)"
+	out="$(while IFS=$'\t' read -r num branch _; do
+		[ -n "$num" ] || continue
+		sha="$(gh api "repos/$slug/branches/$branch" --jq .commit.sha)" && [ -n "$sha" ] || {
+			echo "integration: no head for $(pr_label "$num") branch $branch in $slug" >&2
+			exit 1
+		}
+		printf '%s\t%s\t%s\n' "$num" "$branch" "$sha"
+	done <<< "$rows")"
+	[ -z "$out" ] || sort -t $'\t' -k1,1V <<< "$out"
+}
+
 case "$CMD" in
 rebuild) cmd_rebuild ;;
 build)  cmd_build ;;
 build-sha) cmd_build_sha ;;
 deploy) cmd_deploy ;;
 push)   cmd_push ;;
+heads)  cmd_heads ;;
 prs)    cmd_prs ;;
 rebase) cmd_rebase ;;
 # PRs are refreshed onto their upstream base first: rebuild squashes exactly what
