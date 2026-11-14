@@ -1,0 +1,65 @@
+#!/bin/sh
+# omp-fork-update — install the newest ompweb-dev/oh-my-pi release of omp.
+#
+# Supports macOS arm64 and Linux x64/arm64. Uses gh when installed, else curl on
+# the public GitHub API. Verifies the binary against the release's SHA256SUMS.txt
+# and replaces ${OMP_INSTALL:-$HOME/.local/bin/omp} atomically.
+set -eu
+
+repo=ompweb-dev/oh-my-pi
+dest=${OMP_INSTALL:-$HOME/.local/bin/omp}
+
+die() { echo "omp-fork-update: $*" >&2; exit 1; }
+
+case "$(uname -s)-$(uname -m)" in
+	Darwin-arm64) plat=darwin-arm64 ;;
+	Linux-x86_64 | Linux-amd64) plat=linux-x64 ;;
+	Linux-aarch64 | Linux-arm64) plat=linux-arm64 ;;
+	*) die "unsupported platform: $(uname -s) $(uname -m)" ;;
+esac
+asset=omp-$plat
+
+if command -v gh >/dev/null 2>&1; then
+	tag=$(gh release view -R "$repo" --json tagName -q .tagName)
+else
+	tag=$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" |
+		sed -n 's/^ *"tag_name": *"\([^"]*\)".*/\1/p')
+fi
+[ -n "$tag" ] || die "could not find the latest release of $repo"
+want=omp/${tag#v}
+
+old=none
+if [ -x "$dest" ]; then old=$("$dest" --version 2>/dev/null || echo unknown); fi
+if [ "$old" = "$want" ]; then
+	echo "omp is current: $old ($dest)"
+	exit 0
+fi
+
+mkdir -p "$(dirname "$dest")"
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/omp-fork-update.XXXXXX")
+staged=$dest.new.$$
+trap 'rm -rf "$tmp" "$staged"' EXIT
+if command -v gh >/dev/null 2>&1; then
+	gh release download "$tag" -R "$repo" -p "$asset" -p SHA256SUMS.txt -D "$tmp"
+else
+	for f in "$asset" SHA256SUMS.txt; do
+		curl -fsSL -o "$tmp/$f" "https://github.com/$repo/releases/download/$tag/$f"
+	done
+fi
+
+expected=$(awk -v f="$asset" '$2 == f || $2 == "*" f { print $1 }' "$tmp/SHA256SUMS.txt")
+[ -n "$expected" ] || die "$asset is missing from SHA256SUMS.txt of $tag"
+if command -v sha256sum >/dev/null 2>&1; then
+	actual=$(sha256sum "$tmp/$asset" | cut -d' ' -f1)
+else
+	actual=$(shasum -a 256 "$tmp/$asset" | cut -d' ' -f1)
+fi
+[ "$actual" = "$expected" ] || die "checksum mismatch for $asset: got $actual, want $expected"
+
+# Stage beside the target so the final mv is an atomic rename on one filesystem.
+cp "$tmp/$asset" "$staged"
+chmod 755 "$staged"
+if [ "$plat" = darwin-arm64 ]; then xattr -d com.apple.quarantine "$staged" 2>/dev/null || true; fi
+mv -f "$staged" "$dest"
+
+echo "omp: $old -> $("$dest" --version) ($dest)"

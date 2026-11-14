@@ -40,6 +40,10 @@ integration commit, the upstream base, and the carried pull requests.
 | [`superpowers`](https://github.com/andrebrait/integration-ci/releases/tag/superpowers) | `npm pack` of `superpowers` |
 | [`ompweb`](https://github.com/andrebrait/integration-ci/releases/tag/ompweb) | `npm pack` of `@kahme247/ompweb` plus its `package-lock.json`; pending retirement once omp-web's GUI pre-release channel deploys this host |
 
+To install or update omp from the newest `ompweb-dev/oh-my-pi` release on macOS
+arm64 or Linux x64/arm64, run `scripts/omp-fork-update`. It verifies the binary
+against the release's `SHA256SUMS.txt` and replaces `${OMP_INSTALL:-~/.local/bin/omp}` atomically.
+
 Builds run carried pull requests, including some by other authors. Only green
 builds seed the build cache, but a passing pull request's code ships in the
 build like any other change.
