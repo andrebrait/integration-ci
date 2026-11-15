@@ -14,7 +14,7 @@ inputs:
 runs:
    using: composite
    steps:
-      - uses: ./.github/actions/bun-install
+      - uses: ./ci/.github/actions/bun-install
       - shell: bash
         env:
            TAG: ${{ inputs.tag }}

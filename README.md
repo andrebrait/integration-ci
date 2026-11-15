@@ -21,6 +21,10 @@ out automatically.
 - `pr-watcher/`: a service that polls pull requests and sends each one's
   activity to the omp session mapped to it. See [pr-watcher](#pr-watcher).
 
+Repair artifacts include all fixup changes against the checked-out commit,
+including staged changes and deletions. Run `bash scripts/collect-round.test.sh`
+to verify that a publishing checkout can replay the complete repair.
+
 ## Downloads
 
 Each project has one release named after it (for example

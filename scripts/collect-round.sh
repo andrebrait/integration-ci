@@ -23,4 +23,4 @@ if [ "${2:-}" = integration ]; then
 	jq -n --arg tag "$tag" --arg sha "$(git rev-parse integration)" '{tag: $tag, sha: $sha}' > "$out/round.json"
 fi
 git -C ci add -N config/fixups
-git -C ci diff -- config/fixups > "$out/fixups.patch"
+git -C ci diff HEAD -- config/fixups > "$out/fixups.patch"
