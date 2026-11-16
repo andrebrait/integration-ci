@@ -1,0 +1,12 @@
+diff --git a/packages/coding-agent/test/skills.test.ts b/packages/coding-agent/test/skills.test.ts
+index d096dd077d3d5be82e5f1ee6214d21a8b3535850..571ae9574da2558adbc501a4d113dff939541cac 100644
+--- a/packages/coding-agent/test/skills.test.ts
++++ b/packages/coding-agent/test/skills.test.ts
+@@ -18,7 +18,6 @@ import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls/route
+ import { buildSystemPrompt } from "@oh-my-pi/pi-coding-agent/system-prompt";
+ import { parseInternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls/parse";
+ import { SkillProtocolHandler } from "@oh-my-pi/pi-coding-agent/internal-urls/skill-protocol";
+-import { buildSystemPrompt } from "@oh-my-pi/pi-coding-agent/system-prompt";
+ import {
+ 	getSkillStorePath,
+ 	STORE_INTEGRITY_FILE,
