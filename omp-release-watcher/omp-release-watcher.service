@@ -1,0 +1,17 @@
+[Unit]
+Description=Dispatch OMP integration when upstream publishes a release
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=HOME=/root
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=OMP_RELEASE_WATCH_STATE=/var/lib/omp-release-watcher/tag
+ExecStart=/usr/local/bin/node /root/git/integration-ci/omp-release-watcher/release-watcher.mjs
+User=root
+StateDirectory=omp-release-watcher
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only

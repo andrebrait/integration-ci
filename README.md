@@ -87,6 +87,55 @@ ln -sfn /root/git/integration-ci/config ~/.config/integration
 ln -sfn /root/git/integration-ci/integration ~/.local/bin/integration
 ```
 
+## OMP release watcher
+
+GitHub documents scheduled Actions as best-effort: delayed jobs can be dropped
+during load. `omp-release-watcher` gives `ai-dev` a second trigger. Every five
+minutes it reads `can1357/oh-my-pi`'s latest stable release through `gh` and
+dispatches `omp-auto.yml` on `ompweb-dev/oh-my-pi` when the tag changes.
+
+Delivery is at-least-once: a crash after GitHub accepts a dispatch but before
+the state write causes a retry. Workflow-level concurrency serializes all OMP
+integration rounds, so two accepted dispatches cannot build concurrently; the
+queued run rechecks released inputs after the first finishes.
+
+The watcher persists a tag only after GitHub accepts the dispatch. API or
+dispatch failures leave state unchanged and retry at the next timer. The
+systemd timer uses `Persistent=true`, so it also checks once after downtime.
+
+The service requires Node.js 24 or newer at `/usr/local/bin/node` and root's
+`gh` authentication with Actions read/write access to `ompweb-dev/oh-my-pi`.
+Verify that identity before enabling it:
+
+```sh
+gh auth status
+gh workflow view omp-auto.yml --repo ompweb-dev/oh-my-pi
+```
+
+Install:
+
+```sh
+systemctl link \
+  /root/git/integration-ci/omp-release-watcher/omp-release-watcher.service \
+  /root/git/integration-ci/omp-release-watcher/omp-release-watcher.timer
+systemctl enable --now omp-release-watcher.timer
+systemctl start omp-release-watcher.service
+systemctl list-timers omp-release-watcher.timer
+journalctl -u omp-release-watcher.service
+```
+
+Defaults can be overridden with `OMP_RELEASE_WATCH_UPSTREAM`,
+`OMP_RELEASE_WATCH_FORK`, `OMP_RELEASE_WATCH_WORKFLOW`,
+`OMP_RELEASE_WATCH_REF`, `OMP_RELEASE_WATCH_STATE`, or
+`OMP_RELEASE_WATCH_GH`. The installed service stores its last dispatched tag
+in `/var/lib/omp-release-watcher/tag`.
+
+Tests: `node --test 'omp-release-watcher/*.test.mjs'`.
+
+Sources:
+[GitHub scheduled workflow limitations](https://docs.github.com/en/actions/reference/events-that-trigger-workflows#schedule);
+[`Persistent=` timer behavior](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html#Persistent=).
+
 ## pr-watcher
 
 `pr-watcher/pr-watcher.mjs` polls GitHub pull requests through `gh` and
