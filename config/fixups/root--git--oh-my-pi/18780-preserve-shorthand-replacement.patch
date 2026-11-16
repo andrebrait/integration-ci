@@ -1,0 +1,22 @@
+diff --git a/packages/coding-agent/src/config/settings.ts b/packages/coding-agent/src/config/settings.ts
+index f0a268c58295a9168cb1a17daf68265605c5c48b..2fba82d83ab70f0cc2aecdd072f27540ad8ac08d 100644
+--- a/packages/coding-agent/src/config/settings.ts
++++ b/packages/coding-agent/src/config/settings.ts
+@@ -4463,12 +4463,16 @@ export class Settings {
+ 			const key = setting.stringShorthandKey;
+ 			if (key === undefined) continue;
+ 			const upper = getByPath(layer, setting.segments);
++			const lower = getByPath(base, setting.segments);
++			if (upper === undefined && typeof lower === "string") {
++				setByPathCopying(merged, setting.segments, { [SHORTHAND_REPLACES_KEY]: true, [key]: lower });
++				continue;
++			}
+ 			if (!isRecord(upper)) continue;
+ 			if (Object.hasOwn(upper, SHORTHAND_REPLACES_KEY)) {
+ 				setByPathCopying(merged, setting.segments, upper);
+ 				continue;
+ 			}
+-			const lower = getByPath(base, setting.segments);
+ 			if (typeof lower !== "string") continue;
+ 			setByPathCopying(merged, setting.segments, { [SHORTHAND_REPLACES_KEY]: true, [key]: lower, ...upper });
+ 		}
