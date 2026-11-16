@@ -1,0 +1,13 @@
+diff --git a/packages/coding-agent/src/task/executor.ts b/packages/coding-agent/src/task/executor.ts
+index 471fb1528706ccbcd829475daeb7133afc462b0a..79ec2941a25c751e51a0cd9724a9f49009138e79 100644
+--- a/packages/coding-agent/src/task/executor.ts
++++ b/packages/coding-agent/src/task/executor.ts
+@@ -3479,7 +3479,7 @@ async function finalizeRunResult(args: FinalizeRunArgs): Promise<SingleResult> {
+ 	) {
+ 		rawOutput = `[cancelled after ${progress.requests} req, ${progress.tokens} tok — last activity: "${formatSalvageSnippet(salvageText)}"]`;
+ 	}
+-	const lastYield = yieldItems.at(-1);
++	const lastYield = yieldItems?.at(-1);
+ 	const yieldAbortReason = lastYield?.status === "aborted" ? lastYield.error || "Subagent aborted task" : undefined;
+ 	const { abortedViaYield, hasYield } = finalized;
+ 	const { content: truncatedOutput, truncated } = truncateTail(rawOutput, {
