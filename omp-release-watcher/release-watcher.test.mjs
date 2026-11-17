@@ -108,15 +108,13 @@ else process.exitCode = 2;
     [
       "workflow",
       "run",
-      "omp-auto.yml",
+      "omp-sync.yml",
       "--repo",
       "ompweb-dev/oh-my-pi",
       "--ref",
-      "fork-ci",
+      "oml",
       "-f",
       "tag=v18.20.3",
-      "-f",
-      "force=false",
     ],
   ]);
 });

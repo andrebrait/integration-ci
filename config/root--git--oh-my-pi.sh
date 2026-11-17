@@ -1,63 +1,8 @@
-# integration-flow config for /root/git/oh-my-pi
-FORK_REMOTE=origin
-UPSTREAM=can1357/oh-my-pi
-# PRs built on another open PR's branch (CHILD:PARENT[,PARENT2...]). See STACKED_PRS in the integration script.
-# Session-host P3 stack: 16222 (goal) on 16221 (tree) on 16220 (deltas) on 14468 (idle) + 15685 (reconnect) on 14166.
-# Mnemopi stack: 15896 (polyphonic default) on 15729 (dense candidate limit) on 15730 (embedding cache).
-STACKED_PRS='14458:14148 14468:14166 15685:14166 16220:14468,15685 16221:16220 16222:16221 15729:15730 15896:15729'
-# Third-party PRs carried from our fork (rebased copy). See EXTRA_PRS in the integration script.
-# 7851: szavadsky's per-role skill visibility.
-# 18646: pasquale95's whole HTML form over RPC (`set_form_dialog`, `method: "form"`), for omp-web's form dialog.
-# ompweb-dev/oh-my-pi#62: tool-caller provenance for ompweb's per-model-role tool policy.
-EXTRA_PRS='7851=carry/pr-7851 18646=carry/pr-18646 ompweb-dev/oh-my-pi#62=feat/tool-caller-provenance'
-BRANCH=integration
-# build runs BUILD_CMD/TEST_CMD on GitHub Actions (.github/workflows/omp.yml sources this file).
-CI_REPO=andrebrait/integration-ci
-CI_WORKFLOW=omp.yml
-# omp.yml builds every platform; this host deploys the linux-x64 binary.
-CI_TARGET=linux-x64
-BASE=upstream/main
-# upstream merges changelogs with merge=union, which drags rebased entries into released sections.
-CHANGELOG_GLOB='packages/*/CHANGELOG.md'
-BUILD_CMD='bun install --frozen-lockfile && bun run build:native && bun check && bun --cwd=packages/coding-agent run build && packages/coding-agent/dist/omp --smoke-test'
-FORMAT_CMD='bun install --frozen-lockfile >/dev/null && bun run gen:compat && bun run fmt:tools'
-TEST_CMD='PI_CODING_AGENT_DIR="$(mktemp -d /tmp/omp-integration-agent-XXXXXX)" bun test packages/agent/test/agent-loop.test.ts packages/coding-agent/test/extensions-runner.test.ts packages/coding-agent/test/agent-session-queued-steer-delivery.test.ts packages/coding-agent/test/agent-session-queued-policy.test.ts packages/coding-agent/test/agent-session-new-session-queued-steer.test.ts packages/coding-agent/test/rpc-queued-message.test.ts packages/coding-agent/test/skills.test.ts packages/coding-agent/test/skill-protocol-customdirs.test.ts packages/coding-agent/test/agent-session-video-attachment.test.ts packages/coding-agent/test/rpc-cancel-subagent.test.ts packages/coding-agent/test/rpc-steer-subagent.test.ts packages/coding-agent/test/task/structured-subagent.test.ts packages/coding-agent/test/task/wire-schema.test.ts packages/coding-agent/test/eval/agent-bridge-policy.test.ts'
-# Keep admission ordering, detached drafts, hook chaining, and host RPC contracts covered across PR squashes.
-TEST_CMD+=' packages/coding-agent/test/rpc-native-input.test.ts packages/coding-agent/test/rpc-input-frame.test.ts packages/coding-agent/test/rpc-prompt-result.test.ts packages/coding-agent/test/rpc-skill-command.test.ts packages/coding-agent/test/agent-session-prompt-dispatch-race.test.ts packages/coding-agent/test/agent-session-skill-image.test.ts packages/coding-agent/test/input-controller-input-events.test.ts packages/coding-agent/test/slash-commands/detached-draft.test.ts packages/coding-agent/test/slash-commands/mode-attachments.test.ts packages/coding-agent/test/hook-tool-wrapper-input.test.ts packages/coding-agent/test/ttsr-bridged-passive-context.test.ts packages/coding-agent/test/skillshare/discovery.test.ts packages/coding-agent/test/agent-session-queue-update-events.test.ts packages/coding-agent/test/agent-session-message-pipeline.test.ts packages/coding-agent/test/agent-session-extension-command-admission.test.ts packages/coding-agent/test/rpc-compatible-primitives.test.ts packages/coding-agent/test/rpc-extension-ui.test.ts packages/coding-agent/test/modes/controllers/event-controller-message-start.test.ts packages/coding-agent/test/modes/utils/render-initial-messages.test.ts packages/tui/test/tool-execution-memoization.test.ts'
-TEST_CMD+=' packages/coding-agent/test/prefix-binding-tool-roster.test.ts packages/coding-agent/test/task/speculative-launch.test.ts packages/coding-agent/test/task/task-preflight.test.ts packages/coding-agent/test/sdk-active-selector.test.ts'
-# PR #14365 (retry.preferSlowMode) contract tests.
-TEST_CMD+=' packages/coding-agent/test/agent-session-retry-fallback.test.ts packages/coding-agent/test/sdk-model-selection.test.ts'
-TEST_CMD+=' packages/catalog/test/compat-compile.test.ts'
-# Carried PR #7851 (per-role skill visibility) and per-call task/eval model (#12229, merged upstream) contract tests.
-TEST_CMD+=' packages/coding-agent/test/discovery/agent-fields.test.ts packages/coding-agent/test/task/agents.test.ts packages/coding-agent/test/task/structured-subagent.test.ts packages/coding-agent/test/eval/agent-bridge.test.ts packages/coding-agent/test/task/task-schema.test.ts packages/coding-agent/test/task/task-spawn.test.ts'
-# Preserve rebased task revive/stop, skill visibility, native search, and memory worker/cache invariants.
-TEST_CMD+=' packages/coding-agent/test/task/persisted-revive.test.ts packages/coding-agent/test/task/executor-irc-wake-subagent-stop.test.ts packages/coding-agent/test/task/executor-subagent-stop.test.ts packages/coding-agent/test/task/restore-revive.test.ts packages/coding-agent/test/thread/memory-bridge.test.ts packages/coding-agent/test/cli/skill-list.test.ts packages/tui/test/tools-native-search.test.ts packages/coding-agent/test/memory-tools.test.ts packages/mnemopi/test/embedding-cache.test.ts'
-# Keep ompweb's caller-role policy separate from model fallback routing across advisors and revival.
-TEST_CMD+=' packages/coding-agent/test/tool-caller-provenance.test.ts packages/coding-agent/test/advisor-tool-call-loop-guard.test.ts packages/coding-agent/test/issue-2750-subagent-runtime-fallback.test.ts'
-# Preserve atomic provider/settings writes and skill diagnostic refresh invariants.
-TEST_CMD+=' packages/coding-agent/test/config/custom-provider.test.ts packages/coding-agent/test/launch/broker-metadata-writes.test.ts packages/coding-agent/test/settings-manager.test.ts packages/coding-agent/test/interactive-mode-skill-diagnostics.test.ts packages/coding-agent/test/skill-diagnostics-report.test.ts'
-# Keep template expansion and dropped-message errors compatible across queued delivery paths.
-TEST_CMD+=' packages/coding-agent/test/agent-session-send-user-message-expand.test.ts'
-# Own process: upstream's issue-985 test calls Settings.init() without resetting a global
-# instance left by agent-session-message-pipeline.test.ts, so it fails when co-run (upstream too).
-TEST_CMD+=' && PI_CODING_AGENT_DIR="$(mktemp -d /tmp/omp-integration-agent-XXXXXX)" bun test packages/coding-agent/test/issue-985-subagent-auth-fallback.test.ts'
-DEPLOY_CMD='set -e
-rel="/opt/omp-patched/releases/${DEPLOY_SHA:0:10}"
-mkdir -p "$rel"
-# Copy beside, then rename over: redeploying the running sha would hit "Text file busy",
-# and a rename leaves running processes on the old inode.
-cp "$BUILD_DIR/omp" "$rel/omp.new"
-mv -f "$rel/omp.new" "$rel/omp"
-sha256sum "$rel/omp" | cut -d" " -f1 > "$rel/omp.sha256"
-{
-	echo "branch: integration"
-	echo "sha: $DEPLOY_SHA"
-	echo "upstream base: $DEPLOY_BASE"
-	echo "built: $(date -u +%FT%TZ)"
-	echo "sha256(omp): $(cat "$rel/omp.sha256")"
-	echo "verify: bun check, downstream-patch tests, omp --smoke-test"
-} > "$rel/RELEASE.md"
-ln -sfn "$rel" /opt/omp-patched/current
-echo "current -> $rel"'
-# Carried PR #18646 (RPC form dialog) contract tests.
-TEST_CMD+=' && PI_CODING_AGENT_DIR="$(mktemp -d /tmp/omp-integration-agent-XXXXXX)" bun test packages/coding-agent/test/rpc-extension-ui.test.ts packages/tui/test/html-form.test.ts'
+# Retired 2026-11-17.
+# oh-my-pi no longer uses this script. Upstream release tags merge into
+# ompweb-dev/oh-my-pi branch oml (.github/workflows/omp-sync.yml). A push to
+# oml builds and releases. New patches are ordinary commits on oml. Closing
+# an upstream PR does not remove a patch; that takes an explicit revert on oml.
+# The integration script still serves other projects. Do not point it at oh-my-pi.
+echo "integration: oh-my-pi flow is retired; merge onto ompweb-dev/oh-my-pi branch oml" >&2
+exit 1

@@ -1,3 +1,7 @@
+> Superseded 2026-11-17. oh-my-pi no longer rebases or squashes. Upstream
+> release tags merge into `ompweb-dev/oh-my-pi` branch `oml`. This document
+> is historical.
+
 # omp auto-integration: scheduled rebuilds, in-CI repair, fork releases, omp-web channel
 
 ## Goal

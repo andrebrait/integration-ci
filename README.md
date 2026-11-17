@@ -5,6 +5,15 @@ branch is the upstream base plus one squashed commit per open pull request,
 recreated from scratch on every rebuild so merged or closed pull requests drop
 out automatically.
 
+oh-my-pi is retired from this flow. Upstream release tags merge into
+`ompweb-dev/oh-my-pi` branch `oml` (`.github/workflows/omp-sync.yml`); a push
+to `oml` builds and publishes the fork release. New patches are ordinary
+commits on `oml`. Closing an upstream pull request does not remove a patch
+already on `oml`; removing one takes an explicit revert commit there.
+`config/root--git--oh-my-pi.sh` exits rather than rebuild. The script below
+still serves other projects.
+
+
 ## Contents
 
 - `integration`: the driver script. Run `integration` with no arguments for
@@ -27,19 +36,18 @@ to verify that a publishing checkout can replay the complete repair.
 
 ## Downloads
 
-Each project has one release named after it (for example
-[`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi)).
-Every green build adds an asset named
+Each project has one release named after it. The oh-my-pi release in this
+repo is no longer updated; install omp from `ompweb-dev/oh-my-pi` releases
+(`v<version>-int.<stamp>.g<sha7>`). Every green build of a project that still
+uses this flow adds an asset named
 `<project>-<UTC timestamp>-<commit>.zip`, for example
 `ompweb-20261110T234907Z-e43f567871.zip`, and only the newest 10 are kept.
-oh-my-pi builds every platform, so it publishes one zip per platform instead:
-`oh-my-pi-<UTC timestamp>-<commit>-<platform>.zip`. A commit is built and
-published only once. Each zip holds the build and a `RELEASE.md` naming the
-integration commit, the upstream base, and the carried pull requests.
+Each zip holds the build and a `RELEASE.md` naming the integration commit,
+the upstream base, and the carried pull requests.
 
 | Release | Zip contents |
 | --- | --- |
-| [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi) | `omp` (or `omp.exe`) for `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64` or `win32-arm64`; each smoke-tested on its own platform. macOS builds are ad-hoc signed, not notarized: after a browser download, run `xattr -d com.apple.quarantine omp` once |
+| [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi) | Retired. Fork releases on `ompweb-dev/oh-my-pi` replaced this row. |
 | [`ompweb`](https://github.com/andrebrait/integration-ci/releases/tag/ompweb) | `npm pack` of `@kahme247/ompweb` plus its `package-lock.json`; pending retirement once omp-web's GUI pre-release channel deploys this host |
 
 To install or update omp from the newest `ompweb-dev/oh-my-pi` release on macOS
@@ -90,12 +98,14 @@ ln -sfn /root/git/integration-ci/integration ~/.local/bin/integration
 GitHub documents scheduled Actions as best-effort: delayed jobs can be dropped
 during load. `omp-release-watcher` gives `ai-dev` a second trigger. Every five
 minutes it reads `can1357/oh-my-pi`'s latest stable release through `gh` and
-dispatches `omp-auto.yml` on `ompweb-dev/oh-my-pi` when the tag changes.
+dispatches `omp-sync.yml` on `ompweb-dev/oh-my-pi` ref `oml` when the tag changes.
 
 Delivery is at-least-once: a crash after GitHub accepts a dispatch but before
-the state write causes a retry. Workflow-level concurrency serializes all OMP
-integration rounds, so two accepted dispatches cannot build concurrently; the
-queued run rechecks released inputs after the first finishes.
+the state write causes a retry. `omp-sync.yml` merges that tag into `oml` if
+it is not already there; the push build publishes the fork release. Do not
+restart this service onto those defaults until `oml` is the repository default
+branch: `workflow_dispatch` is registered only there. Until then a dispatch
+fails and the tag is not saved, so the next tick retries.
 
 The watcher persists a tag only after GitHub accepts the dispatch. API or
 dispatch failures leave state unchanged and retry at the next timer. The
@@ -107,7 +117,7 @@ Verify that identity before enabling it:
 
 ```sh
 gh auth status
-gh workflow view omp-auto.yml --repo ompweb-dev/oh-my-pi
+gh workflow view omp-sync.yml --repo ompweb-dev/oh-my-pi
 ```
 
 Install:

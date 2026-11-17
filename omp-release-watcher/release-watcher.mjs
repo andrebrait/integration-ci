@@ -40,8 +40,8 @@ export async function main(env = process.env) {
   const gh = env.OMP_RELEASE_WATCH_GH || "gh";
   const upstream = env.OMP_RELEASE_WATCH_UPSTREAM || "can1357/oh-my-pi";
   const fork = env.OMP_RELEASE_WATCH_FORK || "ompweb-dev/oh-my-pi";
-  const workflow = env.OMP_RELEASE_WATCH_WORKFLOW || "omp-auto.yml";
-  const ref = env.OMP_RELEASE_WATCH_REF || "fork-ci";
+  const workflow = env.OMP_RELEASE_WATCH_WORKFLOW || "omp-sync.yml";
+  const ref = env.OMP_RELEASE_WATCH_REF || "oml";
   const state =
     env.OMP_RELEASE_WATCH_STATE ||
     join(env.XDG_STATE_HOME || join(env.HOME || homedir(), ".local", "state"), "omp-release-watcher", "tag");
@@ -63,8 +63,6 @@ export async function main(env = process.env) {
         ref,
         "-f",
         `tag=${tag}`,
-        "-f",
-        "force=false",
       ]);
     },
     save: (tag) => writeState(state, tag),
