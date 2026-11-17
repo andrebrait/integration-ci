@@ -13,7 +13,7 @@ out automatically.
 - `config/<slug>.sh`: per-project configuration, where the slug is the
   project's checkout path with `/` replaced by `--`
   (for example `root--git--oh-my-pi.sh`). Helper scripts called from a
-  project's hooks, such as the graphify pin scripts, live beside them.
+  project's hooks live beside them.
 - `.github/workflows/<project>.yml`: GitHub Actions workflows that build and
   test a dispatched integration commit. When a project's configuration sets
   `CI_REPO` and `CI_WORKFLOW`, `integration build` dispatches the workflow,
@@ -31,7 +31,7 @@ Each project has one release named after it (for example
 [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi)).
 Every green build adds an asset named
 `<project>-<UTC timestamp>-<commit>.zip`, for example
-`graphify-20261110T234907Z-e43f567871.zip`, and only the newest 10 are kept.
+`ompweb-20261110T234907Z-e43f567871.zip`, and only the newest 10 are kept.
 oh-my-pi builds every platform, so it publishes one zip per platform instead:
 `oh-my-pi-<UTC timestamp>-<commit>-<platform>.zip`. A commit is built and
 published only once. Each zip holds the build and a `RELEASE.md` naming the
@@ -40,7 +40,6 @@ integration commit, the upstream base, and the carried pull requests.
 | Release | Zip contents |
 | --- | --- |
 | [`oh-my-pi`](https://github.com/andrebrait/integration-ci/releases/tag/oh-my-pi) | `omp` (or `omp.exe`) for `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64` or `win32-arm64`; each smoke-tested on its own platform. macOS builds are ad-hoc signed, not notarized: after a browser download, run `xattr -d com.apple.quarantine omp` once |
-| [`graphify`](https://github.com/andrebrait/integration-ci/releases/tag/graphify) | wheel and sdist of `graphifyy` |
 | [`ompweb`](https://github.com/andrebrait/integration-ci/releases/tag/ompweb) | `npm pack` of `@kahme247/ompweb` plus its `package-lock.json`; pending retirement once omp-web's GUI pre-release channel deploys this host |
 
 To install or update omp from the newest `ompweb-dev/oh-my-pi` release on macOS
