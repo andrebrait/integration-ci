@@ -21,4 +21,6 @@ TEST_CMD='uv run --frozen --extra leiden --extra gdscript pytest tests/test_back
 DEPLOY_CMD='uv tool install --force --reinstall "graphifyy[leiden,gdscript] @ git+https://github.com/pfBlockerNG/graphify@${DEPLOY_SHA}"'
 # pfBlockerNG takes no pin: its ensure-graphify.sh installs a PyPI floor only under GitHub
 # Actions and keeps a direct-URL build at or above the floor everywhere else.
-POST_CMD='ver="$(git -C "$REPO_DIR" show "$DEPLOY_SHA:pyproject.toml" | sed -n '\''s/^version = "\(.*\)"/\1/p'\'')" && for p in agents claude pi codex; do graphify install --platform $p; done && omp plugin install "$(graphify pi guard path)" && ~/.config/integration/leveret-graphify-pin.sh "$DEPLOY_SHA" "$ver" && ~/.config/integration/zero-gx-graphify-pin.sh "$DEPLOY_SHA" "$ver" && ~/.local/bin/harness-autocommit'
+# `install --platform claude` also writes a skill registration to ~/.claude/CLAUDE.md. Delete it:
+# a CLAUDE.md there hides AGENTS.md files from Claude Code, and the rules live in ~/AGENTS.md.
+POST_CMD='ver="$(git -C "$REPO_DIR" show "$DEPLOY_SHA:pyproject.toml" | sed -n '\''s/^version = "\(.*\)"/\1/p'\'')" && for p in agents claude pi codex; do graphify install --platform $p; done && rm -f ~/.claude/CLAUDE.md && omp plugin install "$(graphify pi guard path)" && ~/.config/integration/leveret-graphify-pin.sh "$DEPLOY_SHA" "$ver" && ~/.config/integration/zero-gx-graphify-pin.sh "$DEPLOY_SHA" "$ver" && ~/.local/bin/harness-autocommit'
